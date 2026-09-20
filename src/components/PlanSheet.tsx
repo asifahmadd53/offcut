@@ -58,46 +58,47 @@ export function PlanSheet({ sheet, blocks, highlightIndex }: PlanSheetProps) {
           />
         </div>
 
-        {sheet.isNew ? (
-          <div className="min-w-0 w-full lg:w-64 lg:flex-none text-[13px]">
-            <div className="mb-3 flex flex-col gap-1.5">
-              <Legend swatch="cut" label="Cut pieces" />
-              <Legend swatch="free" label="Saved leftover" />
-            </div>
-            <p className="mb-0.5 text-muted-foreground">Sheet used</p>
-            <p className="mb-2.5 font-sans text-[22px] font-semibold">{pct}%</p>
-            <p className="mb-0.5 text-muted-foreground">Leftovers</p>
-            {sheet.newLeftovers.length === 0 ? (
-              <p>None</p>
-            ) : (
-              sheet.newLeftovers.map((l) => (
-                <p key={l.id}>
-                  {l.letter}: {fmtLeft(l.w, l.h)}
-                </p>
-              ))
-            )}
+        <div className="min-w-0 w-full lg:w-64 lg:flex-none text-[13px]">
+          {!sheet.isNew && (
+            <>
+              <p className="mb-0.5 text-muted-foreground">Use this leftover</p>
+              <p className="mb-0.5 text-[16px] font-semibold">
+                {sheet.usedLetter} · {fmtLeft(sheet.region.w, sheet.region.h)}
+              </p>
+              <p className="mb-3 text-muted-foreground">
+                From the sheet cut on {dayMonth(sheet.sheetDate)}
+              </p>
+            </>
+          )}
+
+          <div className="mb-3 flex flex-col gap-1.5">
+            {hasEarlier && <Legend swatch="old" label="Already cut" />}
+            <Legend swatch="cut" label={sheet.isNew ? 'Cut pieces' : 'New piece'} />
+            <Legend swatch="free" label={sheet.isNew ? 'Saved leftover' : 'Free after this cut'} />
           </div>
-        ) : (
-          <div className="min-w-0 w-full lg:w-64 lg:flex-none text-[13px]">
-            <p className="mb-0.5 text-muted-foreground">Use this leftover</p>
-            <p className="mb-0.5 text-[16px] font-semibold">
-              {sheet.usedLetter} · {fmtLeft(sheet.region.w, sheet.region.h)}
-            </p>
-            <p className="mb-3 text-muted-foreground">
-              From the sheet cut on {dayMonth(sheet.sheetDate)}
-            </p>
-            <div className="flex flex-col gap-1.5">
-              {hasEarlier && <Legend swatch="old" label="Already cut" />}
-              <Legend swatch="cut" label="New piece" />
-              <Legend swatch="free" label="Free after this cut" />
-            </div>
-            {anyTurned && (
-              <span className="mt-2 inline-block rounded-full bg-muted px-2.5 py-0.5 text-[12px] text-muted-foreground">
-                Turned to fit
-              </span>
-            )}
-          </div>
-        )}
+          {anyTurned && (
+            <span className="mb-3 mt-[-6px] inline-block rounded-full bg-muted px-2.5 py-0.5 text-[12px] text-muted-foreground">
+              Turned to fit
+            </span>
+          )}
+
+          <p className="mb-0.5 text-muted-foreground">Sheet used</p>
+          <p className="mb-0.5 font-sans text-[22px] font-semibold">{pct}%</p>
+          <p className="mb-3 text-muted-foreground">
+            {Math.round(usedArea).toLocaleString()} of {Math.round(regionArea).toLocaleString()} sq in
+          </p>
+
+          <p className="mb-0.5 text-muted-foreground">Saved to stock</p>
+          {sheet.newLeftovers.length === 0 ? (
+            <p>None</p>
+          ) : (
+            sheet.newLeftovers.map((l) => (
+              <p key={l.id}>
+                {l.letter}: {fmtLeft(l.w, l.h)}
+              </p>
+            ))
+          )}
+        </div>
       </div>
 
       <div className="mb-3.5 flex flex-wrap gap-2">
