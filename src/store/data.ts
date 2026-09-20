@@ -24,6 +24,8 @@ interface DataState {
   online: boolean
   /** Some records on this phone have not reached the server yet. */
   pending: boolean
+  /** Count of cut and resolution documents not yet confirmed by the server. */
+  pendingCount: number
   /** The data shown comes from the phone, not confirmed by the server. */
   fromCache: boolean
   lastSyncedAt: number | null
@@ -33,14 +35,15 @@ interface DataState {
 
 let unsubs: Array<() => void> = []
 const meta = {
-  cuts: { pending: false, fromCache: true },
-  resolutions: { pending: false, fromCache: true },
+  cuts: { pending: false, fromCache: true, count: 0 },
+  resolutions: { pending: false, fromCache: true, count: 0 },
   settings: { pending: false, fromCache: true },
 }
 
 export const useData = create<DataState>((set, get) => {
   const refreshSync = () => {
     const pending = meta.cuts.pending || meta.resolutions.pending || meta.settings.pending
+    const pendingCount = meta.cuts.count + meta.resolutions.count
     const fromCache = meta.cuts.fromCache
     const online = typeof navigator === 'undefined' ? true : navigator.onLine
     const synced = online && !fromCache && !pending
@@ -53,7 +56,7 @@ export const useData = create<DataState>((set, get) => {
         /* storage blocked, ignore */
       }
     }
-    set({ pending, fromCache, online, lastSyncedAt })
+    set({ pending, pendingCount, fromCache, online, lastSyncedAt })
   }
 
   const onOnlineChange = () => refreshSync()
@@ -65,6 +68,7 @@ export const useData = create<DataState>((set, get) => {
     ready: false,
     online: typeof navigator === 'undefined' ? true : navigator.onLine,
     pending: false,
+    pendingCount: 0,
     fromCache: true,
     lastSyncedAt: readLastSync(),
 
@@ -88,6 +92,7 @@ export const useData = create<DataState>((set, get) => {
           meta.cuts = {
             pending: snap.metadata.hasPendingWrites,
             fromCache: snap.metadata.fromCache,
+            count: snap.docs.filter((d) => d.metadata.hasPendingWrites).length,
           }
           set({
             cuts,
@@ -111,6 +116,7 @@ export const useData = create<DataState>((set, get) => {
           meta.resolutions = {
             pending: snap.metadata.hasPendingWrites,
             fromCache: snap.metadata.fromCache,
+            count: snap.docs.filter((d) => d.metadata.hasPendingWrites).length,
           }
           set({ resolutions, derived: deriveStock(get().cuts, resolutions) })
           refreshSync()
@@ -151,10 +157,10 @@ export const useData = create<DataState>((set, get) => {
     stop: () => {
       unsubs.forEach((fn) => fn())
       unsubs = []
-      meta.cuts = { pending: false, fromCache: true }
-      meta.resolutions = { pending: false, fromCache: true }
+      meta.cuts = { pending: false, fromCache: true, count: 0 }
+      meta.resolutions = { pending: false, fromCache: true, count: 0 }
       meta.settings = { pending: false, fromCache: true }
-      set({ cuts: [], resolutions: {}, derived: EMPTY_DERIVED, ready: false })
+      set({ cuts: [], resolutions: {}, derived: EMPTY_DERIVED, ready: false, pendingCount: 0 })
     },
   }
 })
