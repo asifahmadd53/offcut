@@ -1,71 +1,148 @@
 import { describe, expect, it } from 'vitest'
-import { badgedLeftovers, chooseFreeLabel } from './labelChoice'
+import { chooseBlockLabel, everyBlockHasASize, sizesList } from './labelChoice'
 import type { Block } from './sheetView'
 
-describe('chooseFreeLabel', () => {
-  it('wide block (pw >= 110): one line with letter, size and "free"', () => {
-    const choice = chooseFreeLabel('A', 19, 48, 120, 60)
-    expect(choice.kind).toBe('wide')
-    expect(choice.dims).toBe('19 × 48')
-    expect(choice.showFree).toBe(true)
+const piece = (w: number, h: number, n: number, rotated = false): Block => ({
+  kind: 'cut',
+  x: 0,
+  y: 0,
+  w,
+  h,
+  label: `${w} × ${h}`,
+  n,
+  rotated,
+})
+const leftover = (w: number, h: number, letter: string, x = 0, y = 0): Block => ({
+  kind: 'free',
+  x,
+  y,
+  w,
+  h,
+  letter,
+})
+
+describe('chooseBlockLabel', () => {
+  it('a wide leftover gets one combined line', () => {
+    const label = chooseBlockLabel(leftover(19, 48, 'A'), 0, 6) // pw = 19*6 = 114
+    expect(label.kind).toBe('inline')
+    expect(label.line1).toBe('A · 19 × 48')
+    expect(label.line2).toBeUndefined()
   })
 
-  it('medium block (pw >= 40 and ph >= 34): stacked letter then size, no "free"', () => {
-    // The reported bug: block B (18 x 69) at a narrow scale should still show its size.
-    const choice = chooseFreeLabel('B', 18, 69, 45, 40)
-    expect(choice.kind).toBe('stacked')
-    expect(choice.dims).toBe('18 × 69')
+  it('a medium leftover gets letter then size on two lines', () => {
+    // 18 x 69 at scale 2: pw = 36, ph = 138 — room for two lines, not wide enough for one.
+    const label = chooseBlockLabel(leftover(18, 69, 'B'), 0, 2)
+    expect(label.kind).toBe('inline')
+    expect(label.line1).toBe('B')
+    expect(label.line2).toBe('18 × 69')
   })
 
-  it('tall and narrow block (ph >= 3 * pw, pw >= 18): vertical label', () => {
-    const choice = chooseFreeLabel('B', 18, 69, 20, 70)
-    expect(choice.kind).toBe('vertical')
-    expect(choice.dims).toBe('18 × 69')
+  it('a tiny leftover falls back to a letter badge, never a bare letter with no size anywhere', () => {
+    const block = leftover(1.6, 18, 'C2')
+    const label = chooseBlockLabel(block, 0, 3) // pw = 4.8, too small for any inline text
+    expect(label.kind).toBe('badge')
+    expect(label.line1).toBe('C2')
+    // The size still appears somewhere: the Sizes list always covers every block.
+    const list = sizesList([block])
+    expect(list[0].size).toBe('1.6 × 18')
   })
 
-  it('tiny block (pw < 18 or ph < 16): falls back to a badge', () => {
-    const choice = chooseFreeLabel('C', 2, 77, 10, 12)
-    expect(choice.kind).toBe('badge')
-    expect(choice.dims).toBe('2 × 77')
+  it('a piece shows its typed size then "Piece N" when there is room', () => {
+    const label = chooseBlockLabel(piece(23, 77, 1), 0, 3) // pw = 69, ph = 231
+    expect(label.kind).toBe('inline')
+    expect(label.line1).toBe('23 × 77')
+    expect(label.line2).toBe('Piece 1')
   })
 
-  it('a letter is never shown with no size attached, for any block size', () => {
-    for (const [pw, ph] of [
-      [120, 60],
-      [45, 40],
-      [20, 70],
-      [10, 12],
-    ]) {
-      const choice = chooseFreeLabel('A', 19, 48, pw, ph)
-      expect(choice.dims).toBeTruthy()
-    }
+  it('a turned piece shows "Turned" as the second line instead of "Piece N"', () => {
+    const label = chooseBlockLabel(piece(22, 19, 1, true), 0, 3)
+    expect(label.kind).toBe('inline')
+    expect(label.line2).toBe('Turned')
+  })
+
+  it('a tiny piece falls back to a number badge', () => {
+    const block = piece(3.1, 42.4, 5)
+    const label = chooseBlockLabel(block, 0, 2) // pw = 6.2
+    expect(label.kind).toBe('badge')
+    expect(label.line1).toBe('5')
+  })
+
+  it('an earlier-cut block shows only its size, no other words', () => {
+    const block: Block = { kind: 'earlier', x: 0, y: 0, w: 20, h: 30 }
+    const label = chooseBlockLabel(block, 0, 3) // pw = 60, ph = 90
+    expect(label.kind).toBe('inline')
+    expect(label.line1).toBe('20 × 30')
+    expect(label.line2).toBeUndefined()
+  })
+
+  it('a waste block shows only its size, same as earlier cuts', () => {
+    const block: Block = { kind: 'waste', x: 0, y: 0, w: 12, h: 15 } // pw=36, ph=45
+    const label = chooseBlockLabel(block, 0, 3)
+    expect(label.kind).toBe('inline')
+    expect(label.line1).toBe('12 × 15')
   })
 })
 
-describe('badgedLeftovers', () => {
-  const block = (kind: Block['kind'], w: number, h: number, letter: string): Block => ({
-    kind,
-    x: 0,
-    y: 0,
-    w,
-    h,
-    letter,
+describe('sizesList', () => {
+  it('groups identical blocks into one row with all their badges', () => {
+    const blocks: Block[] = [leftover(1.6, 18, 'C2', 40, 0), leftover(1.6, 18, 'C3', 40, 18)]
+    const list = sizesList(blocks)
+    expect(list).toHaveLength(1)
+    expect(list[0]).toMatchObject({ badges: ['C2', 'C3'], size: '1.6 × 18', count: 2 })
   })
 
-  it('lists only free/freeNew/focus blocks that fall back to a badge at the given scale', () => {
+  it('sorts rows top to bottom then left to right', () => {
+    const p = piece(6, 6, 1)
+    p.y = 10
+    const blocks: Block[] = [leftover(5, 5, 'B', 10, 0), leftover(4, 4, 'A', 0, 0), p]
+    const list = sizesList(blocks)
+    expect(list.map((e) => e.badges[0] ?? e.name)).toEqual(['A', 'B', '1'])
+  })
+
+  it('marks a turned piece with a Turned status', () => {
+    const list = sizesList([piece(22, 19, 1, true)])
+    expect(list[0].status).toBe('Turned')
+  })
+
+  it('lists every block, including waste and earlier-cut rectangles', () => {
     const blocks: Block[] = [
-      block('free', 19, 48, 'A'), // wide at scale 1 (pw=19*1=19 -> actually check below)
-      block('free', 2, 77, 'B'), // tiny either way
-      block('cut', 23, 77, undefined as unknown as string),
+      piece(23, 77, 1),
+      leftover(19, 48, 'A'),
+      { kind: 'earlier', x: 0, y: 80, w: 10, h: 10 },
+      { kind: 'waste', x: 40, y: 0, w: 2, h: 5 },
     ]
-    // scale chosen so A is wide (pw>=110) and B stays tiny (pw<18)
-    const result = badgedLeftovers(blocks, 6)
-    expect(result).toEqual([{ letter: 'B', dims: '2 × 77' }])
+    const list = sizesList(blocks)
+    const total = list.reduce((sum, e) => sum + e.count, 0)
+    expect(total).toBe(4)
+    expect(list.some((e) => e.group === 'earlier' && e.name === 'Already cut')).toBe(true)
+    expect(list.some((e) => e.group === 'earlier' && e.name === 'Waste')).toBe(true)
+  })
+})
+
+describe('everyBlockHasASize', () => {
+  it('holds for a mix of large and tiny blocks of every kind', () => {
+    // At least 12 blocks, including tiny strips like 1.6 x 18 and 3.1 x 42.4, per spec.
+    const blocks: Block[] = [
+      piece(23, 77, 1),
+      piece(23, 77, 2, true),
+      piece(3.1, 42.4, 3),
+      piece(1.6, 18, 4),
+      leftover(19, 48, 'A', 0, 77),
+      leftover(2, 77, 'B', 46, 0),
+      leftover(1.6, 18, 'C2', 40, 0),
+      leftover(1.6, 18, 'C3', 40, 18),
+      leftover(1.6, 18, 'C4', 40, 36),
+      { kind: 'earlier', x: 0, y: 90, w: 5, h: 5 } as Block,
+      { kind: 'earlier', x: 5, y: 90, w: 3.1, h: 42.4 } as Block,
+      { kind: 'waste', x: 8, y: 90, w: 1.6, h: 18 } as Block,
+    ]
+    expect(blocks.length).toBeGreaterThanOrEqual(12)
+    expect(everyBlockHasASize(blocks, 3)).toBe(true)
+    expect(everyBlockHasASize(blocks, 0.3)).toBe(true) // tiny on-screen scale too
   })
 
-  it('returns an empty list when nothing falls back to a badge', () => {
-    const blocks: Block[] = [block('free', 19, 48, 'A')]
-    const result = badgedLeftovers(blocks, 6)
-    expect(result).toHaveLength(0)
+  it('holds even when every single block is far too small for any inline label', () => {
+    const blocks: Block[] = Array.from({ length: 12 }, (_, i) => leftover(0.5, 0.5, `L${i}`, i, 0))
+    expect(everyBlockHasASize(blocks, 1)).toBe(true)
   })
 })

@@ -11,7 +11,7 @@ import {
 } from '@/components/ui/dialog'
 import { dayMonth } from '@/lib/format'
 import { fmt } from '@/lib/inches'
-import { badgedLeftovers } from '@/lib/labelChoice'
+import { SizesList } from '@/components/SizesList'
 import { saveCut } from '@/lib/db'
 import { getDeviceId, uid } from '@/lib/id'
 import { buildBlocks } from '@/lib/sheetView'
@@ -66,10 +66,6 @@ export default function LeftoverDetail() {
       : b,
   )
 
-  // Blocks too small to carry their own label still owe their size to the legend (R15).
-  const diagramScale = Math.min(120 / leftover.sheetW, 240 / leftover.sheetH)
-  const badged = badgedLeftovers(blocks, diagramScale)
-
   function useInNewJob() {
     setOnlyLeftoverId(leftover!.id)
     navigate('/new')
@@ -93,8 +89,10 @@ export default function LeftoverDetail() {
 
   return (
     <AppShell title={`Leftover ${leftover.letter}`} back="/stock">
-      <div className="mb-4 flex items-start gap-5.5">
-        <SheetDiagram sheetW={leftover.sheetW} sheetH={leftover.sheetH} blocks={blocks} maxW={120} maxH={240} />
+      <div className="mb-4 flex flex-col items-start gap-4 sm:flex-row sm:gap-5.5">
+        <div className="w-full flex-none sm:w-[120px]">
+          <SheetDiagram sheetW={leftover.sheetW} sheetH={leftover.sheetH} blocks={blocks} maxW={120} maxH={240} />
+        </div>
         <div className="min-w-0 flex-1">
           <p className="mb-0.5 font-sans text-[24px] font-semibold">
             {fmt(Math.min(leftover.w, leftover.h))} × {fmt(Math.max(leftover.w, leftover.h))}
@@ -117,15 +115,7 @@ export default function LeftoverDetail() {
         </div>
       </div>
 
-      {badged.length > 0 && (
-        <div className="mb-4 rounded-lg bg-muted p-3 text-[13px]">
-          {badged.map((b, i) => (
-            <p key={i} className="mb-0 text-muted-foreground">
-              {b.letter}: {b.dims}
-            </p>
-          ))}
-        </div>
-      )}
+      <SizesList blocks={blocks} />
 
       <Button size="lg" className="mb-2.5 h-[52px] w-full" onClick={useInNewJob}>
         Use this in a new job

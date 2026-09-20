@@ -1296,24 +1296,50 @@ How many pieces
 readable at arm\'s length and must make the reuse of a leftover obvious
 and reassuring.
 
-#### 9.5.1 Every free block shows its size, not just its letter
+#### 9.5.1 The drawing is kept plain: outline, filled blocks, one label each
 
-A letter alone never appears on a free, newly-freed or focused block:
-colour is never the only signal, and neither is a bare letter (R15).
-The label chosen depends on the block's on-screen size in pixels
-(`pw`, `ph`):
+Earlier drafts of the diagram added dimension lines, a ruler,
+hatching, rotated text and leader-line callouts, and the result was
+too busy to read at a glance — labels overlapped each other and the
+drawing. The diagram was simplified back to the essentials: the sheet
+outline in a thick neutral stroke, and plain filled blocks. Blue =
+pieces, green = saved leftovers, grey = earlier cuts. Leftovers keep a
+dashed border; nothing is hatched.
 
-- `pw >= 110`: one line, `A · 19 × 48 free`.
-- `pw >= 40` and `ph >= 34`: two lines, the letter then the size
-  (short side first); "free" is dropped once it no longer fits.
-- Tall and narrow (`ph >= 3 * pw`, `pw >= 18`): the label runs
-  vertically inside the block, `B · 18 × 69`.
-- Smaller than any of the above: a lettered badge is drawn just
-  outside the sheet edge, as before, and the size is always listed in
-  the legend beside the diagram (`B: 18 × 69`) so it is never lost.
+Every block carries at most one label, chosen by its on-screen size
+in pixels:
 
-This applies wherever a sheet is drawn: Cutting plan, Job detail and
-Leftover detail.
+- **Pieces (blue).** Two lines when there is room: the size as typed
+  ("23 × 77"), then "Piece 1" — or "Turned" instead, when the piece
+  was turned and there is room for it. One line, the size only, when
+  there is room for text but not two lines.
+- **Saved leftovers (green).** Two lines when there is room: the
+  letter, then the size short side first ("A" and "19 × 48"). One
+  combined line, "A · 19 × 48", when the block is wide.
+- **Earlier cuts (grey).** The size only, in muted text. No other
+  words — "Already cut" is not repeated on every block.
+- **Too small for any of the above.** A small badge on the block: a
+  number for a piece or an earlier-cut cell, a letter for a leftover.
+  Never a leader line, never rotated text.
+
+Whatever a block's on-screen label, its size is never lost: every
+block also appears in the Sizes list below the drawing (§9.5.1a), so
+a block is always labelled with its size inside the drawing, or
+listed with its size below it — never neither. This applies wherever
+a sheet is drawn: Cutting plan, Job detail and Leftover detail.
+
+#### 9.5.1a The Sizes list
+
+Real HTML text below the drawing (not inside the SVG), so it is easy
+to read and to select: every block's badge, name, size and status,
+grouped under "This job" (pieces), "Saved leftovers", and "Earlier
+cuts" (collapsed by default, showing the count in its heading, and
+expandable). Identical blocks are grouped into one row with every
+badge that applies, for example "C2, C3 · 1.6 × 18 (2 pieces)". Rows
+are sorted top to bottom, then left to right, matching how a
+carpenter reads the sheet. Text is 14 px, larger than the diagram's
+own labels, since this is the list to read when the drawing is too
+crowded to.
 
 #### 9.5.2 Automatic leftover use is announced, and the carpenter can choose a new sheet
 
@@ -1592,7 +1618,7 @@ Piece 5 does not fit on any sheet. Split it or change the sheet size.
   Header line                 Says immediately whether this is a new sheet or a leftover, and restates the pieces
   Green reuse banner          Only on a reuse plan. This is the app\'s main payoff, so it is stated in words, not implied by colour alone
   Diagram                     Drawn to scale, 1:2 aspect for a 96 × 48 sheet. Four block types: cut piece, new leftover, other free leftover, earlier cut
-  Narrow blocks               A block too small for text shows a lettered dot beside the sheet instead, as with leftover B
+  Narrow blocks               A block too small for its label shows a small badge on the block instead --- a number for a piece, a letter for a leftover --- and its size still appears in the Sizes list below
   Turned tag                  Shown whenever a piece was rotated, so the carpenter orients the board correctly
   Sheet used                  Placed area ÷ region area, rounded to a whole percent
   Cut order                   Numbered instructions measured from the corner of the region being cut
@@ -1602,87 +1628,37 @@ Piece 5 does not fit on any sheet. Split it or change the sheet size.
   Change pieces               Returns to Screen 3 with the job intact
 :::
 
-**Accessibility:** colour is never the only signal. Cut pieces carry a
-size label, leftovers carry a letter and the word \"free\", and earlier
-cuts carry the words \"Already cut\". A colour-blind user, or one in
-bright sun, can read the plan.
+**Accessibility:** colour is never the only signal. Every block
+carries its size, either on the block itself or in the Sizes list
+below it, and pieces, leftovers and earlier cuts are additionally
+told apart by their border style (leftovers dashed, the chosen one on
+Leftover detail solid). A colour-blind user, or one in bright sun,
+can read the plan.
 
-#### 9.5.3 The diagram is a technical cutting drawing, not a coloured
-rectangle
+#### 9.5.3 Cut lines: one at a time on screen, all of them on paper
 
-The sheet diagram is redrawn as an SVG so it reads like a shop
-drawing: a panel saw operator expects dimension lines, numbered cuts
-and hatching, not flat colour blocks. This replaces the div-based
-diagram from §9.5.1 with the same information plus:
+When the plan carries structured cut data (`SheetPlan.cuts`, added
+alongside the existing `steps` --- see CLAUDE.md C8), each cut can be
+drawn as a dashed line with a small numbered circle. On screen the
+drawing shows a cut line only for the step the carpenter taps or
+clicks in the Cut order list below it (or its own numbered circle)
+--- thick, highlighted, easy to follow at the saw --- and no lines
+otherwise; tapping again clears it. Both the list step and the circle
+are keyboard-reachable, with a visible focus ring and `aria-pressed`
+reflecting the highlighted state. On the print pages (§9.5.5) every
+cut line is drawn at once, thin and numbered, since a printed sheet
+has no "tap to highlight". Older saved records without `cuts` simply
+show no numbered lines anywhere; the plain-text Cut order list still
+works from `steps` either way.
 
-- **Sheet outline.** A thick neutral stroke around the whole sheet
-  (or, for a leftover, the whole physical parent sheet --- see Leftover
-  detail below).
-- **Hatching, always alongside text.** Free leftovers get a thin
-  45-degree hatch at low opacity inside their green fill; waste
-  (uncovered area with no piece or leftover) gets a grey crossed
-  hatch; earlier cuts keep their light diagonal cross pattern. Colour
-  is still never the only signal (R15): every hatched block also
-  carries its text label, letter or the word \"Waste\" when it fits.
-- **Waste.** Any part of the sheet not covered by a piece or a kept
-  leftover is drawn as waste, computed by coordinate compression over
-  every block's edges plus the sheet boundary. A kerf gap between two
-  pieces falls out of this the same way --- a thin waste strip, with no
-  special-casing in the layout code.
-- **Numbered cut lines.** When the plan carries structured cut data
-  (`SheetPlan.cuts`, added alongside the existing `steps` --- see
-  CLAUDE.md C8), each cut is drawn as a dashed line the width or
-  height of the region it cuts, extending slightly past the sheet
-  edge, with a small numbered circle. Tapping a circle, or a line in
-  the Cut order list below the diagram, highlights that cut (thicker
-  stroke, full opacity) and dims the rest; tapping again clears it.
-  Both are keyboard-reachable, with a visible focus ring and
-  `aria-pressed` reflecting the highlighted state. Older saved records
-  without `cuts` simply show no numbered lines; the plain-text Cut
-  order list still works from `steps` either way.
-- **Dimension lines.** The overall width (top) and height (left) are
-  shown with arrows at both ends; a second line below/beside carries
-  tick marks and each segment's size, read from the unique edges of
-  the pieces and leftovers in the region. A label that cannot fit its
-  own span is nudged sideways so adjacent labels never overlap; if
-  even nudging cannot separate two labels, that one is dropped from
-  the drawing and listed as plain text under the diagram instead of
-  overlapping unreadably.
-- **Ruler.** A plain inch ruler runs along the bottom edge, ticked
-  every 12 inches with numbers at the round ones, for a quick
-  reference without reading the dimension lines.
-- **Full screen and Save image.** \"Full screen\" opens the same
-  diagram, larger, in a dialog with pinch/wheel-zoom and drag-pan; a
-  \"Reset zoom\" text button appears only once the carpenter has
-  zoomed in. \"Save image\" renders the diagram to a PNG with a title
-  line (the job's pieces, the date, the sheet size) and shares or
-  downloads it, and works fully offline.
-
-This is the same `SheetDiagram` component used on Cutting plan, Job
-detail and Leftover detail --- it is not forked per screen. On Leftover
-detail it still draws the whole physical parent sheet at the compact
-size (120 × 240), with the parent's earlier cuts shown grey and the
-leftover itself highlighted as a solid-bordered focus block, exactly
-as before.
-
-#### 9.5.4 Every rectangle shows its width and height, always
-
-On top of the internal chip/letter labels from §9.5.1--§9.5.3, every
-rectangle drawn on a sheet --- pieces, saved leftovers, waste and
-already-cut blocks --- also carries its width along its top edge and
-its height along its left edge, in small grey text. Pieces show the
-size in the order it was typed (the same label already used inside
-the piece); leftovers, waste and earlier-cut blocks show the size as
-drawn on the sheet, which is not always the same as their internal
-short-side-first chip text. When a rectangle is too small to carry
-these edge labels without the text crossing its own border stroke, the
-size is drawn instead as a callout outside the sheet: a short leader
-line to a "W × H" label. Callouts are stacked vertically so they never
-overlap each other, reusing the same nudge-and-overflow algorithm
-already used for dimension-line label crowding (§9.5.3) rather than a
-second collision routine. This holds at every zoom level, including
-Full screen, and on the print pages (§9.5.5), which draw the identical
-rectangles through the identical labelling function.
+**Full screen and Save image.** "Full screen" opens the same diagram,
+larger, in a dialog with pinch/wheel-zoom and drag-pan; a "Reset
+zoom" text button appears only once the carpenter has zoomed in.
+"Save image" renders the diagram to a PNG with a title line (the
+job's pieces, the date, the sheet size) and shares or downloads it,
+and works fully offline. This is the same `SheetDiagram` component
+used on Cutting plan, Job detail and Leftover detail --- it is not
+forked per screen.
 
 #### 9.5.5 Print pages
 
@@ -1691,16 +1667,17 @@ a Print button that opens `/print/:jobId`: one page per physical
 sheet in the job (no cover page), built entirely from data already on
 the phone, so it works fully offline. Each page repeats the same live
 SVG drawing used on screen (never a rasterized image, so a printed
-page or a browser "Save as PDF" stays crisp) alongside a header (job
-title, date, "Sheet N of Total", sheet size, where the sheet came
-from, and whether blade thickness is included), the Cut order list,
-and a parts table listing every rectangle's name, width, height and
-status (Piece, Turned piece, Saved leftover, Waste, Already cut) ---
-the same rectangles §9.5.4 labels on the drawing itself, not a second
-count. The preview shows the pages at the paper's true proportions
-(A4 or Letter, from Settings §9.8.2); a top bar with Back and Print
-buttons, and a one-line tip about choosing a printer, are hidden when
-actually printing. Confirming a cut goes to this "Cut saved" screen
+page or a browser "Save as PDF" stays crisp), with every cut line
+shown (§9.5.3), alongside a header (job title, date, "Sheet N of
+Total", sheet size, where the sheet came from, and whether blade
+thickness is included), the Cut order list, and the same Sizes list
+(§9.5.1a) printed as a table --- name, width, height and status
+(Piece, Turned piece, Saved leftover, Waste, Already cut) --- never a
+second, different count of the sheet's rectangles. The preview shows
+the pages at the paper's true proportions (A4 or Letter, from
+Settings §9.8.2); a top bar with Back and Print buttons, and a
+one-line tip about choosing a printer, are hidden when actually
+printing. Confirming a cut goes to this "Cut saved" screen
 automatically when Settings' "Show the print screen after every
 confirmed cut" is on (the default); when it is off, Confirm cut
 behaves exactly as before and Print is still reachable from Job
@@ -1978,6 +1955,16 @@ it is always reachable without scrolling. This keeps the primary
 action on screen even with hundreds of saved leftovers, and it is the
 same mechanism because it is the same problem, not a redesign of the
 list itself.
+
+#### 9.6.3 Leftover detail keeps the drawing and the text apart
+
+Leftover detail draws the whole physical parent sheet at a compact
+size: earlier cuts plain grey, other free leftovers plain green, and
+the chosen leftover picked out with a solid 1.5 px border and its own
+size label --- no other block on the page gets a solid border. The
+drawing's width is capped so it cannot grow into the text beside it;
+on narrow screens the drawing sits above the "From" / "Position on
+the sheet" text instead of beside it, so the two never overlap.
 
 ### 9.7 Screen 7 --- Sync check
 
