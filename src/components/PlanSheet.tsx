@@ -37,8 +37,11 @@ export function PlanSheet({ sheet, blocks }: PlanSheetProps) {
 
   return (
     <div>
-      <div className="mb-3.5 flex flex-col items-start gap-4 sm:flex-row sm:items-start sm:gap-6">
-        <div data-plan-sheet-svg={sheet.sheetId} className="w-full sm:w-auto">
+      <div className="mb-3.5 flex flex-col items-start gap-4 lg:flex-row lg:items-start lg:gap-6">
+        <div
+          data-plan-sheet-svg={sheet.sheetId}
+          className="h-[60vh] min-h-[320px] w-full lg:h-[70vh] lg:min-h-[480px] lg:flex-1"
+        >
           <SheetDiagram
             sheetW={sheet.sheetW}
             sheetH={sheet.sheetH}
@@ -46,11 +49,12 @@ export function PlanSheet({ sheet, blocks }: PlanSheetProps) {
             cuts={sheet.cuts}
             activeCut={activeCut}
             onCutToggle={toggleCut}
+            fill
           />
         </div>
 
         {sheet.isNew ? (
-          <div className="min-w-0 flex-1 text-[13px]">
+          <div className="min-w-0 w-full lg:w-64 lg:flex-none text-[13px]">
             <div className="mb-3 flex flex-col gap-1.5">
               <Legend swatch="cut" label="Cut pieces" />
               <Legend swatch="free" label="Saved leftover" />
@@ -69,7 +73,7 @@ export function PlanSheet({ sheet, blocks }: PlanSheetProps) {
             )}
           </div>
         ) : (
-          <div className="min-w-0 flex-1 text-[13px]">
+          <div className="min-w-0 w-full lg:w-64 lg:flex-none text-[13px]">
             <p className="mb-0.5 text-muted-foreground">Use this leftover</p>
             <p className="mb-0.5 text-[16px] font-semibold">
               {sheet.usedLetter} · {fmtLeft(sheet.region.w, sheet.region.h)}

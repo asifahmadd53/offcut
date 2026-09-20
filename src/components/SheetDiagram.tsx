@@ -1,5 +1,6 @@
 import { useEffect, useId, useMemo, useRef, useState } from 'react'
 import {
+  blockCallouts,
   chooseLabel,
   computeWasteCells,
   diagramAriaLabel,
@@ -25,6 +26,14 @@ interface SheetDiagramProps {
   /** Which cut step (1-based) is highlighted, controlled by the Cut order list. */
   activeCut?: number | null
   onCutToggle?: (n: number) => void
+  /**
+   * When true, the diagram measures and fills its container's actual width AND height
+   * (up to maxW/maxH as an outer ceiling) instead of staying a small fixed-size picture.
+   * The caller must give the container a real CSS height for this to have any effect —
+   * used by Plan/Job detail's main (non-fullscreen, non-compact) drawing on wide screens.
+   * Leftover detail's intentionally compact preview leaves this off.
+   */
+  fill?: boolean
 }
 
 const LEFT_MARGIN = 90
@@ -47,9 +56,11 @@ export function SheetDiagram({
   cuts,
   activeCut = null,
   onCutToggle,
+  fill = false,
 }: SheetDiagramProps) {
   const containerRef = useRef<HTMLDivElement>(null)
   const [containerW, setContainerW] = useState(maxW + LEFT_MARGIN + RIGHT_MARGIN)
+  const [containerH, setContainerH] = useState(maxH + TOP_MARGIN + BOTTOM_MARGIN + 28)
   const uidBase = useId()
 
   useEffect(() => {
@@ -57,15 +68,21 @@ export function SheetDiagram({
     if (!el) return
     const ro = new ResizeObserver((entries) => {
       const w = entries[0]?.contentRect.width
+      const h = entries[0]?.contentRect.height
       if (w && w > 0) setContainerW(w)
+      if (fill && h && h > 0) setContainerH(h)
     })
     ro.observe(el)
     return () => ro.disconnect()
-  }, [])
+  }, [fill])
 
   const layout = useMemo(() => {
     const availW = Math.max(containerW - LEFT_MARGIN - RIGHT_MARGIN, 20)
-    const pxPerInch = Math.min(availW / sheetW, maxH / sheetH)
+    // Filling a laptop-height column: the container's own measured height becomes the
+    // real budget, instead of the small fixed maxH default that kept the drawing a
+    // small picture regardless of how much space was actually available.
+    const effectiveMaxH = fill ? Math.max(containerH - TOP_MARGIN - BOTTOM_MARGIN - 28, 100) : maxH
+    const pxPerInch = Math.min(availW / sheetW, effectiveMaxH / sheetH)
     const sheetPxW = sheetW * pxPerInch
     const sheetPxH = sheetH * pxPerInch
     const svgW = LEFT_MARGIN + sheetPxW + RIGHT_MARGIN
@@ -96,35 +113,11 @@ export function SheetDiagram({
     }))
     const yNudge = nudgeLabels(yLabels, 4)
 
-    // Leftovers too narrow for any inline label fall back to an outside badge (letter +
-    // leader line). Several of these can sit close together on the same sheet (A3, C2,
-    // C3, C4...) and, drawn at each block's own raw center, their text collides. Nudge
-    // their y-positions apart the same way the dimension-line labels already are.
-    const badgeBlocks = blocks.filter((b) => b.kind === 'free' || b.kind === 'freeNew' || b.kind === 'focus')
-    const badgeSeeds = badgeBlocks
-      .map((b, i) => {
-        const pw = b.w * pxPerInch
-        const choice = chooseLabel(b, pxPerInch).free!
-        if (choice.kind !== 'badge') return null
-        const text = `${choice.letter} · ${choice.dims} free`
-        return {
-          blockIndex: i,
-          center: TOP_MARGIN + (b.y + b.h / 2) * pxPerInch,
-          text,
-          halfWidth: 7, // vertical stack: text height, not its printed width
-          anchorX: LEFT_MARGIN + b.x * pxPerInch + pw,
-          anchorY: TOP_MARGIN + (b.y + b.h / 2) * pxPerInch,
-        }
-      })
-      .filter((s): s is NonNullable<typeof s> => s !== null)
-    const badgeNudge = nudgeLabels(
-      badgeSeeds.map((s) => ({ center: s.center, text: s.text, halfWidth: s.halfWidth })),
-      6,
-    )
-    const badges = badgeNudge.placed.map((p) => {
-      const seed = badgeSeeds.find((s) => s.text === p.text)!
-      return { ...p, blockIndex: seed.blockIndex, anchorX: seed.anchorX, anchorY: seed.anchorY }
-    })
+    // Every piece, already-cut piece and leftover whose label is too small to draw
+    // inline (a 'legend' or 'badge' choice) gets a dotted callout outside the sheet
+    // instead, never rotated text. Stacked via nudgeLabels so callouts on one sheet
+    // never touch. Waste keeps its own simple "Waste" text (no size), unrelated to this.
+    const callouts = blockCallouts(blocks, pxPerInch)
 
     return {
       pxPerInch,
@@ -138,11 +131,11 @@ export function SheetDiagram({
       ySegs,
       xNudge,
       yNudge,
-      badges,
+      callouts,
     }
   }, [blocks, containerW, cuts, maxH, sheetH, sheetW])
 
-  const { pxPerInch, sheetPxW, sheetPxH, svgW, svgH, wasteCells, cutLines, xNudge, yNudge, badges } = layout
+  const { pxPerInch, sheetPxW, sheetPxH, svgW, svgH, wasteCells, cutLines, xNudge, yNudge, callouts } = layout
 
   const pieceCount = blocks.filter((b) => b.kind === 'cut').length
   const leftoverCount = blocks.filter((b) => b.kind === 'free' || b.kind === 'freeNew' || b.kind === 'focus').length
@@ -156,7 +149,11 @@ export function SheetDiagram({
   }
 
   return (
-    <div ref={containerRef} className="w-full" style={{ maxWidth: maxW + LEFT_MARGIN + RIGHT_MARGIN }}>
+    <div
+      ref={containerRef}
+      className={fill ? 'h-full w-full' : 'w-full'}
+      style={fill ? undefined : { maxWidth: maxW + LEFT_MARGIN + RIGHT_MARGIN }}
+    >
       <svg
         role="img"
         aria-label={ariaLabel}
@@ -169,9 +166,6 @@ export function SheetDiagram({
         <defs>
           <pattern id={`${uidBase}-hatch-leftover`} width="6" height="6" patternTransform="rotate(45)" patternUnits="userSpaceOnUse">
             <line x1="0" y1="0" x2="0" y2="6" stroke="var(--success-border)" strokeWidth="1" opacity="0.35" />
-          </pattern>
-          <pattern id={`${uidBase}-hatch-earlier`} width="6" height="6" patternTransform="rotate(45)" patternUnits="userSpaceOnUse">
-            <line x1="0" y1="0" x2="0" y2="6" stroke="var(--border-strong)" strokeWidth="1" opacity="0.6" />
           </pattern>
           <pattern id={`${uidBase}-hatch-waste`} width="5" height="5" patternTransform="rotate(45)" patternUnits="userSpaceOnUse">
             <line x1="0" y1="0" x2="0" y2="5" stroke="var(--border-strong)" strokeWidth="1" opacity="0.5" />
@@ -217,13 +211,15 @@ export function SheetDiagram({
           )
         })}
 
-        {/* Earlier cuts, grey fill + light cross hatch */}
+        {/* Already-cut pieces: a plain muted grey-blue block, same clean style as any
+            other block, no hatching — hatching stays only on green leftovers. Its size
+            is always shown; "Already cut" is a second line only when there's room. */}
         {blocks
           .filter((b) => b.kind === 'earlier')
           .map((b, i) => {
             const pw = b.w * pxPerInch
             const ph = b.h * pxPerInch
-            const showLabel = pw >= 44 && ph >= 24
+            const plan = chooseLabel(b, pxPerInch).earlier!
             return (
               <g key={`earlier-${i}`}>
                 <rect
@@ -232,20 +228,22 @@ export function SheetDiagram({
                   width={pw}
                   height={ph}
                   fill="var(--muted)"
-                  stroke="var(--border)"
+                  stroke="var(--border-strong)"
                   strokeWidth="1"
                 />
-                <rect x={X(b.x)} y={Y(b.y)} width={pw} height={ph} fill={`url(#${uidBase}-hatch-earlier)`} />
-                {showLabel && (
-                  <text
-                    x={X(b.x) + pw / 2}
-                    y={Y(b.y) + ph / 2}
-                    textAnchor="middle"
-                    dominantBaseline="middle"
-                    fontSize="11"
-                    fill="var(--muted-foreground)"
-                  >
-                    Already cut
+                {plan.kind === 'two-line' && (
+                  <>
+                    <text x={X(b.x) + pw / 2} y={Y(b.y) + ph / 2 - 6} textAnchor="middle" fontSize="11" fontWeight="600" fill="var(--muted-foreground)">
+                      {plan.line1}
+                    </text>
+                    <text x={X(b.x) + pw / 2} y={Y(b.y) + ph / 2 + 8} textAnchor="middle" fontSize="11" fill="var(--faint)">
+                      {plan.line2}
+                    </text>
+                  </>
+                )}
+                {plan.kind === 'one-line' && (
+                  <text x={X(b.x) + pw / 2} y={Y(b.y) + ph / 2} textAnchor="middle" dominantBaseline="middle" fontSize="11" fontWeight="600" fill="var(--muted-foreground)">
+                    {plan.line1}
                   </text>
                 )}
               </g>
@@ -313,43 +311,30 @@ export function SheetDiagram({
                     </text>
                   </>
                 )}
-                {choice.kind === 'vertical' && (
-                  <text
-                    x={X(b.x) + pw / 2}
-                    y={Y(b.y) + ph / 2}
-                    textAnchor="middle"
-                    dominantBaseline="middle"
-                    fontSize="11"
-                    fontWeight="600"
-                    fill="var(--success-text)"
-                    transform={`rotate(-90 ${X(b.x) + pw / 2} ${Y(b.y) + ph / 2})`}
-                  >
-                    {choice.letter} · {choice.dims}
-                  </text>
-                )}
               </g>
             )
           })}
 
-        {/* Badges for leftovers too narrow for any inline label: a leader line + dot to a
-            label, y-nudged apart so several on the same sheet (A3, C2, C3, C4...) never
-            overlap each other's text. */}
-        {badges.map((bd) => (
-          <g key={`badge-${bd.blockIndex}`}>
-            <line
-              x1={bd.anchorX}
-              y1={bd.anchorY}
-              x2={bd.anchorX + 18}
-              y2={bd.center}
-              stroke="var(--success-border)"
-              strokeWidth="1"
-            />
-            <circle cx={bd.anchorX + 18} cy={bd.center} r="2" fill="var(--success-text)" />
-            <text x={bd.anchorX + 22} y={bd.center} dominantBaseline="middle" fontSize="11" fontWeight="600" fill="var(--success-text)">
-              {bd.text}
-            </text>
-          </g>
-        ))}
+        {/* Dotted callouts for any block too small for its inline label — piece,
+            already-cut piece, or leftover — never rotated text. y-nudged apart so
+            several on one sheet (A3, C2, C3, C4...) never overlap each other's text. */}
+        {callouts.map((c) => {
+          const kind = blocks[c.blockIndex]?.kind
+          const color = kind === 'cut' ? 'var(--accent-text)' : kind === 'earlier' ? 'var(--muted-foreground)' : 'var(--success-text)'
+          const x1 = LEFT_MARGIN + c.anchorX
+          const y1 = TOP_MARGIN + c.anchorY
+          const x2 = x1 + 18
+          const y2 = TOP_MARGIN + c.y
+          return (
+            <g key={`callout-${c.blockIndex}`}>
+              <line x1={x1} y1={y1} x2={x2} y2={y2} stroke={color} strokeWidth="1" strokeDasharray="1 3" strokeLinecap="round" />
+              <circle cx={x2} cy={y2} r="2" fill={color} />
+              <text x={x2 + 4} y={y2} dominantBaseline="middle" fontSize="11" fontWeight="600" fill={color}>
+                {c.text}
+              </text>
+            </g>
+          )
+        })}
 
         {/* Pieces */}
         {blocks
@@ -443,7 +428,11 @@ export function SheetDiagram({
           const x = X(c.pos)
           const y1 = Y(c.from) - 8
           const y2 = Y(c.to) + 8
-          const circleY = TOP_MARGIN - 14
+          // The circle sits at the line's own top end, not a fixed offset from the
+          // dimension-line zone above the sheet — a fixed offset drifts into the
+          // dimension numbers whenever the region doesn't start at the sheet's own
+          // top edge (a sub-region on Leftover detail, for example).
+          const circleY = y1 - 4
           return (
             <g key={`cut-line-${c.n}`}>
               <line x1={x} y1={y1} x2={x} y2={y2} stroke={stroke} strokeWidth={strokeWidth} strokeDasharray="6 4" opacity={opacity} />

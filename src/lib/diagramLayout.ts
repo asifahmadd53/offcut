@@ -16,7 +16,7 @@ export interface PieceLabelPlan {
   line2?: string
 }
 
-export type FreeLabelKind = 'wide' | 'stacked' | 'vertical' | 'badge'
+export type FreeLabelKind = 'wide' | 'stacked' | 'badge'
 export interface FreeLabelChoice {
   kind: FreeLabelKind
   letter: string
@@ -28,7 +28,9 @@ export interface FreeLabelChoice {
 /**
  * Picks how to label a free / freeNew / focus block on the diagram, given its on-screen
  * size in pixels. A letter is never shown alone when the size can be shown in some form
- * (R15 / C4: every free block must carry its size, not just its letter).
+ * (R15 / C4: every free block must carry its size, not just its letter). Never rotated
+ * text: a block too narrow/short for the normal forms falls back to a callout instead
+ * (see blockCallouts), the same as any other block kind.
  */
 export function chooseFreeLabel(letter: string, w: number, h: number, pw: number, ph: number): FreeLabelChoice {
   const dims = fmtLeft(w, h)
@@ -38,9 +40,6 @@ export function chooseFreeLabel(letter: string, w: number, h: number, pw: number
   }
   if (pw >= 40 && ph >= 34) {
     return { kind: 'stacked', letter, dims, showFree: false }
-  }
-  if (ph >= 3 * pw && pw >= 18) {
-    return { kind: 'vertical', letter, dims, showFree: false }
   }
   return { kind: 'badge', letter, dims, showFree: false }
 }
@@ -58,14 +57,41 @@ export function choosePieceLabel(block: Block, pw: number, ph: number): PieceLab
   return { kind: 'legend', line1: size, line2: second }
 }
 
+export type EarlierLabelKind = 'two-line' | 'one-line' | 'legend'
+export interface EarlierLabelPlan {
+  kind: EarlierLabelKind
+  /** The size, drawn as any other block ("30 × 48"). */
+  line1: string
+  /** "Already cut", shown only when there's room for a second line. */
+  line2?: string
+}
+
+/**
+ * Chooses how to label an already-cut ('earlier') block: its size always, "Already cut"
+ * as a second line only when there's room. Same thresholds as a piece, since both are
+ * plain rectangles with a two-line label — earlier blocks just use muted colours and no
+ * hatching instead of the piece's blue fill.
+ */
+export function chooseEarlierLabel(block: Block, pw: number, ph: number): EarlierLabelPlan {
+  const size = `${fmt(block.w)} × ${fmt(block.h)}`
+  if (pw >= 52 && ph >= 34) {
+    return { kind: 'two-line', line1: size, line2: 'Already cut' }
+  }
+  if (pw >= 36 && ph >= 16) {
+    return { kind: 'one-line', line1: size }
+  }
+  return { kind: 'legend', line1: size }
+}
+
 /**
  * Unified label chooser for any block kind, in inches -> pixels via pxPerInch. Pieces get
  * choosePieceLabel; free/freeNew/focus get chooseFreeLabel folded into the same shape.
  */
 export interface LabelPlan {
-  kind: 'piece' | 'free'
+  kind: 'piece' | 'free' | 'earlier'
   piece?: PieceLabelPlan
   free?: FreeLabelChoice
+  earlier?: EarlierLabelPlan
 }
 
 export function chooseLabel(block: Block, pxPerInch: number): LabelPlan {
@@ -73,6 +99,9 @@ export function chooseLabel(block: Block, pxPerInch: number): LabelPlan {
   const ph = block.h * pxPerInch
   if (block.kind === 'cut') {
     return { kind: 'piece', piece: choosePieceLabel(block, pw, ph) }
+  }
+  if (block.kind === 'earlier' || block.kind === 'waste') {
+    return { kind: 'earlier', earlier: chooseEarlierLabel(block, pw, ph) }
   }
   return { kind: 'free', free: chooseFreeLabel(block.letter ?? '', block.w, block.h, pw, ph) }
 }
@@ -87,6 +116,59 @@ export function badgedLeftovers(blocks: Block[], scale: number): Array<{ letter:
     .map((b) => chooseFreeLabel(b.letter ?? '', b.w, b.h, b.w * scale, b.h * scale))
     .filter((choice) => choice.kind === 'badge')
     .map(({ letter, dims }) => ({ letter, dims }))
+}
+
+// ---------- Unified callouts: every block's size is always shown somewhere ----------
+
+export interface BlockCallout {
+  blockIndex: number
+  /** The text to show in the dotted callout, e.g. "B · 2 × 77 free" or "30 × 48". */
+  text: string
+  /** Anchor point on the block's own edge the leader line starts from, in px relative
+   *  to the sheet's own origin (the caller adds its own margin offset when drawing). */
+  anchorX: number
+  anchorY: number
+  /** Stacked, non-overlapping y position for this callout's text (via nudgeLabels),
+   *  in the same px space as anchorY. */
+  y: number
+}
+
+/**
+ * Every block whose chosen label is too small to draw inline (a piece's 'legend', a free
+ * block's 'badge', or an earlier/waste block's 'legend') gets a dotted callout outside the
+ * sheet instead, so its size is never lost (R15) and never drawn as rotated text. Several
+ * callouts on one sheet are stacked vertically via nudgeLabels so their text never touches.
+ */
+export function blockCallouts(blocks: Block[], pxPerInch: number): BlockCallout[] {
+  const seeds = blocks
+    .map((b, blockIndex) => {
+      const pw = b.w * pxPerInch
+      const ph = b.h * pxPerInch
+      const plan = chooseLabel(b, pxPerInch)
+      let text: string | null = null
+      if (plan.kind === 'piece' && plan.piece!.kind === 'legend') {
+        text = plan.piece!.line1
+      } else if (plan.kind === 'free' && plan.free!.kind === 'badge') {
+        text = `${plan.free!.letter} · ${plan.free!.dims} free`
+      } else if (plan.kind === 'earlier' && plan.earlier!.kind === 'legend') {
+        text = plan.earlier!.line1
+      }
+      if (text === null) return null
+      const anchorX = b.x * pxPerInch + pw
+      const anchorY = b.y * pxPerInch + ph / 2
+      return { blockIndex, text, anchorX, anchorY }
+    })
+    .filter((s): s is NonNullable<typeof s> => s !== null)
+
+  const { placed } = nudgeLabels(
+    seeds.map((s, i) => ({ center: s.anchorY, text: String(i), halfWidth: 7 })),
+    6,
+  )
+  const byId = new Map(seeds.map((s, i) => [String(i), s]))
+  return placed.map((p) => {
+    const seed = byId.get(p.text)!
+    return { blockIndex: seed.blockIndex, text: seed.text, anchorX: seed.anchorX, anchorY: seed.anchorY, y: p.center }
+  })
 }
 
 // ---------- Waste-cell computation ----------

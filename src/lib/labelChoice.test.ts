@@ -17,9 +17,9 @@ describe('chooseFreeLabel', () => {
     expect(choice.dims).toBe('18 × 69')
   })
 
-  it('tall and narrow block (ph >= 3 * pw, pw >= 18): vertical label', () => {
+  it('tall and narrow block: never rotated text, falls back to a badge instead', () => {
     const choice = chooseFreeLabel('B', 18, 69, 20, 70)
-    expect(choice.kind).toBe('vertical')
+    expect(choice.kind).toBe('badge')
     expect(choice.dims).toBe('18 × 69')
   })
 

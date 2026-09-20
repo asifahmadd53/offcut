@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import {
   allRectSizeLabels,
   badgedLeftovers,
+  blockCallouts,
   chooseFreeLabel,
   chooseLabel,
   computeWasteCells,
@@ -72,10 +73,10 @@ describe('chooseLabel', () => {
     expect(plan.free?.dims).toBe('2 × 77')
   })
 
-  it('a wider narrow strip (pw>=18) uses the vertical stacked form instead of a badge', () => {
+  it('a tall narrow strip never uses rotated text, even when tall enough it used to: falls back to a badge/callout', () => {
     const block: Block = { kind: 'freeNew', x: 0, y: 0, w: 2, h: 77, letter: 'B' }
-    const plan = chooseLabel(block, 10) // pw=20, ph=770
-    expect(plan.free?.kind).toBe('vertical')
+    const plan = chooseLabel(block, 10) // pw=20, ph=770 -- too narrow for 'stacked' (needs pw>=40)
+    expect(plan.free?.kind).toBe('badge')
     expect(plan.free?.dims).toBe('2 × 77')
   })
 
@@ -97,6 +98,31 @@ describe('chooseLabel', () => {
     expect(badgedLeftovers([{ kind: 'free', x: 0, y: 0, w: 2, h: 77, letter: 'B' }], 1)).toEqual([
       { letter: 'B', dims: '2 × 77' },
     ])
+  })
+
+  it('an already-cut block shows its size, two-line, with "Already cut" as the second line when there is room', () => {
+    const block: Block = { kind: 'earlier', x: 0, y: 0, w: 30, h: 48 }
+    const plan = chooseLabel(block, 3) // pw=90, ph=144
+    expect(plan.kind).toBe('earlier')
+    expect(plan.earlier?.kind).toBe('two-line')
+    expect(plan.earlier?.line1).toBe('30 × 48')
+    expect(plan.earlier?.line2).toBe('Already cut')
+  })
+
+  it('an already-cut block too narrow for two lines but with room for one shows its size, one line only', () => {
+    const block: Block = { kind: 'earlier', x: 0, y: 0, w: 15, h: 20 }
+    const plan = chooseLabel(block, 3) // pw=45 (>=36, <52), ph=60 (>=16) -- one-line band
+    expect(plan.kind).toBe('earlier')
+    expect(plan.earlier?.kind).toBe('one-line')
+    expect(plan.earlier?.line1).toBe('15 × 20')
+    expect(plan.earlier?.line2).toBeUndefined()
+  })
+
+  it('an already-cut block too small for any inline text falls to legend (picked up by blockCallouts)', () => {
+    const block: Block = { kind: 'earlier', x: 0, y: 0, w: 3, h: 5 }
+    const plan = chooseLabel(block, 1)
+    expect(plan.earlier?.kind).toBe('legend')
+    expect(plan.earlier?.line1).toBe('3 × 5')
   })
 })
 
@@ -333,5 +359,73 @@ describe('leftover-only / focus-block plan', () => {
     const focus = blocks.find((b) => b.kind === 'focus')!
     const plan = chooseLabel(focus, 3)
     expect(plan.free?.kind).toBe('wide')
+  })
+})
+
+describe('blockCallouts', () => {
+  /** A busy sheet: several already-cut pieces of different sizes, several tiny leftover
+   *  strips, and a couple of normal-sized pieces/leftovers — everything chooseLabel can
+   *  produce, on one sheet, at a small scale so many blocks fall back to a callout. */
+  function busySheetBlocks(): Block[] {
+    return [
+      // Already-cut pieces, several different sizes, some tiny.
+      { kind: 'earlier', x: 0, y: 0, w: 30, h: 48 },
+      { kind: 'earlier', x: 30, y: 0, w: 18, h: 48 },
+      { kind: 'earlier', x: 0, y: 48, w: 20.5, h: 37.6 },
+      { kind: 'earlier', x: 20.5, y: 48, w: 3.1, h: 42.4 },
+      { kind: 'earlier', x: 23.6, y: 48, w: 1.6, h: 18 },
+      // Normal pieces.
+      { kind: 'cut', x: 0, y: 85.6, w: 23, h: 10, label: '23 × 10', n: 1 },
+      { kind: 'cut', x: 23, y: 85.6, w: 23, h: 10, label: '23 × 10', n: 2 },
+      // Tiny leftover strips, several close together.
+      { kind: 'free', x: 46, y: 0, w: 2, h: 77, letter: 'B' },
+      { kind: 'free', x: 40, y: 0, w: 1.6, h: 18, letter: 'C2' },
+      { kind: 'free', x: 40, y: 18, w: 1.6, h: 18, letter: 'C3' },
+      { kind: 'free', x: 40, y: 36, w: 1.6, h: 18, letter: 'C4' },
+      // A normal-sized leftover.
+      { kind: 'free', x: 0, y: 95.6, w: 48, h: 0.4, letter: 'A' },
+      { kind: 'free', x: 8.7, y: 48, w: 11.8, h: 37.6, letter: 'D' },
+    ]
+  }
+
+  it('covers a fixture of at least 12 blocks, including several already-cut pieces and tiny strips', () => {
+    expect(busySheetBlocks().length).toBeGreaterThanOrEqual(12)
+  })
+
+  it('every block gets its size either inline (not a legend/badge choice) or in a stacked callout', () => {
+    const blocks = busySheetBlocks()
+    const pxPerInch = 3 // a small on-screen scale, so several blocks fall back to callouts
+    const callouts = blockCallouts(blocks, pxPerInch)
+    const calloutIndices = new Set(callouts.map((c) => c.blockIndex))
+
+    blocks.forEach((b, i) => {
+      const plan = chooseLabel(b, pxPerInch)
+      const isSmallChoice =
+        (plan.kind === 'piece' && plan.piece!.kind === 'legend') ||
+        (plan.kind === 'free' && plan.free!.kind === 'badge') ||
+        (plan.kind === 'earlier' && plan.earlier!.kind === 'legend')
+      // A block too small for its inline label must appear in the callout list —
+      // its size is never lost, and every other block already carries its size inline.
+      if (isSmallChoice) expect(calloutIndices.has(i)).toBe(true)
+    })
+  })
+
+  it('no two callouts overlap: their stacked y positions are at least the minimum gap apart', () => {
+    const blocks = busySheetBlocks()
+    const callouts = blockCallouts(blocks, 3)
+    expect(callouts.length).toBeGreaterThan(1) // this busy fixture must actually produce several
+    const ys = [...callouts.map((c) => c.y)].sort((a, b) => a - b)
+    for (let i = 1; i < ys.length; i++) {
+      expect(ys[i] - ys[i - 1]).toBeGreaterThanOrEqual(6 - 1e-6)
+    }
+  })
+
+  it('never produces rotated text: a tall narrow leftover always resolves to badge/callout, not "vertical"', () => {
+    const blocks: Block[] = [{ kind: 'free', x: 0, y: 0, w: 2, h: 77, letter: 'B' }]
+    const plan = chooseLabel(blocks[0], 10) // pw=20, ph=770 -- would have been 'vertical' before
+    expect(plan.free?.kind).not.toBe('vertical')
+    const callouts = blockCallouts(blocks, 10)
+    expect(callouts).toHaveLength(1)
+    expect(callouts[0].text).toContain('2 × 77')
   })
 })
