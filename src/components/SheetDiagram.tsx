@@ -1,6 +1,5 @@
 import { useEffect, useId, useMemo, useRef, useState } from 'react'
 import {
-  allRectSizeLabels,
   chooseLabel,
   computeWasteCells,
   diagramAriaLabel,
@@ -8,7 +7,6 @@ import {
   estimateTextWidth,
   extractEdges,
   nudgeLabels,
-  stackCallouts,
   wasteLabelFits,
   type CutLineLayout,
 } from '@/lib/diagramLayout'
@@ -98,17 +96,35 @@ export function SheetDiagram({
     }))
     const yNudge = nudgeLabels(yLabels, 4)
 
-    // Every rectangle's own width/height, drawn along its top/left edges when it has
-    // room, or flagged for an outside callout when too small (C-new: sizes on every
-    // rectangle, not just pieces/leftovers). Waste cells get their own synthetic blocks
-    // so they participate in the same sizing pass as pieces/leftovers/earlier-cut.
-    const wasteBlocks: Block[] = wasteCells.map((c) => ({ kind: 'waste', x: c.x, y: c.y, w: c.w, h: c.h }))
-    const sizeBlocks = [...blocks, ...wasteBlocks]
-    const rectLabels = allRectSizeLabels(sizeBlocks, pxPerInch)
-    const calloutSeeds = rectLabels
-      .filter((r) => r.placement === 'callout')
-      .map((r) => ({ blockIndex: r.blockIndex, text: `${r.width} × ${r.height}`, naturalY: TOP_MARGIN + r.cy * pxPerInch }))
-    const callouts = stackCallouts(calloutSeeds, 14)
+    // Leftovers too narrow for any inline label fall back to an outside badge (letter +
+    // leader line). Several of these can sit close together on the same sheet (A3, C2,
+    // C3, C4...) and, drawn at each block's own raw center, their text collides. Nudge
+    // their y-positions apart the same way the dimension-line labels already are.
+    const badgeBlocks = blocks.filter((b) => b.kind === 'free' || b.kind === 'freeNew' || b.kind === 'focus')
+    const badgeSeeds = badgeBlocks
+      .map((b, i) => {
+        const pw = b.w * pxPerInch
+        const choice = chooseLabel(b, pxPerInch).free!
+        if (choice.kind !== 'badge') return null
+        const text = `${choice.letter} · ${choice.dims} free`
+        return {
+          blockIndex: i,
+          center: TOP_MARGIN + (b.y + b.h / 2) * pxPerInch,
+          text,
+          halfWidth: 7, // vertical stack: text height, not its printed width
+          anchorX: LEFT_MARGIN + b.x * pxPerInch + pw,
+          anchorY: TOP_MARGIN + (b.y + b.h / 2) * pxPerInch,
+        }
+      })
+      .filter((s): s is NonNullable<typeof s> => s !== null)
+    const badgeNudge = nudgeLabels(
+      badgeSeeds.map((s) => ({ center: s.center, text: s.text, halfWidth: s.halfWidth })),
+      6,
+    )
+    const badges = badgeNudge.placed.map((p) => {
+      const seed = badgeSeeds.find((s) => s.text === p.text)!
+      return { ...p, blockIndex: seed.blockIndex, anchorX: seed.anchorX, anchorY: seed.anchorY }
+    })
 
     return {
       pxPerInch,
@@ -122,13 +138,11 @@ export function SheetDiagram({
       ySegs,
       xNudge,
       yNudge,
-      sizeBlocks,
-      rectLabels,
-      callouts,
+      badges,
     }
   }, [blocks, containerW, cuts, maxH, sheetH, sheetW])
 
-  const { pxPerInch, sheetPxW, sheetPxH, svgW, svgH, wasteCells, cutLines, xNudge, yNudge, sizeBlocks, rectLabels, callouts } = layout
+  const { pxPerInch, sheetPxW, sheetPxH, svgW, svgH, wasteCells, cutLines, xNudge, yNudge, badges } = layout
 
   const pieceCount = blocks.filter((b) => b.kind === 'cut').length
   const leftoverCount = blocks.filter((b) => b.kind === 'free' || b.kind === 'freeNew' || b.kind === 'focus').length
@@ -313,34 +327,29 @@ export function SheetDiagram({
                     {choice.letter} · {choice.dims}
                   </text>
                 )}
-                {choice.kind === 'badge' && (
-                  <g>
-                    {/* Outside label with leader line + dot, per spec, for a strip too
-                        narrow for any inline text (R15: still carries letter + size). */}
-                    <line
-                      x1={X(b.x) + pw / 2}
-                      y1={Y(b.y) + ph / 2}
-                      x2={X(b.x) + pw + 18}
-                      y2={Y(b.y) + ph / 2}
-                      stroke="var(--success-border)"
-                      strokeWidth="1"
-                    />
-                    <circle cx={X(b.x) + pw + 18} cy={Y(b.y) + ph / 2} r="2" fill="var(--success-text)" />
-                    <text
-                      x={X(b.x) + pw + 22}
-                      y={Y(b.y) + ph / 2}
-                      dominantBaseline="middle"
-                      fontSize="11"
-                      fontWeight="600"
-                      fill="var(--success-text)"
-                    >
-                      {choice.letter} · {choice.dims} free
-                    </text>
-                  </g>
-                )}
               </g>
             )
           })}
+
+        {/* Badges for leftovers too narrow for any inline label: a leader line + dot to a
+            label, y-nudged apart so several on the same sheet (A3, C2, C3, C4...) never
+            overlap each other's text. */}
+        {badges.map((bd) => (
+          <g key={`badge-${bd.blockIndex}`}>
+            <line
+              x1={bd.anchorX}
+              y1={bd.anchorY}
+              x2={bd.anchorX + 18}
+              y2={bd.center}
+              stroke="var(--success-border)"
+              strokeWidth="1"
+            />
+            <circle cx={bd.anchorX + 18} cy={bd.center} r="2" fill="var(--success-text)" />
+            <text x={bd.anchorX + 22} y={bd.center} dominantBaseline="middle" fontSize="11" fontWeight="600" fill="var(--success-text)">
+              {bd.text}
+            </text>
+          </g>
+        ))}
 
         {/* Pieces */}
         {blocks
@@ -511,60 +520,6 @@ export function SheetDiagram({
             {lbl.text}
           </text>
         ))}
-
-        {/* Per-rectangle width (top edge) / height (left edge) labels, or a leader-line
-            callout outside the drawing when the rectangle is too small (R15/C-new: every
-            rectangle shows its size, always, alongside its existing name/letter/chip). */}
-        {rectLabels.map((r) => {
-          const b = sizeBlocks[r.blockIndex]
-          const pw = b.w * pxPerInch
-          const ph = b.h * pxPerInch
-          if (r.placement === 'inside-edges') {
-            return (
-              <g key={`sizelbl-${r.blockIndex}`}>
-                <text
-                  x={X(b.x) + pw / 2}
-                  y={Y(b.y) + 10}
-                  textAnchor="middle"
-                  fontSize="11"
-                  fill="var(--faint)"
-                >
-                  {r.width}
-                </text>
-                <text
-                  x={X(b.x) + 3}
-                  y={Y(b.y) + ph / 2}
-                  textAnchor="start"
-                  dominantBaseline="middle"
-                  fontSize="11"
-                  fill="var(--faint)"
-                  transform={`rotate(-90 ${X(b.x) + 3} ${Y(b.y) + ph / 2})`}
-                >
-                  {r.height}
-                </text>
-              </g>
-            )
-          }
-          return null
-        })}
-
-        {/* Callouts for rectangles too small to carry inline edge labels, stacked without overlap. */}
-        {callouts.map((c) => {
-          const r = rectLabels.find((rl) => rl.blockIndex === c.blockIndex)
-          if (!r) return null
-          const b = sizeBlocks[c.blockIndex]
-          const startX = X(b.x) + (b.w * pxPerInch)
-          const startY = TOP_MARGIN + r.cy * pxPerInch
-          const endX = svgW - RIGHT_MARGIN + 6
-          return (
-            <g key={`callout-${c.blockIndex}`}>
-              <line x1={startX} y1={startY} x2={endX} y2={c.y} stroke="var(--faint)" strokeWidth="0.75" />
-              <text x={endX + 4} y={c.y} dominantBaseline="middle" fontSize="11" fill="var(--faint)">
-                {c.text}
-              </text>
-            </g>
-          )
-        })}
 
         {/* Ruler along the bottom edge: ticks every 12 in, labels at 0/24/48-style intervals */}
         <Ruler x0={X(0)} pxPerInch={pxPerInch} sheetW={sheetW} y={TOP_MARGIN + sheetPxH + 10} />
