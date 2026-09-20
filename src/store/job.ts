@@ -30,6 +30,11 @@ interface JobState {
   plan: PlanState | null
   /** Set from Leftover detail's "Use this in a new job": restrict the next plan to this one leftover. */
   onlyLeftoverId: string | null
+  /**
+   * Set from Plan's "Use a new sheet instead": the normal (non-restricted) flow plans
+   * with an empty stock, so only new sheets are used even though a leftover would fit.
+   */
+  forceNewSheet: boolean
   addPiece: (w: number, h: number, qty: number) => void
   removePiece: (id: string) => void
   setPieces: (pieces: Piece[]) => void
@@ -44,6 +49,7 @@ interface JobState {
   buildPlanWithNewSheet: () => void
   dropPlan: () => void
   setOnlyLeftoverId: (id: string | null) => void
+  setForceNewSheet: (v: boolean) => void
 }
 
 export const useJob = create<JobState>()(
@@ -52,20 +58,32 @@ export const useJob = create<JobState>()(
       pieces: [],
       plan: null,
       onlyLeftoverId: null,
+      forceNewSheet: false,
       addPiece: (w, h, qty) =>
-        set((s) => ({ pieces: [...s.pieces, { id: uid(), w, h, qty }], plan: null })),
+        set((s) => ({
+          pieces: [...s.pieces, { id: uid(), w, h, qty }],
+          plan: null,
+          forceNewSheet: false,
+        })),
       removePiece: (id) =>
-        set((s) => ({ pieces: s.pieces.filter((p) => p.id !== id), plan: null })),
-      setPieces: (pieces) => set({ pieces, plan: null }),
-      clearJob: () => set({ pieces: [], plan: null, onlyLeftoverId: null }),
+        set((s) => ({
+          pieces: s.pieces.filter((p) => p.id !== id),
+          plan: null,
+          forceNewSheet: false,
+        })),
+      setPieces: (pieces) => set({ pieces, plan: null, forceNewSheet: false }),
+      clearJob: () => set({ pieces: [], plan: null, onlyLeftoverId: null, forceNewSheet: false }),
       buildPlan: (excluded = []) => {
         const { derived } = useData.getState()
         const { settings } = useSettings.getState()
         const kerf = settings.kerfOn ? settings.kerfSize : 0
         const only = get().onlyLeftoverId
+        const forceNewSheet = get().forceNewSheet
         const stock = only
           ? derived.freeLeftovers.filter((l) => l.id === only)
-          : derived.freeLeftovers
+          : forceNewSheet
+            ? []
+            : derived.freeLeftovers
         const result = packJob(
           get().pieces,
           stock,
@@ -144,6 +162,7 @@ export const useJob = create<JobState>()(
       },
       dropPlan: () => set({ plan: null }),
       setOnlyLeftoverId: (id) => set({ onlyLeftoverId: id }),
+      setForceNewSheet: (v) => set({ forceNewSheet: v }),
     }),
     { name: 'sc-job-draft', partialize: (s) => ({ pieces: s.pieces }) },
   ),

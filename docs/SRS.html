@@ -886,6 +886,18 @@ SheetPlan {
 </ul>
 <p>This applies wherever a sheet is drawn: Cutting plan, Job detail and Leftover detail.</p>
 
+<h4>9.5.2 Automatic leftover use is announced, and the carpenter can choose a new sheet</h4>
+<p>The carpenter does not know what leftovers exist; the app does. In the normal flow (New job, then Make cutting plan, with no leftover restriction from Leftover detail — see §9.6.1), a piece that fits a saved leftover is placed there automatically, and the plan screen says so in a green banner card at the top, not a blocking popup:</p>
+<ul>
+<li><strong>All pieces fit saved leftovers.</strong> Title <em>"You had a leftover, so I used it"</em>, body naming the piece, the leftover's letter and size (short side first), the sheet's date, and how many sheets were saved: <em>"Your 19 × 22 piece fits in saved leftover A (19 × 48) from the 15 Sep sheet. No new sheet needed. You saved 1 sheet."</em> Several leftovers used are listed one per line.</li>
+<li><strong>Only part of the job fits.</strong> Title <em>"Part of this job fits in your leftovers"</em>, body <em>"2 pieces fit in leftover A (19 × 48). 1 piece needs a new sheet."</em></li>
+<li>The banner carries one button, <strong>Use a new sheet instead</strong>, shown only when it used a leftover. Tapping it re-plans with no saved leftovers at all, so every piece goes on a new sheet; the unused leftover is left exactly as it was, still free in stock.</li>
+<li>Once a new sheet has been chosen this way, a neutral note appears under the subtitle whenever a leftover would still have fit: <em>"You chose a new sheet. Leftover A (19 × 48) could have held this."</em> with a text button <strong>Use the leftover</strong> that reverts to the automatic plan. The note is not shown once nothing would have fit any more.</li>
+<li>The first time the plan screen opens with a leftover in use, a toast confirms it once: <em>"Using leftover A (19 × 48)"</em>. It does not repeat on a rebuild of the same plan.</li>
+<li>Confirming a plan that used a leftover names it in the toast: <em>"Cut saved using leftover A. 1 leftover added."</em> (or "No leftover added." if the leftover was fully consumed). A plan using only new sheets keeps the existing toast wording.</li>
+</ul>
+<p>This is separate from leftover-restricted planning (§9.6.1): restricting to one leftover from Leftover detail keeps its own strict "Doesn't fit this leftover" dialog and never shows these banners.</p>
+
 <div class="fig">
 <div class="screens">
 <div>

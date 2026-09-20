@@ -13,6 +13,7 @@ export default function Home() {
   const navigate = useNavigate()
   const derived = useData((s) => s.derived)
   const setOnlyLeftoverId = useJob((s) => s.setOnlyLeftoverId)
+  const setForceNewSheet = useJob((s) => s.setForceNewSheet)
   const listRef = useRef<HTMLDivElement>(null)
   const [atBottom, setAtBottom] = useState(false)
 
@@ -44,6 +45,7 @@ export default function Home() {
 
   function startNewJob() {
     setOnlyLeftoverId(null)
+    setForceNewSheet(false)
     navigate('/new')
   }
 
