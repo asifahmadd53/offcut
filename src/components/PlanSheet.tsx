@@ -11,13 +11,17 @@ import type { SheetPlan } from '@/lib/types'
 interface PlanSheetProps {
   sheet: SheetPlan
   blocks: Block[]
+  /** Index into `blocks` of the one block to draw with a solid highlight border, e.g. the
+   *  leftover Leftover detail opened. Purely a rendering overlay (SheetDiagram's own
+   *  highlightIndex prop) — never changes geometry, scale, or any label. */
+  highlightIndex?: number
 }
 
 const DIAGRAM_MAX_W = 144
 const DIAGRAM_MAX_H = 288
 
 /** One physical sheet of a plan: the diagram, a side panel, and the cut order below. */
-export function PlanSheet({ sheet, blocks }: PlanSheetProps) {
+export function PlanSheet({ sheet, blocks, highlightIndex }: PlanSheetProps) {
   const usedArea = sheet.placements.reduce((sum, p) => sum + p.w * p.h, 0)
   const regionArea = sheet.region.w * sheet.region.h
   const pct = regionArea > 0 ? Math.round((usedArea / regionArea) * 100) : 0
@@ -49,6 +53,7 @@ export function PlanSheet({ sheet, blocks }: PlanSheetProps) {
             cuts={sheet.cuts}
             activeCut={activeCut}
             onCutToggle={toggleCut}
+            highlightIndex={highlightIndex}
             fill
           />
         </div>

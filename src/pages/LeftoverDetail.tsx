@@ -1,7 +1,7 @@
-import { useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
+import { useState } from 'react'
 import { AppShell } from '@/components/AppShell'
-import { SheetDiagram } from '@/components/SheetDiagram'
+import { PlanSheet } from '@/components/PlanSheet'
 import { Button } from '@/components/ui/button'
 import {
   Dialog,
@@ -11,7 +11,6 @@ import {
 } from '@/components/ui/dialog'
 import { dayMonth } from '@/lib/format'
 import { fmt } from '@/lib/inches'
-import { badgedLeftovers } from '@/lib/labelChoice'
 import { saveCut } from '@/lib/db'
 import { getDeviceId, uid } from '@/lib/id'
 import { buildBlocks } from '@/lib/sheetView'
@@ -45,35 +44,35 @@ export default function LeftoverDetail() {
     )
   }
 
-  const blocks = buildBlocks(
-    {
-      sheetId: leftover.sheetId,
-      sheetW: leftover.sheetW,
-      sheetH: leftover.sheetH,
-      sheetDate: leftover.sheetDate,
-      isNew: false,
-      usedLeftoverId: undefined,
-      usedLetter: undefined,
-      region: { x: leftover.x, y: leftover.y, w: leftover.w, h: leftover.h },
-      placements: [],
-      newLeftovers: [],
-      steps: [],
-    },
-    derived,
-  )
+  // The exact same SheetPlan record Job detail renders for the cut that created this
+  // leftover (found via createdByCutId, present for both real cuts and hand-added
+  // leftovers alike) — so Cut order, Sheet used %, Saved to stock and the legend are
+  // byte-for-byte identical to Job detail, not a re-derived summary of just this leftover.
+  const sourceCut = derived.activeCuts.find((c) => c.id === leftover.createdByCutId)
+  const sheet = sourceCut?.sheets.find((s) => s.sheetId === leftover.sheetId)
+
+  if (!sourceCut || !sheet) {
+    return (
+      <AppShell title="Leftover" back="/stock">
+        <p className="mt-8 text-center text-[15px] text-muted-foreground">
+          This leftover's sheet could not be found.
+        </p>
+        <Button variant="outline" className="mt-4 h-12 w-full" onClick={() => navigate('/stock')}>
+          Back to stock
+        </Button>
+      </AppShell>
+    )
+  }
+
+  const blocks = buildBlocks(sheet, derived, sourceCut.id)
 
   // The one block matching this leftover's own geometry is highlighted with a solid
-  // border on the shared diagram (SheetDiagram's highlightIndex prop) instead of being
-  // given a different block kind, so it never changes the drawing's geometry or labels.
+  // border on the shared diagram (PlanSheet/SheetDiagram's highlightIndex prop) instead
+  // of being given a different block kind, so it never changes the drawing's geometry
+  // or labels.
   const highlightIndex = blocks.findIndex(
     (b) => b.kind !== 'earlier' && b.x === leftover.x && b.y === leftover.y && b.w === leftover.w && b.h === leftover.h,
   )
-
-  // Same scale the SheetDiagram itself lands on when filling the same responsive layout
-  // Job detail uses; blocks too small to carry their own label still owe their size to
-  // the legend (R15).
-  const diagramScale = Math.min(144 / leftover.sheetW, 288 / leftover.sheetH)
-  const badged = badgedLeftovers(blocks, diagramScale)
 
   function useInNewJob() {
     setOnlyLeftoverId(leftover!.id)
@@ -98,47 +97,26 @@ export default function LeftoverDetail() {
 
   return (
     <AppShell title={`Leftover ${leftover.letter}`} back="/stock">
-      <div className="mb-4 flex flex-col items-start gap-4 lg:flex-row lg:items-start lg:gap-6">
-        <div className="h-[60vh] min-h-[320px] w-full lg:h-[70vh] lg:min-h-[480px] lg:flex-1">
-          <SheetDiagram
-            sheetW={leftover.sheetW}
-            sheetH={leftover.sheetH}
-            blocks={blocks}
-            highlightIndex={highlightIndex >= 0 ? highlightIndex : undefined}
-            fill
-          />
-        </div>
-        <div className="min-w-0 w-full lg:w-64 lg:flex-none text-[13px]">
-          <p className="mb-0.5 font-sans text-[24px] font-semibold">
-            {fmt(Math.min(leftover.w, leftover.h))} × {fmt(Math.max(leftover.w, leftover.h))}
-          </p>
-          <p className="mb-3 text-[13px] text-muted-foreground">
-            {Math.round(leftover.w * leftover.h).toLocaleString()} sq in
-          </p>
-          {!leftover.manual && (
-            <>
-              <p className="mb-0.5 text-[13px] text-muted-foreground">From</p>
-              <p className="mb-3 text-[14px]">Sheet cut on {dayMonth(leftover.sheetDate)}</p>
-              <p className="mb-0.5 text-[13px] text-muted-foreground">Position on the sheet</p>
-              <p className="text-[14px]">
-                {fmt(leftover.x)} in from the left,
-                <br />
-                {fmt(leftover.y)} in from the top
-              </p>
-            </>
-          )}
-        </div>
+      <div className="mb-3.5 rounded-lg bg-muted p-3 text-[13px]">
+        <p className="mb-0.5 font-sans text-[24px] font-semibold text-foreground">
+          {fmt(Math.min(leftover.w, leftover.h))} × {fmt(Math.max(leftover.w, leftover.h))}
+        </p>
+        <p className="mb-2 text-muted-foreground">
+          {Math.round(leftover.w * leftover.h).toLocaleString()} sq in
+        </p>
+        {!leftover.manual && (
+          <>
+            <p className="mb-0.5 text-muted-foreground">From</p>
+            <p className="mb-2 text-foreground">Sheet cut on {dayMonth(leftover.sheetDate)}</p>
+            <p className="mb-0.5 text-muted-foreground">Position on the sheet</p>
+            <p className="text-foreground">
+              {fmt(leftover.x)} in from the left, {fmt(leftover.y)} in from the top
+            </p>
+          </>
+        )}
       </div>
 
-      {badged.length > 0 && (
-        <div className="mb-4 rounded-lg bg-muted p-3 text-[13px]">
-          {badged.map((b, i) => (
-            <p key={i} className="mb-0 text-muted-foreground">
-              {b.letter}: {b.dims}
-            </p>
-          ))}
-        </div>
-      )}
+      <PlanSheet sheet={sheet} blocks={blocks} highlightIndex={highlightIndex >= 0 ? highlightIndex : undefined} />
 
       <Button size="lg" className="mb-2.5 h-[52px] w-full" onClick={useInNewJob}>
         Use this in a new job
