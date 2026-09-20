@@ -27,6 +27,8 @@ export interface PackOptions {
   kerf: number
   /** Free areas with a side shorter than this are waste and are not saved. */
   minLeftover: number
+  /** When false, a piece that does not fit the given stock is left unplaced instead of opening a new sheet. */
+  allowNewSheets?: boolean
 }
 
 export interface Item {
@@ -209,6 +211,8 @@ export function packJob(
     return bin
   }
 
+  const allowNewSheets = opts.allowNewSheets ?? true
+
   for (const item of items) {
     const tries: Array<[Bin[], boolean]> = [
       [leftoverBins, false],
@@ -229,7 +233,9 @@ export function packJob(
     }
     if (done) continue
 
-    if (fits({ x: 0, y: 0, w: opts.sheetW, h: opts.sheetH }, item.w, item.h)) {
+    if (!allowNewSheets) {
+      unplaced.push(item)
+    } else if (fits({ x: 0, y: 0, w: opts.sheetW, h: opts.sheetH }, item.w, item.h)) {
       const bin = openSheet()
       place(bin, 0, item, false, opts.kerf)
     } else if (fits({ x: 0, y: 0, w: opts.sheetW, h: opts.sheetH }, item.h, item.w)) {

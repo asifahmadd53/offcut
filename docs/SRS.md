@@ -1775,6 +1775,35 @@ Add to stock
   Add by hand             Adds one or more loose leftovers with no parent sheet. Essential for the first weeks of use
 :::
 
+#### 9.6.1 Leftover-restricted planning must never silently open a new sheet
+
+When a job is planned from "Use this in a new job", the plan is
+restricted to that one leftover: the engine runs with
+`allowNewSheets: false`, so a piece that does not fit that leftover,
+even turned, is left unplaced rather than quietly starting a fresh
+sheet. New job shows `Planning with leftover A2 (28 × 48) only.`
+(short side first, per §4.4).
+
+If every piece fits, planning proceeds straight to the plan screen as
+normal, with any turned piece marked "Turned to fit". If one or more
+pieces do not fit, New job does not navigate. Instead it shows a
+dialog:
+
+- **Title:** "Doesn't fit this leftover"
+- **Body:** names every piece that does not fit, with quantity, for
+  example "The 30 × 48 piece does not fit in leftover A2 (28 × 48),
+  even turned." When some pieces do fit, it adds "The other pieces
+  fit."
+- **Use a new sheet** (primary) --- plans again using only this
+  leftover plus a new sheet for whatever does not fit it. No other
+  saved leftover is considered. The plan's reuse banner then reads
+  "Uses 1 saved leftover and 1 new sheet." (or shows no leftover use
+  at all if nothing fit the leftover).
+- **Change the size** (outlined) --- closes the dialog and returns to
+  New job with the typed pieces untouched.
+- **Choose another leftover** (text link) --- clears the restriction
+  and returns to Leftover stock.
+
 ### 9.7 Screen 7 --- Sync check
 
 **Purpose:** resolve the one situation the app cannot decide alone. The

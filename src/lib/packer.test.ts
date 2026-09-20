@@ -2,10 +2,28 @@ import { describe, expect, it } from 'vitest'
 import { fmt, fmtLeft, parseInches } from './inches'
 import { packJob } from './packer'
 import { deriveStock } from './stock'
-import type { CutDoc, Piece } from './types'
+import type { CutDoc, Leftover, Piece } from './types'
 
 const opts = { sheetW: 48, sheetH: 96, kerf: 0, minLeftover: 1 }
 const piece = (w: number, h: number, qty: number, id = `${w}x${h}`): Piece => ({ id, w, h, qty })
+
+/** A single free leftover, standing in for one entry in derived.freeLeftovers. */
+const leftover = (w: number, h: number, id = `lo-${w}x${h}`): Leftover => ({
+  id,
+  letter: 'A2',
+  sheetId: 'sheet-1',
+  sheetW: 48,
+  sheetH: 96,
+  sheetDate: 1,
+  createdByCutId: 'cut-1',
+  createdAt: 1,
+  manual: false,
+  status: 'free',
+  x: 0,
+  y: 0,
+  w,
+  h,
+})
 
 describe('inches', () => {
   it('reads fractions and decimals', () => {
@@ -345,5 +363,79 @@ describe('packJob edge cases', () => {
       .map((l) => l.letter)
     // No letter may repeat on the one physical sheet, no matter how many jobs touched it.
     expect(new Set(lettersOnSheet).size).toBe(lettersOnSheet.length)
+  })
+})
+
+describe('packJob allowNewSheets (leftover-restricted planning)', () => {
+  it('T-19 a 30 x 48 piece does not fit a 28 x 48 leftover with allowNewSheets false: unplaced, no new sheet', () => {
+    const lo = leftover(28, 48)
+    const result = packJob(
+      [piece(30, 48, 1)],
+      [lo],
+      { ...opts, allowNewSheets: false },
+      new Set(),
+      new Map(),
+    )
+    expect(result.sheets).toHaveLength(0)
+    expect(result.unplaced).toHaveLength(1)
+    expect(result.unplaced[0].label).toBe('30 × 48')
+  })
+
+  it('T-20 a 48 x 28 piece fits a 28 x 48 leftover only when turned, rotated = true', () => {
+    const lo = leftover(28, 48)
+    const result = packJob(
+      [piece(48, 28, 1)],
+      [lo],
+      { ...opts, allowNewSheets: false },
+      new Set(),
+      new Map(),
+    )
+    expect(result.unplaced).toHaveLength(0)
+    expect(result.sheets).toHaveLength(1)
+    expect(result.sheets[0].placements[0].rotated).toBe(true)
+  })
+
+  it('T-21 a piece that fits unturned is never turned, even with allowNewSheets false', () => {
+    const lo = leftover(28, 48)
+    const result = packJob(
+      [piece(28, 40, 1)],
+      [lo],
+      { ...opts, allowNewSheets: false },
+      new Set(),
+      new Map(),
+    )
+    expect(result.unplaced).toHaveLength(0)
+    expect(result.sheets[0].placements[0].rotated).toBe(false)
+  })
+
+  it('T-22 of two pieces only one fits the leftover: one placed, one left unplaced', () => {
+    const lo = leftover(28, 48)
+    const result = packJob(
+      [piece(20, 40, 1, 'fits'), piece(30, 48, 1, 'too-big')],
+      [lo],
+      { ...opts, allowNewSheets: false },
+      new Set(),
+      new Map(),
+    )
+    expect(result.sheets).toHaveLength(1)
+    expect(result.sheets[0].placements).toHaveLength(1)
+    expect(result.sheets[0].placements[0].pieceId).toBe('fits')
+    expect(result.unplaced).toHaveLength(1)
+    expect(result.unplaced[0].pieceId).toBe('too-big')
+  })
+
+  it('T-23 the same job with allowNewSheets true (default) fills the leftover plus a new sheet', () => {
+    const lo = leftover(28, 48)
+    const result = packJob(
+      [piece(20, 40, 1, 'fits'), piece(30, 48, 1, 'too-big')],
+      [lo],
+      opts,
+      new Set(),
+      new Map(),
+    )
+    expect(result.unplaced).toHaveLength(0)
+    expect(result.sheets).toHaveLength(2)
+    expect(result.sheets.some((s) => !s.isNew)).toBe(true)
+    expect(result.sheets.some((s) => s.isNew)).toBe(true)
   })
 })

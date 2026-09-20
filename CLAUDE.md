@@ -23,6 +23,7 @@ Offcut is an installable, offline-first PWA that helps a carpenter plan cuts fro
 - [ ] R14. No technical words reach the user (no error codes, "sync conflict", "rectangle", "entity"). Use: cut, sheet, piece, leftover, waste.
 - [ ] R15. Colour is never the only signal — every diagram block has a text label or letter.
 - [ ] R16. Sizes entered as `22`, `22.5`, `22 1/2`, `22-1/2"`, `3/8`, `22 in`; displayed as fractions to nearest 1/16. Leftovers shown short side first (`19 × 48`). Pieces keep typed order (width × height).
+- [ ] R17. Leftover-restricted planning ("Use this in a new job") never silently opens a new sheet. The engine runs with `packJob`'s `allowNewSheets: false`; anything that does not fit that one leftover, even turned, is left `unplaced` for New job's "Doesn't fit this leftover" dialog to handle (Use a new sheet / Change the size / Choose another leftover). Only an explicit "Use a new sheet" tap allows a new sheet in this mode.
 
 ## Tech stack
 | Concern | Choice |

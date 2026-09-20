@@ -5,9 +5,12 @@ import { Stepper } from '@/components/Stepper'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { parseInches, fmtDims } from '@/lib/inches'
-import { useJob } from '@/store/job'
+import { Dialog, DialogContent, DialogDescription, DialogTitle } from '@/components/ui/dialog'
+import { parseInches, fmtDims, fmtLeft } from '@/lib/inches'
+import { plural } from '@/lib/format'
+import { useJob, type LeftoverFitCheck } from '@/store/job'
 import { useSettings } from '@/store/settings'
+import { useData } from '@/store/data'
 
 type FieldError = 'zero' | 'nan' | null
 
@@ -23,9 +26,16 @@ export default function NewJob() {
   const addPiece = useJob((s) => s.addPiece)
   const removePiece = useJob((s) => s.removePiece)
   const buildPlan = useJob((s) => s.buildPlan)
+  const checkLeftoverFit = useJob((s) => s.checkLeftoverFit)
+  const buildPlanWithNewSheet = useJob((s) => s.buildPlanWithNewSheet)
   const onlyLeftoverId = useJob((s) => s.onlyLeftoverId)
+  const setOnlyLeftoverId = useJob((s) => s.setOnlyLeftoverId)
   const settings = useSettings((s) => s.settings)
   const updateSettings = useSettings((s) => s.update)
+  const freeLeftovers = useData((s) => s.derived.freeLeftovers)
+
+  const [misfit, setMisfit] = useState<LeftoverFitCheck | null>(null)
+  const onlyLeftover = onlyLeftoverId ? freeLeftovers.find((l) => l.id === onlyLeftoverId) : undefined
 
   const [width, setWidth] = useState('')
   const [height, setHeight] = useState('')
@@ -72,8 +82,35 @@ export default function NewJob() {
     if (bothValid && !tooBig) {
       addPiece(wVal!, hVal!, qty)
     }
+
+    if (onlyLeftoverId) {
+      // Leftover-restricted planning must never silently open a new sheet: check
+      // the fit first, and only navigate once every piece fits this leftover alone.
+      const check = checkLeftoverFit()
+      if (check && !check.fits) {
+        setMisfit(check)
+        return
+      }
+    }
+
     buildPlan([])
     navigate('/plan')
+  }
+
+  function useNewSheetForRest() {
+    buildPlanWithNewSheet()
+    setMisfit(null)
+    navigate('/plan')
+  }
+
+  function changeSize() {
+    setMisfit(null)
+  }
+
+  function chooseAnotherLeftover() {
+    setMisfit(null)
+    setOnlyLeftoverId(null)
+    navigate('/stock')
   }
 
   const hasTypedValid = bothValid && !tooBig
@@ -83,7 +120,8 @@ export default function NewJob() {
     <AppShell title="New job" back="/">
       {onlyLeftoverId && (
         <div className="mb-3 rounded-lg bg-accent-bg px-3 py-2 text-[13px] text-accent-text">
-          Planning with this leftover first.
+          Planning with leftover {onlyLeftover?.letter ?? ''}
+          {onlyLeftover ? ` (${fmtLeft(onlyLeftover.w, onlyLeftover.h)})` : ''} only.
         </div>
       )}
 
@@ -194,6 +232,44 @@ export default function NewJob() {
       <Button size="lg" className="h-14 w-full" disabled={!canMakePlan} onClick={onMakePlan}>
         Make cutting plan
       </Button>
+
+      <Dialog open={!!misfit} onOpenChange={(open) => !open && setMisfit(null)}>
+        <DialogContent>
+          <DialogTitle>Doesn&rsquo;t fit this leftover</DialogTitle>
+          <DialogDescription asChild>
+            <div>
+              {misfit && (
+                <>
+                  <p className="mb-2">
+                    {misfit.misfits
+                      .map(
+                        (m) =>
+                          `The ${fmtDims(m.w, m.h)}${m.qty > 1 ? ` (${plural(m.qty, 'piece')})` : ''} piece does not fit in leftover ${misfit.leftover.letter} (${fmtLeft(misfit.leftover.w, misfit.leftover.h)}), even turned.`,
+                      )
+                      .join(' ')}
+                  </p>
+                  {misfit.someFit && <p className="mb-0">The other pieces fit.</p>}
+                </>
+              )}
+            </div>
+          </DialogDescription>
+          <div className="mt-4 flex flex-col gap-2.5">
+            <Button className="h-12 w-full" onClick={useNewSheetForRest}>
+              Use a new sheet
+            </Button>
+            <Button variant="outline" className="h-12 w-full" onClick={changeSize}>
+              Change the size
+            </Button>
+            <button
+              type="button"
+              onClick={chooseAnotherLeftover}
+              className="text-[14px] text-accent-text underline-offset-4 hover:underline"
+            >
+              Choose another leftover
+            </button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </AppShell>
   )
 }
