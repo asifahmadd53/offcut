@@ -166,6 +166,11 @@ export default function Plan() {
     const newLeftoverCount = sheets.reduce((sum, s) => sum + s.newLeftovers.length, 0)
     const usedLetters = sheets.filter((s) => !s.isNew).map((s) => s.usedLetter).filter(Boolean) as string[]
     clearJob()
+    if (settings.showPrintAfterConfirm) {
+      navigate('/cut-saved', { state: { cutId: doc.id, sheetCount: sheets.length } })
+      return
+    }
+
     const confirmToast =
       usedLetters.length > 0
         ? `Cut saved using ${plural(usedLetters.length, 'leftover')} ${usedLetters.join(', ')}. ${

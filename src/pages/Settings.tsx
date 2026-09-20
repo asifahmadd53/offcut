@@ -23,6 +23,8 @@ interface Draft {
   kerfOn: boolean
   kerfSize: string
   minLeftover: string
+  showPrintAfterConfirm: boolean
+  paperSize: 'A4' | 'Letter'
 }
 
 interface FieldErrors {
@@ -39,6 +41,8 @@ function draftFrom(s: SettingsShape): Draft {
     kerfOn: s.kerfOn,
     kerfSize: fmt(s.kerfSize),
     minLeftover: fmt(s.minLeftover),
+    showPrintAfterConfirm: s.showPrintAfterConfirm,
+    paperSize: s.paperSize,
   }
 }
 
@@ -59,7 +63,14 @@ function validate(draft: Draft): { errors: FieldErrors; values?: Partial<Setting
   if (Object.keys(errors).length > 0) return { errors }
   return {
     errors,
-    values: { sheetH: sheetH!, sheetW: sheetW!, kerfSize: kerfSize ?? 0, minLeftover: minLeftover! },
+    values: {
+      sheetH: sheetH!,
+      sheetW: sheetW!,
+      kerfSize: kerfSize ?? 0,
+      minLeftover: minLeftover!,
+      showPrintAfterConfirm: draft.showPrintAfterConfirm,
+      paperSize: draft.paperSize,
+    },
   }
 }
 
@@ -85,7 +96,9 @@ export default function Settings() {
     draft.sheetW !== saved.sheetW ||
     draft.kerfOn !== saved.kerfOn ||
     draft.kerfSize !== saved.kerfSize ||
-    draft.minLeftover !== saved.minLeftover
+    draft.minLeftover !== saved.minLeftover ||
+    draft.showPrintAfterConfirm !== saved.showPrintAfterConfirm ||
+    draft.paperSize !== saved.paperSize
 
   function patch(p: Partial<Draft>) {
     setDraft((d) => ({ ...d, ...p }))
@@ -243,6 +256,43 @@ export default function Settings() {
       <div className="flex items-center justify-between border-b border-hair border-border py-3">
         <span className="text-[15px]">Rotate pieces</span>
         <span className="text-[14px] text-muted-foreground">Only if needed</span>
+      </div>
+
+      <div className="border-b border-hair border-border py-3">
+        <div className="flex items-center justify-between">
+          <span className="text-[15px]">Show the print screen after every confirmed cut</span>
+          <Switch
+            checked={draft.showPrintAfterConfirm}
+            onCheckedChange={(v) => patch({ showPrintAfterConfirm: v })}
+          />
+        </div>
+        <p className="mt-1.5 text-[12.5px] text-faint">
+          When off, Confirm cut goes straight back to Home. Print is always available from Job detail.
+        </p>
+      </div>
+
+      <div className="border-b border-hair border-border py-3">
+        <Label>Paper size</Label>
+        <div className="flex gap-2">
+          <button
+            type="button"
+            onClick={() => patch({ paperSize: 'A4' })}
+            className={`h-10 flex-1 rounded-lg border-hair text-[14px] font-semibold ${
+              draft.paperSize === 'A4' ? 'border-accent-border bg-accent-bg text-accent-text' : 'border-border-strong text-foreground'
+            }`}
+          >
+            A4
+          </button>
+          <button
+            type="button"
+            onClick={() => patch({ paperSize: 'Letter' })}
+            className={`h-10 flex-1 rounded-lg border-hair text-[14px] font-semibold ${
+              draft.paperSize === 'Letter' ? 'border-accent-border bg-accent-bg text-accent-text' : 'border-border-strong text-foreground'
+            }`}
+          >
+            Letter
+          </button>
+        </div>
       </div>
 
       <div className="py-4">

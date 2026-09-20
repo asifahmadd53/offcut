@@ -53,6 +53,9 @@ export default function JobDetail() {
         <PlanSheet key={sheet.sheetId + i} sheet={sheet} blocks={buildBlocks(sheet, derived, cut.id)} />
       ))}
 
+      <Button variant="outline" className="mb-2.5 h-12 w-full" onClick={() => navigate(`/print/${cut.id}`)}>
+        Print
+      </Button>
       <Button variant="outline" className="h-12 w-full" onClick={cutAgain}>
         Cut these pieces again
       </Button>

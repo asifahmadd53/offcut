@@ -15,6 +15,8 @@ import LeftoverDetail from '@/pages/LeftoverDetail'
 import JobDetail from '@/pages/JobDetail'
 import SyncCheck from '@/pages/SyncCheck'
 import Settings from '@/pages/Settings'
+import Print from '@/pages/Print'
+import CutSaved from '@/pages/CutSaved'
 
 function SetupNeeded() {
   return (
@@ -81,6 +83,8 @@ function AppRoutes() {
       <Route path="/job/:id" element={<RequireAuth><JobDetail /></RequireAuth>} />
       <Route path="/sync-check" element={<RequireAuth><SyncCheck /></RequireAuth>} />
       <Route path="/settings" element={<RequireAuth><Settings /></RequireAuth>} />
+      <Route path="/cut-saved" element={<RequireAuth><CutSaved /></RequireAuth>} />
+      <Route path="/print/:jobId" element={<RequireAuth><Print /></RequireAuth>} />
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
   )
