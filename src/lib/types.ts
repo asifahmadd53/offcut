@@ -51,6 +51,11 @@ export interface SheetPlan {
   newLeftovers: LeftoverRect[]
   /** Cut order, measured from the top-left corner of `region`. */
   steps: string[]
+  /**
+   * Structured cut-line data paralleling `steps` exactly (cuts[i].n === i + 1, same
+   * semantic meaning as steps[i]). Optional so older saved records without it still work.
+   */
+  cuts?: Array<{ n: number; kind: 'across' | 'down'; pos: number; from: number; to: number }>
 }
 
 export interface Leftover extends Rect {

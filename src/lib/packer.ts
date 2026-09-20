@@ -165,6 +165,25 @@ function buildSteps(bin: Bin): string[] {
   })
 }
 
+/**
+ * Structured data paralleling buildSteps exactly, for the technical-drawing diagram.
+ * 'across': the full x-span of the free rect being cut. 'down': the y-span from the top
+ * of the free rect to the bottom of the piece that was placed there (its cut length).
+ */
+function buildCuts(bin: Bin): SheetPlan['cuts'] {
+  return bin.cuts.map((c, i) => {
+    if (c.kind === 'across') {
+      return { n: i + 1, kind: 'across' as const, pos: c.pos, from: c.rect.x, to: r4(c.rect.x + c.rect.w) }
+    }
+    // 'down': the piece placed at the top-left of this free rect sets the cut length.
+    const placed = bin.placements.find(
+      (p) => Math.abs(p.x - c.rect.x) < EPS && Math.abs(p.y - c.rect.y) < EPS,
+    )
+    const to = placed ? r4(c.rect.y + placed.h) : c.rect.y + c.rect.h
+    return { n: i + 1, kind: 'down' as const, pos: c.pos, from: c.rect.y, to }
+  })
+}
+
 export function packJob(
   pieces: Piece[],
   stock: Leftover[],
@@ -286,6 +305,7 @@ export function packJob(
       placements: bin.placements,
       newLeftovers,
       steps: buildSteps(bin),
+      cuts: buildCuts(bin),
     })
   }
 

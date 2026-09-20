@@ -1607,6 +1607,64 @@ size label, leftovers carry a letter and the word \"free\", and earlier
 cuts carry the words \"Already cut\". A colour-blind user, or one in
 bright sun, can read the plan.
 
+#### 9.5.3 The diagram is a technical cutting drawing, not a coloured
+rectangle
+
+The sheet diagram is redrawn as an SVG so it reads like a shop
+drawing: a panel saw operator expects dimension lines, numbered cuts
+and hatching, not flat colour blocks. This replaces the div-based
+diagram from §9.5.1 with the same information plus:
+
+- **Sheet outline.** A thick neutral stroke around the whole sheet
+  (or, for a leftover, the whole physical parent sheet --- see Leftover
+  detail below).
+- **Hatching, always alongside text.** Free leftovers get a thin
+  45-degree hatch at low opacity inside their green fill; waste
+  (uncovered area with no piece or leftover) gets a grey crossed
+  hatch; earlier cuts keep their light diagonal cross pattern. Colour
+  is still never the only signal (R15): every hatched block also
+  carries its text label, letter or the word \"Waste\" when it fits.
+- **Waste.** Any part of the sheet not covered by a piece or a kept
+  leftover is drawn as waste, computed by coordinate compression over
+  every block's edges plus the sheet boundary. A kerf gap between two
+  pieces falls out of this the same way --- a thin waste strip, with no
+  special-casing in the layout code.
+- **Numbered cut lines.** When the plan carries structured cut data
+  (`SheetPlan.cuts`, added alongside the existing `steps` --- see
+  CLAUDE.md C8), each cut is drawn as a dashed line the width or
+  height of the region it cuts, extending slightly past the sheet
+  edge, with a small numbered circle. Tapping a circle, or a line in
+  the Cut order list below the diagram, highlights that cut (thicker
+  stroke, full opacity) and dims the rest; tapping again clears it.
+  Both are keyboard-reachable, with a visible focus ring and
+  `aria-pressed` reflecting the highlighted state. Older saved records
+  without `cuts` simply show no numbered lines; the plain-text Cut
+  order list still works from `steps` either way.
+- **Dimension lines.** The overall width (top) and height (left) are
+  shown with arrows at both ends; a second line below/beside carries
+  tick marks and each segment's size, read from the unique edges of
+  the pieces and leftovers in the region. A label that cannot fit its
+  own span is nudged sideways so adjacent labels never overlap; if
+  even nudging cannot separate two labels, that one is dropped from
+  the drawing and listed as plain text under the diagram instead of
+  overlapping unreadably.
+- **Ruler.** A plain inch ruler runs along the bottom edge, ticked
+  every 12 inches with numbers at the round ones, for a quick
+  reference without reading the dimension lines.
+- **Full screen and Save image.** \"Full screen\" opens the same
+  diagram, larger, in a dialog with pinch/wheel-zoom and drag-pan; a
+  \"Reset zoom\" text button appears only once the carpenter has
+  zoomed in. \"Save image\" renders the diagram to a PNG with a title
+  line (the job's pieces, the date, the sheet size) and shares or
+  downloads it, and works fully offline.
+
+This is the same `SheetDiagram` component used on Cutting plan, Job
+detail and Leftover detail --- it is not forked per screen. On Leftover
+detail it still draws the whole physical parent sheet at the compact
+size (120 × 240), with the parent's earlier cuts shown grey and the
+leftover itself highlighted as a solid-bordered focus block, exactly
+as before.
+
 ### 9.6 Screen 6 --- Leftover stock
 
 **Purpose:** replace the mental inventory of what is standing against

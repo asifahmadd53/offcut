@@ -63,6 +63,16 @@ describe('packJob', () => {
     expect(s.steps).toEqual(['Cut across at 77 in', 'Cut down at 23 in', 'Cut down at 46 in'])
   })
 
+  it('fills sheets[0].cuts with structured data paralleling steps for the golden example', () => {
+    const r = packJob([piece(23, 77, 2)], [], opts)
+    const s = r.sheets[0]
+    expect(s.cuts).toEqual([
+      { n: 1, kind: 'across', pos: 77, from: 0, to: 48 },
+      { n: 2, kind: 'down', pos: 23, from: 0, to: 77 },
+      { n: 3, kind: 'down', pos: 46, from: 0, to: 77 },
+    ])
+  })
+
   it('uses a saved leftover for 19 x 22 and turns the piece only because it must', () => {
     const first = packJob([piece(23, 77, 2)], [], opts)
     const cut: CutDoc = {
