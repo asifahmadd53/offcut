@@ -173,4 +173,177 @@ describe('deriveStock', () => {
     ])
     expect(d.freeLeftovers.map((l) => l.id)).not.toContain(gone)
   })
+
+  it('T-18 same records in different order give identical stock', () => {
+    // Stock must never depend on the order records arrive in: two phones syncing in a
+    // different sequence must still end up looking at the same workshop inventory.
+    const a = base('a', 1)
+    const b = base('b', 2, packJob([piece(10, 10, 1)], [], opts).sheets)
+    const discard: CutDoc = {
+      id: 'x',
+      type: 'discard',
+      createdAt: 3,
+      syncedAt: 3,
+      deviceId: 'd',
+      sheets: [],
+      discardIds: [a.sheets[0].newLeftovers[1].id],
+    }
+
+    const forward = deriveStock([a, b, discard])
+    const backward = deriveStock([discard, b, a])
+    const shuffled = deriveStock([b, discard, a])
+
+    const ids = (d: ReturnType<typeof deriveStock>) =>
+      [...d.freeLeftovers.map((l) => l.id)].sort()
+
+    expect(ids(backward)).toEqual(ids(forward))
+    expect(ids(shuffled)).toEqual(ids(forward))
+    expect(backward.jobs.map((j) => j.cut.id).sort()).toEqual(
+      forward.jobs.map((j) => j.cut.id).sort(),
+    )
+  })
+
+  it('deriveStock marks a job "missing" when its used leftover was never recorded on this phone', () => {
+    // Happens when a phone syncs a cut that references a leftover it has never heard of,
+    // for example a record made before this device existed. Same two answers as "taken".
+    const phantom: CutDoc = {
+      id: 'p',
+      type: 'cut',
+      createdAt: 5,
+      syncedAt: 5,
+      deviceId: 'd',
+      sheets: [
+        {
+          sheetId: 'ghost-sheet',
+          sheetW: 48,
+          sheetH: 96,
+          sheetDate: 5,
+          isNew: false,
+          usedLeftoverId: 'never-existed',
+          usedLetter: 'A',
+          region: { x: 0, y: 0, w: 19, h: 22 },
+          placements: [],
+          newLeftovers: [],
+          steps: [],
+        },
+      ],
+    }
+    const d = deriveStock([phantom])
+    expect(d.conflicts).toHaveLength(1)
+    expect(d.conflicts[0].conflict?.kind).toBe('missing')
+    expect(d.freeLeftovers).toHaveLength(0)
+
+    const kept = deriveStock([phantom], { p: 'kept' })
+    expect(kept.conflicts).toHaveLength(0)
+    expect(kept.jobs.find((j) => j.cut.id === 'p')?.status).toBe('kept')
+  })
+})
+
+describe('packJob edge cases', () => {
+  it('a piece exactly equal to a leftover uses the whole leftover and keeps no remainder', () => {
+    // Leftover A from the owner's golden example is 48 x 19. A piece of exactly that
+    // size should consume it completely: no sliver left over on either side.
+    const first = packJob([piece(23, 77, 2)], [], opts)
+    const d = deriveStock([
+      { id: 'a', type: 'cut', createdAt: 1, syncedAt: 1, deviceId: 'd', sheets: first.sheets },
+    ])
+    const leftoverA = d.freeLeftovers.find((l) => l.letter === 'A')!
+    expect([leftoverA.w, leftoverA.h]).toEqual([48, 19])
+
+    const second = packJob([piece(48, 19, 1)], d.freeLeftovers, opts, new Set(), d.sheetLetters)
+    expect(second.sheets).toHaveLength(1)
+    expect(second.sheets[0].isNew).toBe(false)
+    expect(second.sheets[0].usedLeftoverId).toBe(leftoverA.id)
+    expect(second.sheets[0].newLeftovers).toHaveLength(0)
+    expect(second.unplaced).toHaveLength(0)
+  })
+
+  it('kerf is also removed when placing into a saved leftover', () => {
+    const first = packJob([piece(23, 77, 2)], [], opts)
+    const d = deriveStock([
+      { id: 'a', type: 'cut', createdAt: 1, syncedAt: 1, deviceId: 'd', sheets: first.sheets },
+    ])
+    // Leftover A is 48 x 19; two 23-wide pieces need a kerf gap between them.
+    const withKerf = { ...opts, kerf: 0.125 }
+    const second = packJob(
+      [piece(23, 10, 2)],
+      d.freeLeftovers,
+      withKerf,
+      new Set(),
+      d.sheetLetters,
+    )
+    expect(second.sheets[0].isNew).toBe(false)
+    const [p1, p2] = second.sheets[0].placements
+    expect(p2.x - p1.x).toBe(23.125)
+  })
+
+  it('plans across several sheets when leftovers only cover part of a job', () => {
+    // One small leftover plus a job that needs much more area: the leftover is used
+    // first, then a fresh sheet is opened for the rest, per R2 (leftover always tried
+    // first) without forcing everything onto new sheets.
+    const stockPlan = packJob([piece(10, 10, 1)], [], opts)
+    const d = deriveStock([
+      { id: 'a', type: 'cut', createdAt: 1, syncedAt: 1, deviceId: 'd', sheets: stockPlan.sheets },
+    ])
+    const result = packJob(
+      [piece(10, 10, 1), piece(48, 96, 1)],
+      d.freeLeftovers,
+      opts,
+      new Set(),
+      d.sheetLetters,
+    )
+    expect(result.sheets.length).toBeGreaterThanOrEqual(2)
+    expect(result.sheets.some((s) => !s.isNew)).toBe(true)
+    expect(result.sheets.some((s) => s.isNew)).toBe(true)
+    expect(result.unplaced).toHaveLength(0)
+  })
+
+  it('excludedIds removes a leftover from consideration and forces a new sheet', () => {
+    const first = packJob([piece(23, 77, 2)], [], opts)
+    const d = deriveStock([
+      { id: 'a', type: 'cut', createdAt: 1, syncedAt: 1, deviceId: 'd', sheets: first.sheets },
+    ])
+    const leftoverA = d.freeLeftovers.find((l) => l.letter === 'A')!
+
+    const excluded = packJob(
+      [piece(19, 22, 1)],
+      d.freeLeftovers,
+      opts,
+      new Set([leftoverA.id]),
+      d.sheetLetters,
+    )
+    expect(excluded.sheets[0].isNew).toBe(true)
+    expect(excluded.sheets[0].usedLeftoverId).toBeUndefined()
+  })
+
+  it('letters stay unique across two jobs cut from the same physical sheet', () => {
+    const first = packJob([piece(23, 77, 2)], [], opts)
+    const cut1: CutDoc = {
+      id: 'a',
+      type: 'cut',
+      createdAt: 1,
+      syncedAt: 1,
+      deviceId: 'd',
+      sheets: first.sheets,
+    }
+    const d1 = deriveStock([cut1])
+    // Use leftover A (48 x 19), leaving A2 on the same physical sheet.
+    const second = packJob([piece(19, 10, 1)], d1.freeLeftovers, opts, new Set(), d1.sheetLetters)
+    expect(second.sheets[0].newLeftovers.every((l) => l.letter !== 'A')).toBe(true)
+
+    const cut2: CutDoc = {
+      id: 'b',
+      type: 'cut',
+      createdAt: 2,
+      syncedAt: 2,
+      deviceId: 'd',
+      sheets: second.sheets,
+    }
+    const d2 = deriveStock([cut1, cut2])
+    const lettersOnSheet = d2.leftovers
+      .filter((l) => l.sheetId === first.sheets[0].sheetId)
+      .map((l) => l.letter)
+    // No letter may repeat on the one physical sheet, no matter how many jobs touched it.
+    expect(new Set(lettersOnSheet).size).toBe(lettersOnSheet.length)
+  })
 })
