@@ -60,14 +60,19 @@ export default function LeftoverDetail() {
       steps: [],
     },
     derived,
-  ).map((b) =>
-    b.kind !== 'earlier' && b.x === leftover.x && b.y === leftover.y && b.w === leftover.w && b.h === leftover.h
-      ? { ...b, kind: 'focus' as const }
-      : b,
   )
 
-  // Blocks too small to carry their own label still owe their size to the legend (R15).
-  const diagramScale = Math.min(120 / leftover.sheetW, 240 / leftover.sheetH)
+  // The one block matching this leftover's own geometry is highlighted with a solid
+  // border on the shared diagram (SheetDiagram's highlightIndex prop) instead of being
+  // given a different block kind, so it never changes the drawing's geometry or labels.
+  const highlightIndex = blocks.findIndex(
+    (b) => b.kind !== 'earlier' && b.x === leftover.x && b.y === leftover.y && b.w === leftover.w && b.h === leftover.h,
+  )
+
+  // Same scale the SheetDiagram itself lands on when filling the same responsive layout
+  // Job detail uses; blocks too small to carry their own label still owe their size to
+  // the legend (R15).
+  const diagramScale = Math.min(144 / leftover.sheetW, 288 / leftover.sheetH)
   const badged = badgedLeftovers(blocks, diagramScale)
 
   function useInNewJob() {
@@ -93,11 +98,17 @@ export default function LeftoverDetail() {
 
   return (
     <AppShell title={`Leftover ${leftover.letter}`} back="/stock">
-      <div className="mb-4 flex flex-col items-start gap-4 sm:flex-row sm:gap-5.5">
-        <div className="w-full flex-none sm:w-[120px]">
-          <SheetDiagram sheetW={leftover.sheetW} sheetH={leftover.sheetH} blocks={blocks} maxW={120} maxH={240} />
+      <div className="mb-4 flex flex-col items-start gap-4 lg:flex-row lg:items-start lg:gap-6">
+        <div className="h-[60vh] min-h-[320px] w-full lg:h-[70vh] lg:min-h-[480px] lg:flex-1">
+          <SheetDiagram
+            sheetW={leftover.sheetW}
+            sheetH={leftover.sheetH}
+            blocks={blocks}
+            highlightIndex={highlightIndex >= 0 ? highlightIndex : undefined}
+            fill
+          />
         </div>
-        <div className="min-w-0 flex-1">
+        <div className="min-w-0 w-full lg:w-64 lg:flex-none text-[13px]">
           <p className="mb-0.5 font-sans text-[24px] font-semibold">
             {fmt(Math.min(leftover.w, leftover.h))} × {fmt(Math.max(leftover.w, leftover.h))}
           </p>

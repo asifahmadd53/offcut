@@ -429,3 +429,58 @@ describe('blockCallouts', () => {
     expect(callouts[0].text).toContain('2 × 77')
   })
 })
+
+describe('shared layout is identical for Job detail and Leftover detail callers', () => {
+  // SheetDiagram is the single shared component for both screens; the only thing that may
+  // differ between them is an external highlightIndex used purely for a border overlay.
+  // The pure layout functions themselves take no highlight concept at all, so calling them
+  // with the same blocks/pxPerInch from either caller must return byte-for-byte identical
+  // geometry and labels.
+  function sameSheetBlocks(): Block[] {
+    return [
+      { kind: 'cut', x: 0, y: 0, w: 23, h: 77, label: '23 × 77', n: 1 },
+      { kind: 'earlier', x: 23, y: 0, w: 10, h: 40 },
+      { kind: 'free', x: 23, y: 40, w: 25, h: 56, letter: 'A' },
+      { kind: 'free', x: 33, y: 0, w: 15, h: 40, letter: 'B' },
+    ]
+  }
+
+  it('chooseLabel, extractEdges/edgesToSegments and blockCallouts agree regardless of which block a caller highlights', () => {
+    const pxPerInch = 3
+
+    // Job detail never highlights anything.
+    const jobDetailBlocks = sameSheetBlocks()
+    // Leftover detail highlights leftover "A" (index 2) via an external index, not by
+    // giving the block a different kind.
+    const leftoverDetailBlocks = sameSheetBlocks()
+    const highlightIndex = 2
+
+    expect(leftoverDetailBlocks).toEqual(jobDetailBlocks)
+
+    const jobLabels = jobDetailBlocks.map((b) => chooseLabel(b, pxPerInch))
+    const leftoverLabels = leftoverDetailBlocks.map((b) => chooseLabel(b, pxPerInch))
+    expect(leftoverLabels).toEqual(jobLabels)
+
+    const jobXEdges = extractEdges(jobDetailBlocks, 'x', 0, 48)
+    const leftoverXEdges = extractEdges(leftoverDetailBlocks, 'x', 0, 48)
+    expect(leftoverXEdges).toEqual(jobXEdges)
+    expect(edgesToSegments(leftoverXEdges)).toEqual(edgesToSegments(jobXEdges))
+
+    const jobYEdges = extractEdges(jobDetailBlocks, 'y', 0, 96)
+    const leftoverYEdges = extractEdges(leftoverDetailBlocks, 'y', 0, 96)
+    expect(leftoverYEdges).toEqual(jobYEdges)
+    expect(edgesToSegments(leftoverYEdges)).toEqual(edgesToSegments(jobYEdges))
+
+    const jobCallouts = blockCallouts(jobDetailBlocks, pxPerInch)
+    const leftoverCallouts = blockCallouts(leftoverDetailBlocks, pxPerInch)
+    expect(leftoverCallouts).toEqual(jobCallouts)
+
+    const jobWaste = computeWasteCells(jobDetailBlocks, { x: 0, y: 0, w: 48, h: 96 })
+    const leftoverWaste = computeWasteCells(leftoverDetailBlocks, { x: 0, y: 0, w: 48, h: 96 })
+    expect(leftoverWaste).toEqual(jobWaste)
+
+    // The only thing Leftover detail adds on top is knowing which index to highlight —
+    // a caller-side fact, never fed into any of the layout functions above.
+    expect(leftoverDetailBlocks[highlightIndex].letter).toBe('A')
+  })
+})

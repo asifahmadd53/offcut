@@ -27,6 +27,12 @@ interface SheetDiagramProps {
   activeCut?: number | null
   onCutToggle?: (n: number) => void
   /**
+   * Index into `blocks` of the one block to draw with a solid highlight border instead of
+   * its normal stroke (used by Leftover detail to point at the chosen leftover). Purely a
+   * rendering overlay — it never changes geometry, scale or which label a block gets.
+   */
+  highlightIndex?: number
+  /**
    * When true, the diagram measures and fills its container's actual width AND height
    * (up to maxW/maxH as an outer ceiling) instead of staying a small fixed-size picture.
    * The caller must give the container a real CSS height for this to have any effect —
@@ -56,6 +62,7 @@ export function SheetDiagram({
   cuts,
   activeCut = null,
   onCutToggle,
+  highlightIndex,
   fill = false,
 }: SheetDiagramProps) {
   const containerRef = useRef<HTMLDivElement>(null)
@@ -252,16 +259,18 @@ export function SheetDiagram({
 
         {/* Free leftovers: existing free, this plan's freeNew, focus */}
         {blocks
-          .filter((b) => b.kind === 'free' || b.kind === 'freeNew' || b.kind === 'focus')
-          .map((b, i) => {
+          .map((b, blockIndex) => ({ b, blockIndex }))
+          .filter(({ b }) => b.kind === 'free' || b.kind === 'freeNew' || b.kind === 'focus')
+          .map(({ b, blockIndex }) => {
             const pw = b.w * pxPerInch
             const ph = b.h * pxPerInch
             const plan = chooseLabel(b, pxPerInch)
-            const strokeW = b.kind === 'focus' ? 1.5 : 1
-            const dashed = b.kind !== 'focus'
+            const highlighted = highlightIndex === blockIndex
+            const strokeW = highlighted ? 1.5 : 1
+            const dashed = !highlighted
             const choice = plan.free!
             return (
-              <g key={`free-${i}`}>
+              <g key={`free-${blockIndex}`}>
                 <rect
                   x={X(b.x)}
                   y={Y(b.y)}
