@@ -1,0 +1,31 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Every shop can only touch its own data. The shop id is the login's user id.
+    function isShopOwner(shopId) {
+      return request.auth != null && request.auth.uid == shopId;
+    }
+
+    match /shops/{shopId} {
+
+      // Cuts are an append-only history: they can be created and read, never edited or deleted.
+      match /cuts/{cutId} {
+        allow read: if isShopOwner(shopId);
+        allow create: if isShopOwner(shopId);
+        allow update, delete: if false;
+      }
+
+      // "Re-plan" / "I cut a different piece" answers for sync warnings.
+      match /resolutions/{cutId} {
+        allow read, create, update: if isShopOwner(shopId);
+        allow delete: if false;
+      }
+
+      match /settings/{docId} {
+        allow read, write: if isShopOwner(shopId);
+      }
+    }
+  }
+}
