@@ -1665,6 +1665,47 @@ size (120 × 240), with the parent's earlier cuts shown grey and the
 leftover itself highlighted as a solid-bordered focus block, exactly
 as before.
 
+#### 9.5.4 Every rectangle shows its width and height, always
+
+On top of the internal chip/letter labels from §9.5.1--§9.5.3, every
+rectangle drawn on a sheet --- pieces, saved leftovers, waste and
+already-cut blocks --- also carries its width along its top edge and
+its height along its left edge, in small grey text. Pieces show the
+size in the order it was typed (the same label already used inside
+the piece); leftovers, waste and earlier-cut blocks show the size as
+drawn on the sheet, which is not always the same as their internal
+short-side-first chip text. When a rectangle is too small to carry
+these edge labels without the text crossing its own border stroke, the
+size is drawn instead as a callout outside the sheet: a short leader
+line to a "W × H" label. Callouts are stacked vertically so they never
+overlap each other, reusing the same nudge-and-overflow algorithm
+already used for dimension-line label crowding (§9.5.3) rather than a
+second collision routine. This holds at every zoom level, including
+Full screen, and on the print pages (§9.5.5), which draw the identical
+rectangles through the identical labelling function.
+
+#### 9.5.5 Print pages
+
+Job detail, and the "Cut saved" screen shown after Confirm cut, offer
+a Print button that opens `/print/:jobId`: one page per physical
+sheet in the job (no cover page), built entirely from data already on
+the phone, so it works fully offline. Each page repeats the same live
+SVG drawing used on screen (never a rasterized image, so a printed
+page or a browser "Save as PDF" stays crisp) alongside a header (job
+title, date, "Sheet N of Total", sheet size, where the sheet came
+from, and whether blade thickness is included), the Cut order list,
+and a parts table listing every rectangle's name, width, height and
+status (Piece, Turned piece, Saved leftover, Waste, Already cut) ---
+the same rectangles §9.5.4 labels on the drawing itself, not a second
+count. The preview shows the pages at the paper's true proportions
+(A4 or Letter, from Settings §9.8.2); a top bar with Back and Print
+buttons, and a one-line tip about choosing a printer, are hidden when
+actually printing. Confirming a cut goes to this "Cut saved" screen
+automatically when Settings' "Show the print screen after every
+confirmed cut" is on (the default); when it is off, Confirm cut
+behaves exactly as before and Print is still reachable from Job
+detail.
+
 ### 9.6 Screen 6 --- Leftover stock
 
 **Purpose:** replace the mental inventory of what is standing against
@@ -1926,6 +1967,18 @@ dialog:
 - **Choose another leftover** (text link) --- clears the restriction
   and returns to Leftover stock.
 
+#### 9.6.2 The leftover list scrolls on its own
+
+The stat cards and the "Biggest first" heading stay in the normal
+page flow; only the list of leftover rows below them scrolls, in its
+own capped-height container (`max(40vh, 220px)`), with a fading edge
+while more rows are below the fold, exactly like Home's Recent jobs
+list (§9.1). "Add leftover by hand" stays outside that container so
+it is always reachable without scrolling. This keeps the primary
+action on screen even with hundreds of saved leftovers, and it is the
+same mechanism because it is the same problem, not a redesign of the
+list itself.
+
 ### 9.7 Screen 7 --- Sync check
 
 **Purpose:** resolve the one situation the app cannot decide alone. The
@@ -2050,6 +2103,17 @@ Discard and Stay.
 The blade toggle on New job (§9.4) is a separate, instant setting:
 tapping it saves immediately and shows a toast, *"Blade thickness on"*
 or *"off"*. It does not go through Settings' draft/save flow.
+
+#### 9.8.2 Print settings
+
+Two more fields join the same draft/Save/Discard flow as §9.8.1:
+"Show the print screen after every confirmed cut" (a switch, default
+on) controls whether Confirm cut leads to the "Cut saved" screen
+(§9.5.5) or goes straight home as before, and "Paper size" (A4 or
+Letter, default A4) sets the print pages' page size and on-screen
+preview proportions. Neither needs validation --- a switch or a choice
+between two fixed options cannot be typed wrong --- but both still
+wait for an explicit Save like every other Settings field.
 
 ::: fig
 ::: screens
