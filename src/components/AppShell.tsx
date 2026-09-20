@@ -1,7 +1,8 @@
-import type { ReactNode } from 'react'
+import { type ReactNode, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { IconChevronLeft, IconHome, IconLayoutGrid, IconSettings } from '@tabler/icons-react'
 import { cn } from '@/lib/utils'
+import { useAuth } from '@/store/auth'
 
 interface AppShellProps {
   title: string
@@ -20,9 +21,24 @@ const tabs = [
 
 export function AppShell({ title, children, back, tab, headerRight }: AppShellProps) {
   const navigate = useNavigate()
+  const emailVerified = useAuth((s) => s.emailVerified)
+  const [dismissed, setDismissed] = useState(false)
 
   return (
     <div className="mx-auto flex min-h-dvh w-full max-w-[480px] flex-col px-4 pb-[env(safe-area-inset-bottom)] pt-[env(safe-area-inset-top)]">
+      {!emailVerified && !dismissed && (
+        <div className="mt-2 flex items-center justify-between gap-2 rounded-lg bg-warning-bg px-3 py-2 text-[12.5px] text-warning-text">
+          <span>Confirm your email so you can reset your password.</span>
+          <button
+            type="button"
+            onClick={() => setDismissed(true)}
+            aria-label="Dismiss"
+            className="flex-none font-semibold"
+          >
+            ✕
+          </button>
+        </div>
+      )}
       <header className="flex h-14 flex-none items-center justify-between gap-2">
         <div className="flex min-w-0 items-center gap-1">
           {back && (

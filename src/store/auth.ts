@@ -2,6 +2,8 @@ import { create } from 'zustand'
 import {
   createUserWithEmailAndPassword,
   onAuthStateChanged,
+  sendEmailVerification,
+  sendPasswordResetEmail,
   signInWithEmailAndPassword,
   signOut,
 } from 'firebase/auth'
@@ -11,17 +13,20 @@ interface AuthState {
   status: 'loading' | 'in' | 'out'
   uid: string | null
   email: string | null
+  emailVerified: boolean
   /** Starts listening to the login state. Returns the stop function. */
   init: () => () => void
   login: (email: string, password: string) => Promise<void>
   register: (email: string, password: string) => Promise<void>
   logout: () => Promise<void>
+  resetPassword: (email: string) => Promise<void>
 }
 
 export const useAuth = create<AuthState>((set) => ({
   status: 'loading',
   uid: null,
   email: null,
+  emailVerified: true,
   init: () => {
     if (!isFirebaseConfigured) {
       set({ status: 'out' })
@@ -31,8 +36,8 @@ export const useAuth = create<AuthState>((set) => ({
     return onAuthStateChanged(requireAuth(), (user) => {
       set(
         user
-          ? { status: 'in', uid: user.uid, email: user.email }
-          : { status: 'out', uid: null, email: null },
+          ? { status: 'in', uid: user.uid, email: user.email, emailVerified: user.emailVerified }
+          : { status: 'out', uid: null, email: null, emailVerified: true },
       )
     })
   },
@@ -40,10 +45,17 @@ export const useAuth = create<AuthState>((set) => ({
     await signInWithEmailAndPassword(requireAuth(), email.trim(), password)
   },
   register: async (email, password) => {
-    await createUserWithEmailAndPassword(requireAuth(), email.trim(), password)
+    const cred = await createUserWithEmailAndPassword(requireAuth(), email.trim(), password)
+    // Fire and forget: a failed verification email must never block registration (R10 spirit).
+    sendEmailVerification(cred.user).catch((err) =>
+      console.error('Could not send verification email', err),
+    )
   },
   logout: async () => {
     await signOut(requireAuth())
+  },
+  resetPassword: async (email) => {
+    await sendPasswordResetEmail(requireAuth(), email.trim())
   },
 }))
 
@@ -68,3 +80,13 @@ export function friendlyAuthError(err: unknown): string {
       return 'Could not log in. Check your internet and try again.'
   }
 }
+
+/** Simple, deliberately not overengineered: good enough to catch typos before a network round trip. */
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+
+export function isValidEmail(email: string): boolean {
+  return EMAIL_RE.test(email.trim())
+}
+
+export const BAD_EMAIL_MESSAGE = "That doesn't look like an email. Check it and try again."
+export const EMAIL_MISMATCH_MESSAGE = "Those emails don't match. Check them and try again."
