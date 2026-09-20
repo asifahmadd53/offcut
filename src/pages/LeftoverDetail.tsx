@@ -2,7 +2,6 @@ import { useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { AppShell } from '@/components/AppShell'
 import { SheetDiagram } from '@/components/SheetDiagram'
-import { SizesList } from '@/components/SizesList'
 import { Button } from '@/components/ui/button'
 import {
   Dialog,
@@ -12,6 +11,7 @@ import {
 } from '@/components/ui/dialog'
 import { dayMonth } from '@/lib/format'
 import { fmt } from '@/lib/inches'
+import { badgedLeftovers } from '@/lib/labelChoice'
 import { saveCut } from '@/lib/db'
 import { getDeviceId, uid } from '@/lib/id'
 import { buildBlocks } from '@/lib/sheetView'
@@ -19,7 +19,6 @@ import { useAuth } from '@/store/auth'
 import { useData } from '@/store/data'
 import { useJob } from '@/store/job'
 import { useToast } from '@/store/toast'
-import type { SizesListEntry } from '@/lib/diagramLabels'
 import type { CutDoc } from '@/lib/types'
 
 export default function LeftoverDetail() {
@@ -30,7 +29,6 @@ export default function LeftoverDetail() {
   const setOnlyLeftoverId = useJob((s) => s.setOnlyLeftoverId)
   const toast = useToast((s) => s.show)
   const [confirmOpen, setConfirmOpen] = useState(false)
-  const [sizesList, setSizesList] = useState<SizesListEntry[]>([])
 
   const leftover = derived.leftovers.find((l) => l.id === id && l.status === 'free')
 
@@ -68,6 +66,10 @@ export default function LeftoverDetail() {
       : b,
   )
 
+  // Blocks too small to carry their own label still owe their size to the legend (R15).
+  const diagramScale = Math.min(120 / leftover.sheetW, 240 / leftover.sheetH)
+  const badged = badgedLeftovers(blocks, diagramScale)
+
   function useInNewJob() {
     setOnlyLeftoverId(leftover!.id)
     navigate('/new')
@@ -93,14 +95,7 @@ export default function LeftoverDetail() {
     <AppShell title={`Leftover ${leftover.letter}`} back="/stock">
       <div className="mb-4 flex flex-col items-start gap-4 sm:flex-row sm:gap-5.5">
         <div className="w-full flex-none sm:w-[120px]">
-          <SheetDiagram
-            sheetW={leftover.sheetW}
-            sheetH={leftover.sheetH}
-            blocks={blocks}
-            maxW={120}
-            maxH={240}
-            onSizesList={setSizesList}
-          />
+          <SheetDiagram sheetW={leftover.sheetW} sheetH={leftover.sheetH} blocks={blocks} maxW={120} maxH={240} />
         </div>
         <div className="min-w-0 flex-1">
           <p className="mb-0.5 font-sans text-[24px] font-semibold">
@@ -124,7 +119,15 @@ export default function LeftoverDetail() {
         </div>
       </div>
 
-      <SizesList entries={sizesList} />
+      {badged.length > 0 && (
+        <div className="mb-4 rounded-lg bg-muted p-3 text-[13px]">
+          {badged.map((b, i) => (
+            <p key={i} className="mb-0 text-muted-foreground">
+              {b.letter}: {b.dims}
+            </p>
+          ))}
+        </div>
+      )}
 
       <Button size="lg" className="mb-2.5 h-[52px] w-full" onClick={useInNewJob}>
         Use this in a new job

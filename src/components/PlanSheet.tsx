@@ -2,10 +2,9 @@ import { useRef, useState } from 'react'
 import { TransformComponent, TransformWrapper, type ReactZoomPanPinchRef } from 'react-zoom-pan-pinch'
 import { dayMonth } from '@/lib/format'
 import { fmtLeft } from '@/lib/inches'
+import { badgedLeftovers } from '@/lib/labelChoice'
 import { SheetDiagram } from './SheetDiagram'
-import { SizesList } from './SizesList'
 import { Dialog, DialogContent, DialogTitle } from './ui/dialog'
-import type { SizesListEntry } from '@/lib/diagramLabels'
 import type { Block } from '@/lib/sheetView'
 import type { SheetPlan } from '@/lib/types'
 
@@ -13,6 +12,9 @@ interface PlanSheetProps {
   sheet: SheetPlan
   blocks: Block[]
 }
+
+const DIAGRAM_MAX_W = 144
+const DIAGRAM_MAX_H = 288
 
 /** One physical sheet of a plan: the diagram, a side panel, and the cut order below. */
 export function PlanSheet({ sheet, blocks }: PlanSheetProps) {
@@ -22,9 +24,9 @@ export function PlanSheet({ sheet, blocks }: PlanSheetProps) {
   const anyTurned = sheet.placements.some((p) => p.rotated)
   const hasEarlier = blocks.some((b) => b.kind === 'earlier')
 
-  // Blocks too small for their own label still owe their size to the Sizes list (R15);
-  // SheetDiagram computes this once per render, alongside deciding which blocks those are.
-  const [sizesList, setSizesList] = useState<SizesListEntry[]>([])
+  // Blocks too small to carry their own label still owe their size to the legend (R15).
+  const scale = Math.min(DIAGRAM_MAX_W / sheet.sheetW, DIAGRAM_MAX_H / sheet.sheetH)
+  const badged = badgedLeftovers(blocks, scale)
 
   const [activeCut, setActiveCut] = useState<number | null>(null)
   const [fullScreen, setFullScreen] = useState(false)
@@ -47,7 +49,6 @@ export function PlanSheet({ sheet, blocks }: PlanSheetProps) {
             cuts={sheet.cuts}
             activeCut={activeCut}
             onCutToggle={toggleCut}
-            onSizesList={setSizesList}
             fill
           />
         </div>
@@ -62,17 +63,14 @@ export function PlanSheet({ sheet, blocks }: PlanSheetProps) {
             <p className="mb-2.5 font-sans text-[22px] font-semibold">{pct}%</p>
             <p className="mb-0.5 text-muted-foreground">Leftovers</p>
             {sheet.newLeftovers.length === 0 ? (
-              <p className="mb-3">None</p>
+              <p>None</p>
             ) : (
-              <div className="mb-3">
-                {sheet.newLeftovers.map((l) => (
-                  <p key={l.id} className="mb-0">
-                    {l.letter}: {fmtLeft(l.w, l.h)}
-                  </p>
-                ))}
-              </div>
+              sheet.newLeftovers.map((l) => (
+                <p key={l.id}>
+                  {l.letter}: {fmtLeft(l.w, l.h)}
+                </p>
+              ))
             )}
-            <SizesList entries={sizesList} />
           </div>
         ) : (
           <div className="min-w-0 w-full lg:w-64 lg:flex-none text-[13px]">
@@ -83,17 +81,16 @@ export function PlanSheet({ sheet, blocks }: PlanSheetProps) {
             <p className="mb-3 text-muted-foreground">
               From the sheet cut on {dayMonth(sheet.sheetDate)}
             </p>
-            <div className="mb-3 flex flex-col gap-1.5">
+            <div className="flex flex-col gap-1.5">
               {hasEarlier && <Legend swatch="old" label="Already cut" />}
               <Legend swatch="cut" label="New piece" />
               <Legend swatch="free" label="Free after this cut" />
             </div>
             {anyTurned && (
-              <span className="mb-3 mt-2 inline-block rounded-full bg-muted px-2.5 py-0.5 text-[12px] text-muted-foreground">
+              <span className="mt-2 inline-block rounded-full bg-muted px-2.5 py-0.5 text-[12px] text-muted-foreground">
                 Turned to fit
               </span>
             )}
-            <SizesList entries={sizesList} />
           </div>
         )}
       </div>
@@ -108,6 +105,16 @@ export function PlanSheet({ sheet, blocks }: PlanSheetProps) {
         </button>
         <SaveImageButton sheet={sheet} blocks={blocks} />
       </div>
+
+      {badged.length > 0 && (
+        <div className="mb-3.5 rounded-lg bg-muted p-3 text-[13px]">
+          {badged.map((b, i) => (
+            <p key={i} className="mb-0 text-muted-foreground">
+              {b.letter}: {b.dims}
+            </p>
+          ))}
+        </div>
+      )}
 
       <div className="mb-3.5 rounded-lg bg-muted p-3 text-[13px]">
         <p className="mb-0.5 text-muted-foreground">Cut order</p>
