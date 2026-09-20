@@ -15,7 +15,7 @@ interface PrintPageProps {
 export function PrintPage({ page, isLast }: PrintPageProps) {
   return (
     <section
-      className="print-page flex gap-4"
+      className="print-page flex gap-3"
       style={{
         pageBreakAfter: isLast ? 'auto' : 'always',
         breakAfter: isLast ? 'auto' : 'page',
@@ -31,7 +31,7 @@ export function PrintPage({ page, isLast }: PrintPageProps) {
         />
       </div>
 
-      <aside className="flex w-[190px] flex-none flex-col text-[11px]">
+      <aside className="flex w-[168px] flex-none flex-col text-[11px]">
         <header className="print-block mb-3">
           <p className="mb-0 text-[15px] font-semibold">Offcut</p>
           <p className="mb-0 text-[13px]">{page.jobTitle}</p>
@@ -62,22 +62,26 @@ export function PrintPage({ page, isLast }: PrintPageProps) {
 
         <div className="print-block mb-3">
           <p className="mb-0.5 font-semibold">Parts</p>
-          <table className="w-full border-collapse">
+          <table className="w-full border-collapse text-[10px]" style={{ tableLayout: 'fixed' }}>
             <thead>
               <tr>
                 <th className="border-b border-border py-0.5 text-left font-semibold">Name</th>
-                <th className="border-b border-border py-0.5 text-left font-semibold">W</th>
-                <th className="border-b border-border py-0.5 text-left font-semibold">H</th>
-                <th className="border-b border-border py-0.5 text-left font-semibold">Status</th>
+                <th className="w-8 border-b border-border py-0.5 text-left font-semibold">W</th>
+                <th className="w-8 border-b border-border py-0.5 text-left font-semibold">H</th>
+                <th className="w-11 border-b border-border py-0.5 text-left font-semibold">Status</th>
               </tr>
             </thead>
             <tbody>
               {page.parts.map((row, i) => (
                 <tr key={i}>
-                  <td className="py-0.5">{row.label}</td>
+                  <td className="py-0.5 pr-0.5" style={{ wordBreak: 'break-word' }}>
+                    {row.label}
+                  </td>
                   <td className="py-0.5">{row.width}</td>
                   <td className="py-0.5">{row.height}</td>
-                  <td className="py-0.5">{row.status}</td>
+                  <td className="py-0.5" style={{ wordBreak: 'break-word' }}>
+                    {row.status}
+                  </td>
                 </tr>
               ))}
             </tbody>

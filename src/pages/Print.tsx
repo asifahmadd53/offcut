@@ -50,7 +50,7 @@ export default function Print() {
           .print-page {
             width: ${size.w};
             height: ${size.h};
-            padding: 12mm;
+            padding: 9mm;
             box-shadow: none !important;
             margin: 0 !important;
             overflow: hidden;
@@ -62,7 +62,7 @@ export default function Print() {
           .print-page {
             width: ${size.w};
             height: ${size.h};
-            padding: 12mm;
+            padding: 9mm;
             background: white;
             color: #1f1e1c;
             box-shadow: 0 1px 4px rgba(0,0,0,0.15);

@@ -158,16 +158,17 @@ export function SheetDiagram({
   return (
     <div
       ref={containerRef}
-      className={fill ? 'h-full w-full' : 'w-full'}
+      className={fill ? 'flex h-full w-full items-center justify-center' : 'w-full'}
       style={fill ? undefined : { maxWidth: maxW + LEFT_MARGIN + RIGHT_MARGIN }}
     >
       <svg
         role="img"
         aria-label={ariaLabel}
         viewBox={`0 0 ${svgW} ${svgH}`}
-        width={svgW}
-        height={svgH}
-        className="max-w-full font-sans"
+        width={fill ? undefined : svgW}
+        height={fill ? undefined : svgH}
+        preserveAspectRatio="xMidYMid meet"
+        className={fill ? 'h-full max-h-full w-full max-w-full font-sans' : 'max-w-full font-sans'}
         style={{ overflow: 'visible' }}
       >
         <defs>
