@@ -2,80 +2,125 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Design tokens — see CLAUDE.md C13 (this file is the source of truth for hex values;
+   Tailwind class names in tailwind.config.js map onto these CSS variables). Light tokens
+   use warm neutrals + a burnt-orange brand; dark tokens keep the same brand hue darkened.
+   Semantic colors (accent=piece/blue, success=leftover/green, warning, danger) share the
+   same hex values in both themes by design — only neutrals and brand differ by theme. */
 :root {
   color-scheme: light dark;
 
-  --background: #ffffff;
-  --foreground: #1f1e1c;
-  --muted: #f5f4f0;
-  --muted-foreground: #5f5e5a;
-  --faint: #8a8985;
-  --border: #e6e4de;
-  --border-strong: #c9c7c0;
-  --border-stronger: #8a8882;
-  --primary: #1f1e1c;
+  --background: #f6f3ee;
+  --card: #ffffff;
+  --foreground: #1b1a17;
+  --muted: #ece8e0;
+  --muted-foreground: #5f5a50;
+  --faint: #736d62;
+  --border: #e8e2d8;
+  /* #8F8270 rather than the spec's literal #D3CBBE: that hex reads at 1.45:1 against the
+     background, well under the 3:1 WCAG non-text-contrast minimum for a UI boundary
+     (input/button outlines use this token) — darkened while keeping the same warm-tan hue. */
+  --border-strong: #8f8270;
+  --border-stronger: #736853;
+  --primary: #1b1a17;
   --primary-foreground: #ffffff;
-  --control: #d3d1c7;
-  --ring: #378add;
+  --control: #d3cbbe;
+  --ring: #c2410c;
 
-  --fill-accent: #378add;
-  --accent-bg: #e6f1fb;
-  --accent-border: #85b7eb;
-  --accent-text: #185fa5;
+  --brand: #c2410c;
+  --brand-hover: #9a3412;
+  --brand-fg: #ffffff;
+  --brand-tint: #ffedd5;
+  --brand-ink: #7c2d12;
 
-  --success-bg: #eaf3de;
-  --success-border: #97c459;
-  --success-text: #3b6d11;
+  /* Primary-on-dark-surface: used for Home's dark summary card hero button, which stays
+     visually "on dark" even while the rest of the app is in light mode. */
+  --on-dark-primary: #fb923c;
+  --on-dark-primary-foreground: #1b1a17;
 
-  --warning-bg: #faeeda;
-  --warning-border: #ef9f27;
-  --warning-text: #854f0b;
+  --fill-accent: #2563eb;
+  --accent-bg: #dbeafe;
+  --accent-border: #60a5fa;
+  --accent-text: #1e3a8a;
 
-  --danger-bg: #fcebeb;
-  --danger-border: #f09595;
-  --danger-text: #a32d2d;
+  --success-bg: #dcfce7;
+  --success-border: #16a34a;
+  --success-text: #14532d;
+
+  --warning-bg: #fef3c7;
+  --warning-border: #f59e0b;
+  --warning-text: #78350f;
+
+  --danger-bg: #fee2e2;
+  --danger-border: #ef4444;
+  --danger-text: #7f1d1d;
 }
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --background: #262624;
-    --foreground: #f3f2ee;
-    --muted: #1f1e1d;
-    --muted-foreground: #b4b2a9;
-    --faint: #888780;
-    --border: #3a3937;
-    --border-strong: #55534f;
-    --border-stronger: #8a8882;
-    --primary: #f3f2ee;
-    --primary-foreground: #1f1e1c;
-    --control: #55534f;
+    --background: #141311;
+    --card: #1e1d1a;
+    --foreground: #f4f1ea;
+    --muted: #262521;
+    --muted-foreground: #b5afa3;
+    --faint: #8a8478;
+    --border: #2e2c27;
+    /* Same reasoning as the light-mode note above: #45423B was 1.85:1 against the dark
+       background; lightened to clear 3:1 while keeping the neutral-tan hue. */
+    --border-strong: #767066;
+    --border-stronger: #918a7c;
+    --primary: #fb923c;
+    --primary-foreground: #1b1a17;
+    --control: #45423b;
+    --ring: #fb923c;
 
-    --accent-bg: #0c447c;
-    --accent-border: #85b7eb;
-    --accent-text: #b5d4f4;
+    --brand: #fb923c;
+    --brand-hover: #fdba74;
+    --brand-fg: #1b1a17;
+    --brand-tint: #431407;
+    --brand-ink: #fed7aa;
 
-    --success-bg: #27500a;
-    --success-border: #97c459;
-    --success-text: #c0dd97;
+    /* In dark mode the whole app is already dark, so the "on dark surface" pair is the
+       same as the normal primary pair — no separate light-mode-only card to special-case. */
+    --on-dark-primary: #fb923c;
+    --on-dark-primary-foreground: #1b1a17;
 
-    --warning-bg: #633806;
-    --warning-border: #ef9f27;
-    --warning-text: #fac775;
+    --accent-bg: #1e3a8a;
+    --accent-border: #60a5fa;
+    --accent-text: #dbeafe;
 
-    --danger-bg: #791f1f;
-    --danger-border: #f09595;
-    --danger-text: #f7c1c1;
+    --success-bg: #14532d;
+    --success-border: #4ade80;
+    --success-text: #dcfce7;
+
+    --warning-bg: #451a03;
+    --warning-border: #f59e0b;
+    --warning-text: #fde68a;
+
+    --danger-bg: #450a0a;
+    --danger-border: #ef4444;
+    --danger-text: #fecaca;
   }
 }
 
 html {
-  background: var(--muted);
+  background: var(--background);
 }
 
 body {
   margin: 0;
   background: var(--background);
   color: var(--foreground);
+  font-family:
+    'Inter Variable',
+    ui-sans-serif,
+    system-ui,
+    -apple-system,
+    'Segoe UI',
+    Roboto,
+    'Helvetica Neue',
+    Arial,
+    sans-serif;
   -webkit-tap-highlight-color: transparent;
   -webkit-text-size-adjust: 100%;
 }
@@ -107,4 +152,20 @@ button {
 .thin-scroll::-webkit-scrollbar-thumb {
   background: var(--border-strong);
   border-radius: 4px;
+}
+
+/* Page-enter transition (fade + 8px slide-up, 180ms). Applied per-page on mount via the
+   `.page-enter` class; automatically respects the prefers-reduced-motion block above. */
+@keyframes page-enter {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+.page-enter {
+  animation: page-enter 180ms ease-out;
 }

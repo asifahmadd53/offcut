@@ -87,25 +87,27 @@ export default function Login() {
   }
 
   return (
-    <div className="mx-auto flex min-h-dvh w-full max-w-[480px] flex-col justify-center px-4">
-      <div className="mb-6 text-center">
-        <div className="mx-auto mb-3 flex h-14 w-14 items-center justify-center rounded-[14px] bg-accent-bg text-accent-text">
-          <IconScissors size={26} />
+    <div className="flex min-h-dvh w-full items-center justify-center bg-background px-0 py-0 sm:px-6 sm:py-10">
+      <div className="page-enter flex w-full max-w-[420px] flex-col justify-center rounded-none bg-transparent px-5 py-10 sm:rounded-card sm:border-hair sm:border-border sm:bg-card sm:px-8 sm:py-10 sm:shadow-elevated">
+        <div className="mb-6 text-center">
+          <div className="mx-auto mb-3 flex h-14 w-14 items-center justify-center rounded-[14px] bg-brand text-brand-fg">
+            <IconScissors size={26} />
+          </div>
+          <p className="mb-1 text-[15px] font-semibold tracking-wide text-brand-ink">Offcut</p>
+          {mode === 'login' ? (
+            <>
+              <p className="text-[24px] font-semibold">Welcome back</p>
+              <p className="text-[14px] text-muted-foreground">Plan cuts. Reuse every leftover.</p>
+            </>
+          ) : (
+            <>
+              <p className="text-[24px] font-semibold">Create your shop account</p>
+              <p className="text-[14px] text-muted-foreground">One account for all your phones.</p>
+            </>
+          )}
         </div>
-        {mode === 'login' ? (
-          <>
-            <p className="font-sans text-[22px] font-semibold">Offcut</p>
-            <p className="text-[14px] text-muted-foreground">Plan cuts. Reuse every leftover.</p>
-          </>
-        ) : (
-          <>
-            <p className="font-sans text-[22px] font-semibold">Create shop account</p>
-            <p className="text-[14px] text-muted-foreground">One account for all your phones.</p>
-          </>
-        )}
-      </div>
 
-      <form onSubmit={onSubmit} className="flex flex-col gap-3">
+        <form onSubmit={onSubmit} className="flex flex-col gap-3">
         <div>
           <Label htmlFor="email">Shop email</Label>
           <Input
@@ -178,9 +180,10 @@ export default function Login() {
         </button>
       </form>
 
-      <div className="mt-6 flex items-center justify-center gap-1.5 text-[12px] text-faint">
-        <IconWifiOff size={14} />
-        Works offline after your first login
+        <div className="mt-6 flex items-center justify-center gap-1.5 text-[12px] text-faint">
+          <IconWifiOff size={14} />
+          Works offline after your first login
+        </div>
       </div>
     </div>
   )

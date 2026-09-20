@@ -17,8 +17,10 @@ export default defineConfig({
         scope: '/',
         display: 'standalone',
         orientation: 'portrait',
-        background_color: '#ffffff',
-        theme_color: '#ffffff',
+        // Matches the new design system's light background/brand tokens (src/index.css).
+        // theme_color uses the brand color so the OS chrome/splash reads as "Offcut", not neutral.
+        background_color: '#F6F3EE',
+        theme_color: '#C2410C',
         icons: [
           { src: '/icons/icon-192.png', sizes: '192x192', type: 'image/png' },
           { src: '/icons/icon-512.png', sizes: '512x512', type: 'image/png' },
