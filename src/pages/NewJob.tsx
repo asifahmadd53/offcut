@@ -1,10 +1,199 @@
+import { useRef, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { AppShell } from '@/components/AppShell'
+import { Stepper } from '@/components/Stepper'
+import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
+import { parseInches, fmtDims } from '@/lib/inches'
+import { useJob } from '@/store/job'
+import { useSettings } from '@/store/settings'
 
-/** Full New job screen is built in Stage 5. */
+type FieldError = 'zero' | 'nan' | null
+
+function fieldMessage(which: 'Width' | 'Height', err: FieldError): string | null {
+  if (err === 'zero') return `${which} must be more than 0. Try 23 or 22 1/2.`
+  if (err === 'nan') return 'That is not a size. Type a number like 23, 22.5 or 22 1/2.'
+  return null
+}
+
 export default function NewJob() {
+  const navigate = useNavigate()
+  const pieces = useJob((s) => s.pieces)
+  const addPiece = useJob((s) => s.addPiece)
+  const removePiece = useJob((s) => s.removePiece)
+  const buildPlan = useJob((s) => s.buildPlan)
+  const onlyLeftoverId = useJob((s) => s.onlyLeftoverId)
+  const settings = useSettings((s) => s.settings)
+  const updateSettings = useSettings((s) => s.update)
+
+  const [width, setWidth] = useState('')
+  const [height, setHeight] = useState('')
+  const [qty, setQty] = useState(1)
+  const [touchedW, setTouchedW] = useState(false)
+  const [touchedH, setTouchedH] = useState(false)
+  const [triedAdd, setTriedAdd] = useState(false)
+  const widthRef = useRef<HTMLInputElement>(null)
+
+  const wVal = parseInches(width)
+  const hVal = parseInches(height)
+  const wErr: FieldError = width.trim() === '' ? null : wVal === null ? 'nan' : null
+  const hErr: FieldError = height.trim() === '' ? null : hVal === null ? 'nan' : null
+  // parseInches already rejects <= 0, so a numeric-looking zero/negative reads as null too;
+  // distinguish "typed but rejected because non-positive" from "not a number at all".
+  const looksNumeric = (s: string) => /^-?\d/.test(s.trim())
+  const wZero = width.trim() !== '' && wVal === null && looksNumeric(width) && Number(width) <= 0
+  const hZero = height.trim() !== '' && hVal === null && looksNumeric(height) && Number(height) <= 0
+
+  const showWErr = (touchedW || triedAdd) && (wErr || wZero)
+  const showHErr = (touchedH || triedAdd) && (hErr || hZero)
+
+  const bothValid = wVal !== null && hVal !== null
+  const tooBig =
+    bothValid &&
+    !(wVal! <= settings.sheetW && hVal! <= settings.sheetH) &&
+    !(hVal! <= settings.sheetW && wVal! <= settings.sheetH)
+
+  function doAdd() {
+    setTriedAdd(true)
+    if (!bothValid || tooBig) return
+    addPiece(wVal!, hVal!, qty)
+    setWidth('')
+    setHeight('')
+    setQty(1)
+    setTriedAdd(false)
+    setTouchedW(false)
+    setTouchedH(false)
+    widthRef.current?.focus()
+  }
+
+  function onMakePlan() {
+    // If a valid piece is typed but not added yet, add it first.
+    if (bothValid && !tooBig) {
+      addPiece(wVal!, hVal!, qty)
+    }
+    buildPlan([])
+    navigate('/plan')
+  }
+
+  const hasTypedValid = bothValid && !tooBig
+  const canMakePlan = pieces.length > 0 || hasTypedValid
+
   return (
     <AppShell title="New job" back="/">
-      <p className="mt-8 text-center text-[15px] text-muted-foreground">New job — coming soon.</p>
+      {onlyLeftoverId && (
+        <div className="mb-3 rounded-lg bg-accent-bg px-3 py-2 text-[13px] text-accent-text">
+          Planning with this leftover first.
+        </div>
+      )}
+
+      {tooBig && (
+        <div className="mb-3 rounded-lg bg-warning-bg p-3 text-[14px] text-warning-text">
+          <p className="mb-0 font-semibold">Too big for a sheet.</p>
+          <p className="mb-0">
+            Your sheets are {settings.sheetH} × {settings.sheetW} in. A {width} × {height} piece
+            will not fit even turned.
+          </p>
+        </div>
+      )}
+
+      <div className="mb-2.5 grid grid-cols-2 gap-3">
+        <div>
+          <Label htmlFor="w">Width (in)</Label>
+          <Input
+            id="w"
+            ref={widthRef}
+            inputMode="text"
+            autoComplete="off"
+            autoCapitalize="off"
+            enterKeyHint="next"
+            className="h-[42px] text-[18px]"
+            value={width}
+            onChange={(e) => setWidth(e.target.value)}
+            onBlur={() => setTouchedW(true)}
+          />
+        </div>
+        <div>
+          <Label htmlFor="h">Height (in)</Label>
+          <Input
+            id="h"
+            inputMode="text"
+            autoComplete="off"
+            autoCapitalize="off"
+            enterKeyHint="next"
+            className="h-[42px] text-[18px]"
+            value={height}
+            onChange={(e) => setHeight(e.target.value)}
+            onBlur={() => setTouchedH(true)}
+          />
+        </div>
+      </div>
+
+      {showWErr ? (
+        <p className="mb-3.5 text-[13px] text-danger-text">
+          {fieldMessage('Width', wZero ? 'zero' : 'nan')}
+        </p>
+      ) : showHErr ? (
+        <p className="mb-3.5 text-[13px] text-danger-text">
+          {fieldMessage('Height', hZero ? 'zero' : 'nan')}
+        </p>
+      ) : (
+        <p className="mb-3.5 text-[12px] text-faint">Fractions work too, like 22 1/2 or 22.5</p>
+      )}
+
+      <Label>How many pieces</Label>
+      <div className="mb-3">
+        <Stepper value={qty} onChange={setQty} />
+      </div>
+
+      <Button
+        type="button"
+        variant="outline"
+        size="default"
+        className="mb-4.5 h-12 w-full"
+        disabled={!bothValid || tooBig}
+        onClick={doAdd}
+      >
+        + Add this piece
+      </Button>
+
+      <p className="mb-0.5 text-[13px] text-muted-foreground">Pieces in this job</p>
+      {pieces.length === 0 ? (
+        <div className="mb-4.5 rounded-lg bg-muted p-4.5 text-center text-[13px] text-muted-foreground">
+          Add a piece above to begin.
+        </div>
+      ) : (
+        <div className="mb-4.5">
+          {pieces.map((p) => (
+            <div key={p.id} className="flex items-center justify-between border-b border-hair border-border py-2.5">
+              <span className="text-[16px] font-semibold">
+                {fmtDims(p.w, p.h)} <span className="font-normal text-muted-foreground">· {p.qty} pcs</span>
+              </span>
+              <button
+                type="button"
+                onClick={() => removePiece(p.id)}
+                aria-label={`Remove ${fmtDims(p.w, p.h)}`}
+                className="flex h-9 w-9 items-center justify-center text-muted-foreground"
+              >
+                ✕
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+
+      <button
+        type="button"
+        onClick={() => updateSettings({ kerfOn: !settings.kerfOn })}
+        className="mb-4.5 flex w-full items-center justify-between py-1 text-[15px]"
+      >
+        <span>Include blade thickness</span>
+        <span className="text-[14px] text-muted-foreground">{settings.kerfOn ? 'On' : 'Off'}</span>
+      </button>
+
+      <Button size="lg" className="h-14 w-full" disabled={!canMakePlan} onClick={onMakePlan}>
+        Make cutting plan
+      </Button>
     </AppShell>
   )
 }

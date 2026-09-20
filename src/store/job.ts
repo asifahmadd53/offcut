@@ -18,12 +18,15 @@ interface JobState {
   /** The pieces being entered. Saved on the phone so nothing is lost if the app closes. */
   pieces: Piece[]
   plan: PlanState | null
+  /** Set from Leftover detail's "Use this in a new job": restrict the next plan to this one leftover. */
+  onlyLeftoverId: string | null
   addPiece: (w: number, h: number, qty: number) => void
   removePiece: (id: string) => void
   setPieces: (pieces: Piece[]) => void
   clearJob: () => void
   buildPlan: (excluded?: string[]) => void
   dropPlan: () => void
+  setOnlyLeftoverId: (id: string | null) => void
 }
 
 export const useJob = create<JobState>()(
@@ -31,19 +34,24 @@ export const useJob = create<JobState>()(
     (set, get) => ({
       pieces: [],
       plan: null,
+      onlyLeftoverId: null,
       addPiece: (w, h, qty) =>
         set((s) => ({ pieces: [...s.pieces, { id: uid(), w, h, qty }], plan: null })),
       removePiece: (id) =>
         set((s) => ({ pieces: s.pieces.filter((p) => p.id !== id), plan: null })),
       setPieces: (pieces) => set({ pieces, plan: null }),
-      clearJob: () => set({ pieces: [], plan: null }),
+      clearJob: () => set({ pieces: [], plan: null, onlyLeftoverId: null }),
       buildPlan: (excluded = []) => {
         const { derived } = useData.getState()
         const { settings } = useSettings.getState()
         const kerf = settings.kerfOn ? settings.kerfSize : 0
+        const only = get().onlyLeftoverId
+        const stock = only
+          ? derived.freeLeftovers.filter((l) => l.id === only)
+          : derived.freeLeftovers
         const result = packJob(
           get().pieces,
-          derived.freeLeftovers,
+          stock,
           {
             sheetW: settings.sheetW,
             sheetH: settings.sheetH,
@@ -56,6 +64,7 @@ export const useJob = create<JobState>()(
         set({ plan: { sheets: result.sheets, unplaced: result.unplaced, excluded, kerf } })
       },
       dropPlan: () => set({ plan: null }),
+      setOnlyLeftoverId: (id) => set({ onlyLeftoverId: id }),
     }),
     { name: 'sc-job-draft', partialize: (s) => ({ pieces: s.pieces }) },
   ),
