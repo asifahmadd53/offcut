@@ -6,3 +6,4 @@ dev-dist
 .firebase
 *.log
 .DS_Store
+tsconfig.tsbuildinfo
