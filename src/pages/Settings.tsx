@@ -177,7 +177,7 @@ export default function Settings() {
       tab="settings"
       onNavigate={onNavigate}
       stickyBar={
-        <div className="flex flex-none items-center gap-2.5 border-t border-hair border-border pt-3">
+        <div className="flex flex-none items-center gap-2.5 rounded-2xl border-hair border-border bg-card p-3 shadow-elevated">
           <Button
             variant="outline"
             className="h-[52px] flex-none px-5"

@@ -105,10 +105,14 @@
 
 html {
   background: var(--background);
+  height: 100%;
+  overflow: hidden;
 }
 
 body {
   margin: 0;
+  height: 100%;
+  overflow: hidden;
   background: var(--background);
   color: var(--foreground);
   font-family:
@@ -125,8 +129,12 @@ body {
   -webkit-text-size-adjust: 100%;
 }
 
+/* Only AppShell's own <main> scrolls (see AppShell.tsx); html/body/#root never do, so a
+   stray taller-than-viewport measurement anywhere below can never produce the browser's
+   own native page scrollbar cutting through the sidebar/tab bar/sticky bar. */
 #root {
-  min-height: 100dvh;
+  height: 100dvh;
+  overflow: hidden;
 }
 
 button {

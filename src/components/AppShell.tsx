@@ -202,7 +202,11 @@ export function AppShell({
             {children}
           </main>
 
-          {stickyBar}
+          {stickyBar && (
+            <div className="flex-none pb-[calc(env(safe-area-inset-bottom)+12px)] pt-3 md:pb-4">
+              {stickyBar}
+            </div>
+          )}
         </div>
 
         {/* Under 768px: floating inset bottom tab bar (structural sibling, not fixed) */}
