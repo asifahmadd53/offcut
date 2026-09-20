@@ -105,14 +105,10 @@
 
 html {
   background: var(--background);
-  height: 100%;
-  overflow: hidden;
 }
 
 body {
   margin: 0;
-  height: 100%;
-  overflow: hidden;
   background: var(--background);
   color: var(--foreground);
   font-family:
@@ -129,12 +125,14 @@ body {
   -webkit-text-size-adjust: 100%;
 }
 
-/* Only AppShell's own <main> scrolls (see AppShell.tsx); html/body/#root never do, so a
-   stray taller-than-viewport measurement anywhere below can never produce the browser's
-   own native page scrollbar cutting through the sidebar/tab bar/sticky bar. */
+/* NOT a global overflow:hidden here — Print.tsx, Login.tsx and CutSaved.tsx are
+   deliberately standalone routes (no AppShell) that scroll the document itself, and a
+   global lock on html/body/#root broke Print's multi-page preview entirely (page 2+
+   became unreachable). AppShell-based routes contain their own scroll instead: the
+   AppShell.tsx root is `h-dvh overflow-hidden` with only its own <main> scrolling, which
+   is sufficient on its own regardless of what html/body/#root allow. */
 #root {
-  height: 100dvh;
-  overflow: hidden;
+  min-height: 100dvh;
 }
 
 button {
