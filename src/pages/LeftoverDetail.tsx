@@ -11,6 +11,7 @@ import {
 } from '@/components/ui/dialog'
 import { dayMonth } from '@/lib/format'
 import { fmt } from '@/lib/inches'
+import { badgedLeftovers } from '@/lib/labelChoice'
 import { saveCut } from '@/lib/db'
 import { getDeviceId, uid } from '@/lib/id'
 import { buildBlocks } from '@/lib/sheetView'
@@ -65,6 +66,10 @@ export default function LeftoverDetail() {
       : b,
   )
 
+  // Blocks too small to carry their own label still owe their size to the legend (R15).
+  const diagramScale = Math.min(120 / leftover.sheetW, 240 / leftover.sheetH)
+  const badged = badgedLeftovers(blocks, diagramScale)
+
   function useInNewJob() {
     setOnlyLeftoverId(leftover!.id)
     navigate('/new')
@@ -111,6 +116,16 @@ export default function LeftoverDetail() {
           )}
         </div>
       </div>
+
+      {badged.length > 0 && (
+        <div className="mb-4 rounded-lg bg-muted p-3 text-[13px]">
+          {badged.map((b, i) => (
+            <p key={i} className="mb-0 text-muted-foreground">
+              {b.letter}: {b.dims}
+            </p>
+          ))}
+        </div>
+      )}
 
       <Button size="lg" className="mb-2.5 h-[52px] w-full" onClick={useInNewJob}>
         Use this in a new job

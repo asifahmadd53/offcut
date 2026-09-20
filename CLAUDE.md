@@ -69,6 +69,9 @@ offcut/
 - **C1.** Sheet size on screen is length × width: `96 × 48`. Settings shows length field first, then width, hint "Length, then width." Engine internally stays width × height (`sheetW = 48`, `sheetH = 96`).
 - **C2.** Piece size inputs use `inputMode="text"`, not `decimal` (fractions like `22 1/2` need a slash).
 - **C3.** Test T-18 (same records in different order → identical derived stock) must be added; it was missing from the starter.
+- **C4.** SheetDiagram: every free/freeNew/focus block shows its size, never a bare letter — see `chooseFreeLabel` in `lib/labelChoice.ts` for the exact pw/ph thresholds (wide one-line / stacked two-line / vertical / badge-with-legend-size fallback). Applies on Plan, Job detail and Leftover detail.
+- **C5.** Settings uses a local draft + explicit "Save changes" bar (validated only on Save; a sheet-size change asks for confirmation first; leaving with unsaved changes asks Save/Discard/Stay). New job's own blade toggle stays instant with its own toast — it is not part of Settings' draft.
+- **C6.** Home's Recent jobs shows up to 30 jobs in its own independently-scrolling list (not the whole page), so the primary buttons stay visible.
 
 ## Working agreements
 - Be brief in chat: at most 12 lines per stage — what was done, commands run and results, what to check, what's needed from the user.

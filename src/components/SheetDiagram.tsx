@@ -1,4 +1,4 @@
-import { fmtLeft } from '@/lib/inches'
+import { chooseFreeLabel } from '@/lib/labelChoice'
 import { cn } from '@/lib/utils'
 import type { Block } from '@/lib/sheetView'
 
@@ -12,6 +12,7 @@ interface SheetDiagramProps {
 
 interface Badge {
   letter: string
+  dims: string
   top: number
 }
 
@@ -78,14 +79,14 @@ export function SheetDiagram({ sheetW, sheetH, blocks, maxW = 144, maxH = 288 }:
           )
         }
 
-        // free, freeNew, focus
+        // free, freeNew, focus — every block must show its size, not just its letter (R15).
         const kindClass =
           b.kind === 'focus'
             ? 'border-[1.5px] border-success-border bg-success-bg'
             : 'border border-dashed border-success-border bg-success-bg'
-        const dims = fmtLeft(b.w, b.h)
+        const choice = chooseFreeLabel(b.letter ?? '', b.w, b.h, pw, ph)
 
-        if (pw >= 110) {
+        if (choice.kind === 'wide') {
           return (
             <div
               key={i}
@@ -95,48 +96,50 @@ export function SheetDiagram({ sheetW, sheetH, blocks, maxW = 144, maxH = 288 }:
               )}
               style={style}
             >
-              {b.letter} · {dims} free
+              {choice.letter} · {choice.dims} free
             </div>
           )
         }
-        if (pw >= 52 && ph >= 34) {
+        if (choice.kind === 'stacked') {
           return (
             <div
               key={i}
               className={cn(
-                'absolute box-border flex items-center justify-center text-center text-[11px] font-semibold text-success-text',
+                'absolute box-border flex items-center justify-center text-center text-[11px] font-semibold leading-tight text-success-text',
                 kindClass,
               )}
               style={style}
             >
               <span>
-                {b.letter} · {dims}
+                {choice.letter}
                 <br />
-                free
+                {choice.dims}
               </span>
             </div>
           )
         }
-        if (pw >= 30 && ph >= 16) {
+        if (choice.kind === 'vertical') {
           return (
             <div
               key={i}
               className={cn(
-                'absolute box-border flex items-center justify-center text-center text-[12px] font-semibold text-success-text',
+                'absolute box-border flex items-center justify-center overflow-hidden text-center text-[10px] font-semibold text-success-text',
                 kindClass,
               )}
               style={style}
             >
-              {b.letter}
+              <span style={{ writingMode: 'vertical-rl' }}>
+                {choice.letter} · {choice.dims}
+              </span>
             </div>
           )
         }
 
-        // Too narrow for any text: badge with a lettered dot just outside the sheet.
+        // Too small for any label: badge with a lettered dot + size just outside the sheet.
         const rawTop = Math.min(Math.max(top + ph / 2 - 10, 0), outerH - 20)
         const overlap = badges.some((bd) => Math.abs(bd.top - rawTop) < 20)
         const finalTop = overlap ? Math.min(rawTop + 22, outerH - 20) : rawTop
-        badges.push({ letter: b.letter ?? '', top: finalTop })
+        badges.push({ letter: choice.letter, dims: choice.dims, top: finalTop })
         return (
           <div key={i} className={cn('absolute box-border', kindClass)} style={style} />
         )
@@ -147,6 +150,7 @@ export function SheetDiagram({ sheetW, sheetH, blocks, maxW = 144, maxH = 288 }:
           key={`badge-${i}`}
           className="absolute flex h-5 w-5 items-center justify-center rounded-full bg-success-bg text-[11px] font-bold text-success-text"
           style={{ left: outerW + 6, top: bd.top }}
+          title={`${bd.letter}: ${bd.dims}`}
         >
           {bd.letter}
         </div>

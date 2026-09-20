@@ -782,10 +782,11 @@ SheetPlan {
 <tr><td>Saved leftovers</td><td>Count of free leftovers. Tapping opens Stock</td></tr>
 <tr><td>Jobs this month</td><td>Count of confirmed cuts in the current calendar month</td></tr>
 <tr><td>New cutting job</td><td>The dominant action, 60 px tall. Opens Screen 3 with an empty job</td></tr>
-<tr><td>Recent jobs</td><td>The latest five confirmed jobs. Each row: pieces, date, source. Opens the job detail</td></tr>
+<tr><td>Recent jobs</td><td>The latest 30 confirmed jobs, in their own scrolling list under a fixed heading so the New cutting job and Leftover stock buttons stay in view. Each row: pieces, date, source, an amber dot for a conflict. Opens the job detail</td></tr>
 <tr><td>Tab bar</td><td>Home, Stock, Settings. Persistent across the three top-level screens</td></tr>
 </tbody></table></div>
 <p><strong>Empty state:</strong> when no cut has ever been confirmed, the counters and recent list are replaced by an invitation offering both a first job and adding existing offcuts, because a workshop adopting the app already has material against the wall.</p>
+<p><strong>Recent jobs list.</strong> The list scrolls independently of the page, capped at roughly 40% of the viewport height (minimum 220 px), so the page itself never needs to scroll to reach the primary actions above it. A soft fade appears at the bottom edge while more rows are below, and disappears once the list is scrolled to its end.</p>
 <h3>9.4 Screen 3 — New job</h3>
 <p><strong>Purpose:</strong> collect the sizes. Every design decision here serves a man typing with dusty thumbs.</p>
 
@@ -874,6 +875,16 @@ SheetPlan {
 
 <h3>9.5 Screens 4 and 5 — Cutting plan</h3>
 <p><strong>Purpose:</strong> the screen the carpenter holds at the saw. It must be readable at arm's length and must make the reuse of a leftover obvious and reassuring.</p>
+
+<h4>9.5.1 Every free block shows its size, not just its letter</h4>
+<p>A letter alone never appears on a free, newly-freed or focused block: colour is never the only signal, and neither is a bare letter (R15). The label chosen depends on the block's on-screen size in pixels (<code>pw</code>, <code>ph</code>):</p>
+<ul>
+<li><code>pw ≥ 110</code>: one line, <code>A · 19 × 48 free</code>.</li>
+<li><code>pw ≥ 40</code> and <code>ph ≥ 34</code>: two lines, the letter then the size (short side first), <code>free</code> is dropped once it no longer fits.</li>
+<li>Tall and narrow (<code>ph ≥ 3 × pw</code>, <code>pw ≥ 18</code>): the label runs vertically inside the block, <code>B · 18 × 69</code>.</li>
+<li>Smaller than any of the above: a lettered badge is drawn just outside the sheet edge, as before, and the size is always listed in the legend beside the diagram (<code>B: 18 × 69</code>) so it is never lost.</li>
+</ul>
+<p>This applies wherever a sheet is drawn: Cutting plan, Job detail and Leftover detail.</p>
 
 <div class="fig">
 <div class="screens">
@@ -1124,6 +1135,12 @@ SheetPlan {
 
 <h3>9.8 Screen 8 — Settings</h3>
 <p><strong>Purpose:</strong> hold the few values that change how plans are made, and the account. Nothing else. Every additional setting is a chance for the owner to break his own app.</p>
+
+<h4>9.8.1 Settings are saved with a clear action, not silently on blur</h4>
+<p>Sheet size, the blade toggle and its width, and the minimum leftover are all edited as a local draft. The moment the draft differs from what is saved, a sticky bar appears above the tab bar: a primary <strong>Save changes</strong> button and a text <strong>Discard</strong> link. The bar is never a disabled button sitting there doing nothing — it simply is not shown once there is nothing to save.</p>
+<p>Fields are validated only on Save, not as the user types. Sheet size and blade width must be more than 0; the minimum leftover may be 0 (keep everything). An invalid field shows its message underneath and blocks the save until fixed.</p>
+<p>Changing the sheet size asks for confirmation first: <em>"Change sheet size to 96 × 48? This applies to new plans only. Saved leftovers and past jobs keep their own sizes."</em> Saving shows the toast <em>"Settings saved."</em> and hides the bar. Leaving Settings with unsaved changes — by the back arrow or a tab — asks <em>"Save your changes?"</em> with Save, Discard and Stay.</p>
+<p>The blade toggle on New job (§9.4) is a separate, instant setting: tapping it saves immediately and shows a toast, <em>"Blade thickness on"</em> or <em>"off"</em>. It does not go through Settings' draft/save flow.</p>
 
 <div class="fig">
 <div class="screens">

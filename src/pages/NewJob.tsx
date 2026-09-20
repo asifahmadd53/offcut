@@ -11,6 +11,7 @@ import { plural } from '@/lib/format'
 import { useJob, type LeftoverFitCheck } from '@/store/job'
 import { useSettings } from '@/store/settings'
 import { useData } from '@/store/data'
+import { useToast } from '@/store/toast'
 
 type FieldError = 'zero' | 'nan' | null
 
@@ -32,6 +33,7 @@ export default function NewJob() {
   const setOnlyLeftoverId = useJob((s) => s.setOnlyLeftoverId)
   const settings = useSettings((s) => s.settings)
   const updateSettings = useSettings((s) => s.update)
+  const toast = useToast((s) => s.show)
   const freeLeftovers = useData((s) => s.derived.freeLeftovers)
 
   const [misfit, setMisfit] = useState<LeftoverFitCheck | null>(null)
@@ -222,7 +224,11 @@ export default function NewJob() {
 
       <button
         type="button"
-        onClick={() => updateSettings({ kerfOn: !settings.kerfOn })}
+        onClick={() => {
+          const next = !settings.kerfOn
+          updateSettings({ kerfOn: next })
+          toast(next ? 'Blade thickness on' : 'Blade thickness off')
+        }}
         className="mb-4.5 flex w-full items-center justify-between py-1 text-[15px]"
       >
         <span>Include blade thickness</span>

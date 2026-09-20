@@ -1,3 +1,4 @@
+import { useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { IconLayoutGrid } from '@tabler/icons-react'
 import { AppShell } from '@/components/AppShell'
@@ -12,6 +13,15 @@ export default function Home() {
   const navigate = useNavigate()
   const derived = useData((s) => s.derived)
   const setOnlyLeftoverId = useJob((s) => s.setOnlyLeftoverId)
+  const listRef = useRef<HTMLDivElement>(null)
+  const [atBottom, setAtBottom] = useState(false)
+
+  function onListScroll() {
+    const el = listRef.current
+    if (!el) return
+    const overflowing = el.scrollHeight > el.clientHeight + 1
+    setAtBottom(!overflowing || el.scrollHeight - el.scrollTop - el.clientHeight < 4)
+  }
 
   const freeCount = derived.freeLeftovers.length
   const now = new Date()
@@ -23,9 +33,14 @@ export default function Home() {
       d.getFullYear() === now.getFullYear()
     )
   }).length
-  const recent = derived.jobs.slice(0, 5)
+  const recent = derived.jobs.slice(0, 30)
   const conflictCount = derived.conflicts.length
   const firstUse = derived.jobs.length === 0 && derived.freeLeftovers.length === 0
+
+  useEffect(() => {
+    onListScroll()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [recent.length])
 
   function startNewJob() {
     setOnlyLeftoverId(null)
@@ -94,28 +109,44 @@ export default function Home() {
 
           {recent.length > 0 && (
             <>
-              <p className="mb-0.5 text-[13px] text-muted-foreground">Recent jobs</p>
-              {recent.map((j) => (
-                <button
-                  key={j.cut.id}
-                  type="button"
-                  onClick={() => navigate(`/job/${j.cut.id}`)}
-                  className="flex w-full items-center justify-between border-b border-hair border-border py-2.5 text-left"
+              <p className="mb-0.5 flex-none text-[13px] text-muted-foreground">Recent jobs</p>
+              <div className="relative">
+                <div
+                  ref={listRef}
+                  onScroll={onListScroll}
+                  className="overflow-y-auto overscroll-contain"
+                  style={{
+                    maxHeight: 'max(40vh, 220px)',
+                    WebkitOverflowScrolling: 'touch',
+                    scrollbarWidth: 'thin',
+                  }}
                 >
-                  <div>
-                    <p className="mb-0 flex items-center gap-1.5 text-[15px] font-semibold">
-                      {pieceSummary(j.cut.pieces)}
-                      {j.status === 'conflict' && (
-                        <span className="h-1.5 w-1.5 flex-none rounded-full bg-warning-border" />
-                      )}
-                    </p>
-                    <p className="mb-0 text-[13px] text-muted-foreground">
-                      {dayMonth(j.cut.createdAt)} · {sourceSummary(j.cut.sheets)}
-                    </p>
-                  </div>
-                  <span className="text-faint">›</span>
-                </button>
-              ))}
+                  {recent.map((j) => (
+                    <button
+                      key={j.cut.id}
+                      type="button"
+                      onClick={() => navigate(`/job/${j.cut.id}`)}
+                      className="flex w-full items-center justify-between border-b border-hair border-border py-2.5 text-left"
+                    >
+                      <div>
+                        <p className="mb-0 flex items-center gap-1.5 text-[15px] font-semibold">
+                          {pieceSummary(j.cut.pieces)}
+                          {j.status === 'conflict' && (
+                            <span className="h-1.5 w-1.5 flex-none rounded-full bg-warning-border" />
+                          )}
+                        </p>
+                        <p className="mb-0 text-[13px] text-muted-foreground">
+                          {dayMonth(j.cut.createdAt)} · {sourceSummary(j.cut.sheets)}
+                        </p>
+                      </div>
+                      <span className="text-faint">›</span>
+                    </button>
+                  ))}
+                </div>
+                {!atBottom && (
+                  <div className="pointer-events-none absolute inset-x-0 bottom-0 h-8 bg-gradient-to-t from-background to-transparent" />
+                )}
+              </div>
             </>
           )}
         </>

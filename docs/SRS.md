@@ -1050,7 +1050,7 @@ Add leftover by hand
   Saved leftovers   Count of free leftovers. Tapping opens Stock
   Jobs this month   Count of confirmed cuts in the current calendar month
   New cutting job   The dominant action, 60 px tall. Opens Screen 3 with an empty job
-  Recent jobs       The latest five confirmed jobs. Each row: pieces, date, source. Opens the job detail
+  Recent jobs       The latest 30 confirmed jobs, in their own scrolling list under a fixed heading so the New cutting job and Leftover stock buttons stay in view. Each row: pieces, date, source, an amber dot for a conflict. Opens the job detail
   Tab bar           Home, Stock, Settings. Persistent across the three top-level screens
 :::
 
@@ -1058,6 +1058,12 @@ Add leftover by hand
 recent list are replaced by an invitation offering both a first job and
 adding existing offcuts, because a workshop adopting the app already has
 material against the wall.
+
+**Recent jobs list.** The list scrolls independently of the page,
+capped at roughly 40% of the viewport height (minimum 220 px), so the
+page itself never needs to scroll to reach the primary actions above
+it. A soft fade appears at the bottom edge while more rows are below,
+and disappears once the list is scrolled to its end.
 
 ### 9.4 Screen 3 --- New job
 
@@ -1289,6 +1295,25 @@ How many pieces
 **Purpose:** the screen the carpenter holds at the saw. It must be
 readable at arm\'s length and must make the reuse of a leftover obvious
 and reassuring.
+
+#### 9.5.1 Every free block shows its size, not just its letter
+
+A letter alone never appears on a free, newly-freed or focused block:
+colour is never the only signal, and neither is a bare letter (R15).
+The label chosen depends on the block's on-screen size in pixels
+(`pw`, `ph`):
+
+- `pw >= 110`: one line, `A · 19 × 48 free`.
+- `pw >= 40` and `ph >= 34`: two lines, the letter then the size
+  (short side first); "free" is dropped once it no longer fits.
+- Tall and narrow (`ph >= 3 * pw`, `pw >= 18`): the label runs
+  vertically inside the block, `B · 18 × 69`.
+- Smaller than any of the above: a lettered badge is drawn just
+  outside the sheet edge, as before, and the size is always listed in
+  the legend beside the diagram (`B: 18 × 69`) so it is never lost.
+
+This applies wherever a sheet is drawn: Cutting plan, Job detail and
+Leftover detail.
 
 ::: fig
 ::: screens
@@ -1903,6 +1928,31 @@ Back to home
 **Purpose:** hold the few values that change how plans are made, and the
 account. Nothing else. Every additional setting is a chance for the
 owner to break his own app.
+
+#### 9.8.1 Settings are saved with a clear action, not silently on blur
+
+Sheet size, the blade toggle and its width, and the minimum leftover
+are all edited as a local draft. The moment the draft differs from
+what is saved, a sticky bar appears above the tab bar: a primary
+**Save changes** button and a text **Discard** link. The bar is never
+a disabled button sitting there doing nothing --- it simply is not
+shown once there is nothing to save.
+
+Fields are validated only on Save, not as the user types. Sheet size
+and blade width must be more than 0; the minimum leftover may be 0
+(keep everything). An invalid field shows its message underneath and
+blocks the save until fixed.
+
+Changing the sheet size asks for confirmation first: *"Change sheet
+size to 96 × 48? This applies to new plans only. Saved leftovers and
+past jobs keep their own sizes."* Saving shows the toast *"Settings
+saved."* and hides the bar. Leaving Settings with unsaved changes ---
+by the back arrow or a tab --- asks *"Save your changes?"* with Save,
+Discard and Stay.
+
+The blade toggle on New job (§9.4) is a separate, instant setting:
+tapping it saves immediately and shows a toast, *"Blade thickness on"*
+or *"off"*. It does not go through Settings' draft/save flow.
 
 ::: fig
 ::: screens
