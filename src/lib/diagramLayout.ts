@@ -262,6 +262,97 @@ export function estimateTextWidth(text: string, fontSize = 12): number {
   return text.length * fontSize * 0.58
 }
 
+// ---------- Rectangle size labels (edge labels or callouts) ----------
+
+export interface RectSizeLabel {
+  /** Index into the blocks array this label describes. */
+  blockIndex: number
+  kind: Block['kind']
+  /** Width as drawn (fmt of block.w), used along the top edge. */
+  width: string
+  /** Height as drawn (fmt of block.h), used along the left edge. */
+  height: string
+  /** Display name inside the rectangle: "Piece 1", "A", "Waste", "Already cut". */
+  name: string
+  /** Whether this rectangle is big enough to carry its own edge labels, or needs a callout. */
+  placement: 'inside-edges' | 'callout'
+  /** Rect center in inches, used to place/stack callouts. */
+  cx: number
+  cy: number
+}
+
+/** A rectangle needs at least this many px along the top/left to fit small edge labels. */
+const MIN_EDGE_PW = 34
+const MIN_EDGE_PH = 20
+
+function nameFor(b: Block): string {
+  if (b.kind === 'cut') return b.n != null ? `Piece ${b.n}` : 'Piece'
+  if (b.kind === 'earlier') return 'Already cut'
+  if (b.kind === 'free' || b.kind === 'freeNew' || b.kind === 'focus') return b.letter ?? 'Leftover'
+  return 'Waste'
+}
+
+/**
+ * Every rectangle drawn on a sheet (pieces, leftovers, waste, earlier-cut blocks) paired
+ * with its width/height as drawn and where to put that size: inline along the top/left
+ * edges when there's room, or flagged for a callout when the rectangle is too small.
+ * Pieces show the size as typed (block.label, already "23 × 77"-style from packer.ts);
+ * everything else shows fmt(w) x fmt(h) in on-diagram orientation (not fmtLeft's
+ * short-side-first, which is only for the existing internal leftover chip/badge label).
+ * Pure and DOM-free so both SheetDiagram (screen) and the print builder can share it.
+ */
+export function allRectSizeLabels(blocks: Block[], pxPerInch: number): RectSizeLabel[] {
+  return blocks.map((b, blockIndex) => {
+    const pw = b.w * pxPerInch
+    const ph = b.h * pxPerInch
+    const width = b.kind === 'cut' && b.label ? b.label.split(' × ')[0] : fmt(b.w)
+    const height = b.kind === 'cut' && b.label ? b.label.split(' × ')[1] : fmt(b.h)
+    const placement: RectSizeLabel['placement'] = pw >= MIN_EDGE_PW && ph >= MIN_EDGE_PH ? 'inside-edges' : 'callout'
+    return {
+      blockIndex,
+      kind: b.kind,
+      width,
+      height,
+      name: nameFor(b),
+      placement,
+      cx: b.x + b.w / 2,
+      cy: b.y + b.h / 2,
+    }
+  })
+}
+
+export interface CalloutLayout {
+  blockIndex: number
+  text: string
+  /** y position (px) of this callout's text line, stacked top-to-bottom without overlap. */
+  y: number
+  /** Natural (unstacked) y this callout's leader line points back to. */
+  naturalY: number
+}
+
+/**
+ * Stacks callout text lines vertically so they never overlap, reusing nudgeLabels'
+ * greedy 1-D collision-avoidance algorithm (rotated 90 degrees: callouts stack in y
+ * instead of nudging in x). One collision algorithm serves both dimension-line label
+ * crowding and callout stacking rather than a second bespoke implementation.
+ */
+export function stackCallouts(
+  callouts: Array<{ blockIndex: number; text: string; naturalY: number }>,
+  lineHeight = 14,
+): CalloutLayout[] {
+  const labels: PlacedLabel[] = callouts.map((c) => ({
+    center: c.naturalY,
+    text: c.text,
+    halfWidth: lineHeight / 2,
+  }))
+  const { placed } = nudgeLabels(labels, 2)
+  const byText = new Map(callouts.map((c) => [c.text, c]))
+  return placed.map((p) => {
+    const src = byText.get(p.text)!
+    return { blockIndex: src.blockIndex, text: p.text, y: p.center, naturalY: p.naturalCenter }
+  })
+}
+
 // ---------- Cut-line derivation ----------
 
 export interface CutLineLayout {

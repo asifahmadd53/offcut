@@ -1,7 +1,7 @@
 import type { Derived } from './stock'
 import type { Rect, SheetPlan } from './types'
 
-export type BlockKind = 'cut' | 'earlier' | 'free' | 'freeNew' | 'focus'
+export type BlockKind = 'cut' | 'earlier' | 'free' | 'freeNew' | 'focus' | 'waste'
 
 export interface Block extends Rect {
   kind: BlockKind

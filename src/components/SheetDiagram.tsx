@@ -1,5 +1,6 @@
 import { useEffect, useId, useMemo, useRef, useState } from 'react'
 import {
+  allRectSizeLabels,
   chooseLabel,
   computeWasteCells,
   diagramAriaLabel,
@@ -7,6 +8,7 @@ import {
   estimateTextWidth,
   extractEdges,
   nudgeLabels,
+  stackCallouts,
   wasteLabelFits,
   type CutLineLayout,
 } from '@/lib/diagramLayout'
@@ -96,6 +98,18 @@ export function SheetDiagram({
     }))
     const yNudge = nudgeLabels(yLabels, 4)
 
+    // Every rectangle's own width/height, drawn along its top/left edges when it has
+    // room, or flagged for an outside callout when too small (C-new: sizes on every
+    // rectangle, not just pieces/leftovers). Waste cells get their own synthetic blocks
+    // so they participate in the same sizing pass as pieces/leftovers/earlier-cut.
+    const wasteBlocks: Block[] = wasteCells.map((c) => ({ kind: 'waste', x: c.x, y: c.y, w: c.w, h: c.h }))
+    const sizeBlocks = [...blocks, ...wasteBlocks]
+    const rectLabels = allRectSizeLabels(sizeBlocks, pxPerInch)
+    const calloutSeeds = rectLabels
+      .filter((r) => r.placement === 'callout')
+      .map((r) => ({ blockIndex: r.blockIndex, text: `${r.width} × ${r.height}`, naturalY: TOP_MARGIN + r.cy * pxPerInch }))
+    const callouts = stackCallouts(calloutSeeds, 14)
+
     return {
       pxPerInch,
       sheetPxW,
@@ -108,10 +122,13 @@ export function SheetDiagram({
       ySegs,
       xNudge,
       yNudge,
+      sizeBlocks,
+      rectLabels,
+      callouts,
     }
   }, [blocks, containerW, cuts, maxH, sheetH, sheetW])
 
-  const { pxPerInch, sheetPxW, sheetPxH, svgW, svgH, wasteCells, cutLines, xNudge, yNudge } = layout
+  const { pxPerInch, sheetPxW, sheetPxH, svgW, svgH, wasteCells, cutLines, xNudge, yNudge, sizeBlocks, rectLabels, callouts } = layout
 
   const pieceCount = blocks.filter((b) => b.kind === 'cut').length
   const leftoverCount = blocks.filter((b) => b.kind === 'free' || b.kind === 'freeNew' || b.kind === 'focus').length
@@ -494,6 +511,60 @@ export function SheetDiagram({
             {lbl.text}
           </text>
         ))}
+
+        {/* Per-rectangle width (top edge) / height (left edge) labels, or a leader-line
+            callout outside the drawing when the rectangle is too small (R15/C-new: every
+            rectangle shows its size, always, alongside its existing name/letter/chip). */}
+        {rectLabels.map((r) => {
+          const b = sizeBlocks[r.blockIndex]
+          const pw = b.w * pxPerInch
+          const ph = b.h * pxPerInch
+          if (r.placement === 'inside-edges') {
+            return (
+              <g key={`sizelbl-${r.blockIndex}`}>
+                <text
+                  x={X(b.x) + pw / 2}
+                  y={Y(b.y) + 10}
+                  textAnchor="middle"
+                  fontSize="11"
+                  fill="var(--faint)"
+                >
+                  {r.width}
+                </text>
+                <text
+                  x={X(b.x) + 3}
+                  y={Y(b.y) + ph / 2}
+                  textAnchor="start"
+                  dominantBaseline="middle"
+                  fontSize="11"
+                  fill="var(--faint)"
+                  transform={`rotate(-90 ${X(b.x) + 3} ${Y(b.y) + ph / 2})`}
+                >
+                  {r.height}
+                </text>
+              </g>
+            )
+          }
+          return null
+        })}
+
+        {/* Callouts for rectangles too small to carry inline edge labels, stacked without overlap. */}
+        {callouts.map((c) => {
+          const r = rectLabels.find((rl) => rl.blockIndex === c.blockIndex)
+          if (!r) return null
+          const b = sizeBlocks[c.blockIndex]
+          const startX = X(b.x) + (b.w * pxPerInch)
+          const startY = TOP_MARGIN + r.cy * pxPerInch
+          const endX = svgW - RIGHT_MARGIN + 6
+          return (
+            <g key={`callout-${c.blockIndex}`}>
+              <line x1={startX} y1={startY} x2={endX} y2={c.y} stroke="var(--faint)" strokeWidth="0.75" />
+              <text x={endX + 4} y={c.y} dominantBaseline="middle" fontSize="11" fill="var(--faint)">
+                {c.text}
+              </text>
+            </g>
+          )
+        })}
 
         {/* Ruler along the bottom edge: ticks every 12 in, labels at 0/24/48-style intervals */}
         <Ruler x0={X(0)} pxPerInch={pxPerInch} sheetW={sheetW} y={TOP_MARGIN + sheetPxH + 10} />

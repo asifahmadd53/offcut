@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import {
+  allRectSizeLabels,
   badgedLeftovers,
   chooseFreeLabel,
   chooseLabel,
@@ -10,6 +11,7 @@ import {
   estimateTextWidth,
   extractEdges,
   nudgeLabels,
+  stackCallouts,
   wasteLabelFits,
 } from './diagramLayout'
 import { packJob } from './packer'
@@ -188,6 +190,133 @@ describe('diagramAriaLabel', () => {
 
   it('omits cut count when not available (older records)', () => {
     expect(diagramAriaLabel(96, 48, 2, 2)).toBe('Sheet 96 by 48 inches with 2 pieces and 2 leftovers')
+  })
+})
+
+describe('allRectSizeLabels', () => {
+  it('every rectangle in a plan has both dimensions labelled', () => {
+    const r = packJob([piece(23, 77, 2)], [], opts)
+    const s = r.sheets[0]
+    const blocks: Block[] = [
+      ...s.placements.map((p): Block => ({ kind: 'cut', x: p.x, y: p.y, w: p.w, h: p.h, label: p.label, n: p.n })),
+      ...s.newLeftovers.map((l): Block => ({ kind: 'freeNew', x: l.x, y: l.y, w: l.w, h: l.h, letter: l.letter })),
+    ]
+    const labels = allRectSizeLabels(blocks, 3)
+    expect(labels).toHaveLength(blocks.length)
+    for (const l of labels) {
+      expect(l.width).toBeTruthy()
+      expect(l.height).toBeTruthy()
+    }
+  })
+
+  it('a 2x77 leftover strip (like leftover B in the golden example) gets a callout', () => {
+    const r = packJob([piece(23, 77, 2)], [], opts)
+    const s = r.sheets[0]
+    const blocks: Block[] = s.newLeftovers.map((l): Block => ({
+      kind: 'freeNew',
+      x: l.x,
+      y: l.y,
+      w: l.w,
+      h: l.h,
+      letter: l.letter,
+    }))
+    const pxPerInch = 3
+    const labels = allRectSizeLabels(blocks, pxPerInch)
+    const bIndex = blocks.findIndex((b) => b.letter === 'B')
+    expect(bIndex).toBeGreaterThanOrEqual(0)
+    expect(labels[bIndex].placement).toBe('callout')
+  })
+
+  it('pieces show the size as typed (block.label), not recomputed', () => {
+    const block: Block = { kind: 'cut', x: 0, y: 0, w: 23, h: 77, label: '23 × 77', n: 1 }
+    const [label] = allRectSizeLabels([block], 3)
+    expect(label.width).toBe('23')
+    expect(label.height).toBe('77')
+  })
+
+  it('leftovers/waste/earlier show size as drawn (fmt(w) x fmt(h)), not short-side-first', () => {
+    const block: Block = { kind: 'freeNew', x: 0, y: 0, w: 2, h: 77, letter: 'B' }
+    const [label] = allRectSizeLabels([block], 3)
+    expect(label.width).toBe('2')
+    expect(label.height).toBe('77')
+  })
+
+  it('a turned piece keeps its normal size label (turned/Piece text is handled by choosePieceLabel elsewhere)', () => {
+    const block: Block = { kind: 'cut', x: 0, y: 0, w: 23, h: 19, label: '19 × 23', n: 3, rotated: true }
+    const [label] = allRectSizeLabels([block], 3)
+    expect(label.width).toBe('19')
+    expect(label.height).toBe('23')
+    // choosePieceLabel (existing, unchanged) still marks it Turned:
+    expect(chooseLabel(block, 3).piece?.line2).toBe('Turned')
+  })
+
+  it('an earlier-cut part on a reused sheet keeps its size', () => {
+    const first = packJob([piece(23, 77, 1)], [], opts)
+    const sheet1 = first.sheets[0]
+    const leftoverStock = sheet1.newLeftovers.map((l) => ({
+      id: l.id,
+      letter: l.letter,
+      x: l.x,
+      y: l.y,
+      w: l.w,
+      h: l.h,
+      sheetId: sheet1.sheetId,
+      sheetW: sheet1.sheetW,
+      sheetH: sheet1.sheetH,
+      sheetDate: sheet1.sheetDate,
+      createdByCutId: 'cut-1',
+      createdAt: 1,
+      manual: false,
+      status: 'free' as const,
+    }))
+    const second = packJob([piece(10, 10, 1)], leftoverStock, opts)
+    expect(second.sheets).toHaveLength(1)
+    const earlierBlock: Block = { kind: 'earlier', x: sheet1.placements[0].x, y: sheet1.placements[0].y, w: sheet1.placements[0].w, h: sheet1.placements[0].h }
+    const [label] = allRectSizeLabels([earlierBlock], 3)
+    expect(label.width).toBe(fmtWidth(sheet1.placements[0].w))
+    expect(label.height).toBe(fmtWidth(sheet1.placements[0].h))
+    expect(label.name).toBe('Already cut')
+  })
+
+  it('waste cells get sizes', () => {
+    const wasteBlock: Block = { kind: 'earlier', x: 0, y: 0, w: 1, h: 1 } // placeholder to keep region non-empty
+    const cells = computeWasteCells([wasteBlock], { x: 0, y: 0, w: 10, h: 10 })
+    const wasteBlocks: Block[] = cells.map((c) => ({ kind: 'earlier', x: c.x, y: c.y, w: c.w, h: c.h }))
+    const labels = allRectSizeLabels(wasteBlocks, 3)
+    expect(labels.length).toBeGreaterThan(0)
+    for (const l of labels) {
+      expect(l.width).toBeTruthy()
+      expect(l.height).toBeTruthy()
+    }
+  })
+})
+
+function fmtWidth(n: number): string {
+  // local mirror of fmt() for the assertion above, avoids importing it twice in the test
+  const sixteenths = Math.round(n * 16)
+  const whole = Math.floor(sixteenths / 16)
+  let num = sixteenths % 16
+  if (num === 0) return String(whole)
+  let den = 16
+  while (num % 2 === 0) {
+    num /= 2
+    den /= 2
+  }
+  return whole > 0 ? `${whole} ${num}/${den}` : `${num}/${den}`
+}
+
+describe('stackCallouts', () => {
+  it('stacks overlapping callouts without collision, reusing nudgeLabels', () => {
+    const callouts = [
+      { blockIndex: 0, text: '2 × 77', naturalY: 100 },
+      { blockIndex: 1, text: '3 × 10', naturalY: 102 },
+      { blockIndex: 2, text: '1 × 5', naturalY: 104 },
+    ]
+    const result = stackCallouts(callouts, 14)
+    const ys = result.map((r) => r.y).sort((a, b) => a - b)
+    for (let i = 1; i < ys.length; i++) {
+      expect(ys[i] - ys[i - 1]).toBeGreaterThanOrEqual(14 - 1e-6)
+    }
   })
 })
 
