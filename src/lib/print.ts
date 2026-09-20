@@ -1,4 +1,4 @@
-import { sizesList, type SizesListEntry } from './diagramLayout'
+import { allRectSizeLabels, type RectSizeLabel } from './diagramLayout'
 import { dayMonth, timeOfDay } from './format'
 import { fmt } from './inches'
 import { pieceSummary, sourceSummary } from './summary'
@@ -7,7 +7,7 @@ import type { Block } from './sheetView'
 import type { Derived } from './stock'
 import type { CutDoc, Settings, SheetPlan } from './types'
 
-/** One row of the printed parts table for one sheet — the same Sizes list shown on screen. */
+/** One row of the printed parts table for one sheet. */
 export interface PrintPartRow {
   label: string
   width: string
@@ -32,18 +32,26 @@ export interface PrintPage {
   pageTotal: number
 }
 
-function statusFor(entry: SizesListEntry): PrintPartRow['status'] {
-  if (entry.group === 'piece') return entry.status === 'Turned' ? 'Turned piece' : 'Piece'
-  if (entry.group === 'leftover') return 'Saved leftover'
-  return entry.name === 'Waste' ? 'Waste' : 'Already cut'
+function statusFor(_label: RectSizeLabel, block: Block): PrintPartRow['status'] {
+  if (block.kind === 'cut') return block.rotated ? 'Turned piece' : 'Piece'
+  if (block.kind === 'earlier') return 'Already cut'
+  if (block.kind === 'waste') return 'Waste'
+  return 'Saved leftover'
 }
 
-/** The printed parts table is the same grouped Sizes list shown on screen (diagramLayout.ts). */
 function partsTableFor(blocks: Block[]): PrintPartRow[] {
-  return sizesList(blocks).map((entry) => {
-    const [width, height] = entry.size.split(' × ')
-    const label = entry.badges.length > 0 ? entry.badges.join(', ') : entry.name
-    return { label, width, height, status: statusFor(entry) }
+  // Use the same pxPerInch-independent facts (width/height/name) the screen diagram
+  // uses — pxPerInch only affects placement (inside-edges vs callout), not the table,
+  // so a fixed representative scale is fine here; every rectangle appears regardless.
+  const labels = allRectSizeLabels(blocks, 10)
+  return labels.map((l) => {
+    const b = blocks[l.blockIndex]
+    return {
+      label: l.name,
+      width: l.width,
+      height: l.height,
+      status: statusFor(l, b),
+    }
   })
 }
 
@@ -60,8 +68,9 @@ function bladeTextFor(kerf: number | undefined): string {
  * Builds one print-page descriptor per sheet in cut.sheets, in order (sheet 1 = page 1).
  * No cover page. Pure: draws only on local data already in `derived` (Firestore's cache),
  * so it works fully offline. Reuses buildBlocks (sheetView.ts, unchanged) for the SAME
- * diagram geometry as the screen, and sizesList (diagramLayout.ts) for the SAME grouped
- * Sizes list shown on screen, so the parts table is never a second, divergent enumeration.
+ * diagram geometry as the screen, and allRectSizeLabels (diagramLayout.ts, Part 1) for
+ * the SAME rectangle-sizing logic as the on-screen edge labels/callouts, so the parts
+ * table is never a second, divergent enumeration of the same rectangles.
  */
 export function buildPrintPages(cut: CutDoc, derived: Derived, _settings: Settings): PrintPage[] {
   const total = cut.sheets.length

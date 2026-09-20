@@ -2,8 +2,8 @@ import { useRef, useState } from 'react'
 import { TransformComponent, TransformWrapper, type ReactZoomPanPinchRef } from 'react-zoom-pan-pinch'
 import { dayMonth } from '@/lib/format'
 import { fmtLeft } from '@/lib/inches'
+import { badgedLeftovers } from '@/lib/labelChoice'
 import { SheetDiagram } from './SheetDiagram'
-import { SizesList } from './SizesList'
 import { Dialog, DialogContent, DialogTitle } from './ui/dialog'
 import type { Block } from '@/lib/sheetView'
 import type { SheetPlan } from '@/lib/types'
@@ -13,13 +13,20 @@ interface PlanSheetProps {
   blocks: Block[]
 }
 
-/** One physical sheet of a plan: the diagram, a side panel, the Sizes list and the cut order below. */
+const DIAGRAM_MAX_W = 144
+const DIAGRAM_MAX_H = 288
+
+/** One physical sheet of a plan: the diagram, a side panel, and the cut order below. */
 export function PlanSheet({ sheet, blocks }: PlanSheetProps) {
   const usedArea = sheet.placements.reduce((sum, p) => sum + p.w * p.h, 0)
   const regionArea = sheet.region.w * sheet.region.h
   const pct = regionArea > 0 ? Math.round((usedArea / regionArea) * 100) : 0
   const anyTurned = sheet.placements.some((p) => p.rotated)
   const hasEarlier = blocks.some((b) => b.kind === 'earlier')
+
+  // Blocks too small to carry their own label still owe their size to the legend (R15).
+  const scale = Math.min(DIAGRAM_MAX_W / sheet.sheetW, DIAGRAM_MAX_H / sheet.sheetH)
+  const badged = badgedLeftovers(blocks, scale)
 
   const [activeCut, setActiveCut] = useState<number | null>(null)
   const [fullScreen, setFullScreen] = useState(false)
@@ -30,8 +37,8 @@ export function PlanSheet({ sheet, blocks }: PlanSheetProps) {
 
   return (
     <div>
-      <div className="mb-3.5 flex items-start gap-6">
-        <div data-plan-sheet-svg={sheet.sheetId}>
+      <div className="mb-3.5 flex flex-col items-start gap-4 sm:flex-row sm:items-start sm:gap-6">
+        <div data-plan-sheet-svg={sheet.sheetId} className="w-full sm:w-auto">
           <SheetDiagram
             sheetW={sheet.sheetW}
             sheetH={sheet.sheetH}
@@ -95,7 +102,15 @@ export function PlanSheet({ sheet, blocks }: PlanSheetProps) {
         <SaveImageButton sheet={sheet} blocks={blocks} />
       </div>
 
-      <SizesList blocks={blocks} />
+      {badged.length > 0 && (
+        <div className="mb-3.5 rounded-lg bg-muted p-3 text-[13px]">
+          {badged.map((b, i) => (
+            <p key={i} className="mb-0 text-muted-foreground">
+              {b.letter}: {b.dims}
+            </p>
+          ))}
+        </div>
+      )}
 
       <div className="mb-3.5 rounded-lg bg-muted p-3 text-[13px]">
         <p className="mb-0.5 text-muted-foreground">Cut order</p>

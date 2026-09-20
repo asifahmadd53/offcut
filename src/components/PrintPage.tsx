@@ -12,10 +12,9 @@ interface PrintPageProps {
   isLast: boolean
 }
 
-/** One printed page: header, live SVG drawing (same SheetDiagram as screen, all cut lines
- *  shown), cut order, the same Sizes list as a table, and a footer. Reused for both the
- *  on-screen preview and the printed output — there is no separate rasterized rendering
- *  path (R-print: stays live SVG/HTML). */
+/** One printed page: header, live SVG drawing (same SheetDiagram as screen), cut order,
+ *  parts table and footer. Reused for both the on-screen preview and the printed output —
+ *  there is no separate rasterized rendering path (R-print: stays live SVG/HTML). */
 export function PrintPage({ page, paperSize, isLast }: PrintPageProps) {
   return (
     <section
@@ -52,7 +51,6 @@ export function PrintPage({ page, paperSize, isLast }: PrintPageProps) {
           cuts={page.sheet.cuts}
           maxW={DIAGRAM_W[paperSize]}
           maxH={420}
-          showAllCutLines
         />
       </div>
 
