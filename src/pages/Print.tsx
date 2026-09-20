@@ -53,6 +53,7 @@ export default function Print() {
             padding: 12mm;
             box-shadow: none !important;
             margin: 0 !important;
+            overflow: hidden;
           }
           .print-block { break-inside: avoid; }
           * { print-color-adjust: exact; -webkit-print-color-adjust: exact; }
@@ -60,12 +61,13 @@ export default function Print() {
         @media screen {
           .print-page {
             width: ${size.w};
-            min-height: ${size.h};
+            height: ${size.h};
             padding: 12mm;
             background: white;
             color: #1f1e1c;
             box-shadow: 0 1px 4px rgba(0,0,0,0.15);
             margin: 0 auto 24px auto;
+            overflow: hidden;
           }
         }
       `}</style>
@@ -100,7 +102,7 @@ export default function Print() {
 
       <div className="overflow-x-auto px-4 pb-8 pt-2">
         {pages.map((page, i) => (
-          <PrintPage key={page.sheet.sheetId + i} page={page} paperSize={settings.paperSize} isLast={i === pages.length - 1} />
+          <PrintPage key={page.sheet.sheetId + i} page={page} isLast={i === pages.length - 1} />
         ))}
       </div>
     </div>
