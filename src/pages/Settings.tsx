@@ -177,23 +177,25 @@ export default function Settings() {
       tab="settings"
       onNavigate={onNavigate}
       stickyBar={
-        dirty && (
-          <div className="flex flex-none items-center justify-between gap-3 border-t border-hair border-border pt-3">
-            <button
-              type="button"
-              onClick={discard}
-              className="text-[14px] text-muted-foreground underline-offset-4 hover:underline"
-            >
-              Discard
-            </button>
-            <Button size="lg" className="h-[52px] flex-1" onClick={onSave}>
-              Save changes
-            </Button>
-          </div>
-        )
+        <div className="flex flex-none items-center justify-between gap-3 border-t border-hair border-border pt-3">
+          <button
+            type="button"
+            onClick={discard}
+            disabled={!dirty}
+            className="text-[14px] text-muted-foreground underline-offset-4 hover:underline disabled:pointer-events-none disabled:opacity-40"
+          >
+            Discard
+          </button>
+          <Button size="lg" className="h-[52px] flex-1" disabled={!dirty} onClick={onSave}>
+            Save changes
+          </Button>
+        </div>
       }
     >
-      <div className="border-b border-hair border-border py-3">
+      <div className='border border-border rounded-md p-2'>
+
+      
+      <div className="border-b border-border  py-1 px-2">
         <Label>Sheet size (in)</Label>
         <div className="grid grid-cols-2 gap-3">
           <div>
@@ -201,6 +203,7 @@ export default function Settings() {
               inputMode="text"
               autoComplete="off"
               value={draft.sheetH}
+              className="h-[42px] border border-border-stronger bg-transparent px-3 text-[18px]"
               onChange={(e) => patch({ sheetH: e.target.value })}
             />
             {errors.sheetH && <p className="mt-1 text-[12.5px] text-danger-text">{errors.sheetH}</p>}
@@ -210,6 +213,7 @@ export default function Settings() {
               inputMode="text"
               autoComplete="off"
               value={draft.sheetW}
+              className="h-[42px] border border-border-stronger bg-transparent px-3 text-[18px]"
               onChange={(e) => patch({ sheetW: e.target.value })}
             />
             {errors.sheetW && <p className="mt-1 text-[12.5px] text-danger-text">{errors.sheetW}</p>}
@@ -218,7 +222,7 @@ export default function Settings() {
         <p className="mt-1.5 text-[12.5px] text-faint">Length, then width.</p>
       </div>
 
-      <div className="border-b border-hair border-border py-3">
+      <div className="border-b border-border py-3">
         <div className="flex items-center justify-between">
           <span className="text-[15px]">Include blade thickness</span>
           <Switch checked={draft.kerfOn} onCheckedChange={(v) => patch({ kerfOn: v })} />
@@ -241,7 +245,7 @@ export default function Settings() {
         )}
       </div>
 
-      <div className="border-b border-hair border-border py-3">
+      <div className="border-b border-border py-3">
         <Label>Save leftovers bigger than (in)</Label>
         <Input
           inputMode="text"
@@ -253,12 +257,12 @@ export default function Settings() {
         <p className="mt-1.5 text-[12.5px] text-faint">Anything smaller is treated as waste.</p>
       </div>
 
-      <div className="flex items-center justify-between border-b border-hair border-border py-3">
+      <div className="flex items-center justify-between border-b border-border py-3">
         <span className="text-[15px]">Rotate pieces</span>
         <span className="text-[14px] text-muted-foreground">Only if needed</span>
       </div>
 
-      <div className="border-b border-hair border-border py-3">
+      <div className="border-b  border-border py-3">
         <div className="flex items-center justify-between">
           <span className="text-[15px]">Show the print screen after every confirmed cut</span>
           <Switch
@@ -271,7 +275,7 @@ export default function Settings() {
         </p>
       </div>
 
-      <div className="border-b border-hair border-border py-3">
+      <div className="border-b border-border py-3">
         <Label>Paper size</Label>
         <div className="flex gap-2">
           <button
@@ -364,6 +368,7 @@ export default function Settings() {
           </div>
         </DialogContent>
       </Dialog>
+      </div>
     </AppShell>
   )
 }

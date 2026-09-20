@@ -12,6 +12,7 @@ import { cn } from '@/lib/utils'
 import { useAuth } from '@/store/auth'
 import { useData } from '@/store/data'
 import { SyncBadge } from '@/components/SyncBadge'
+import { Button } from './ui/button'
 
 interface AppShellProps {
   title: string
@@ -88,7 +89,7 @@ export function AppShell({
   )
 
   return (
-    <div className="flex h-dvh min-h-screen w-full">
+    <div className="flex h-dvh w-full overflow-hidden">
       {/* 1024px+: persistent left sidebar */}
       <aside className="hidden w-60 flex-none flex-col overflow-y-auto border-r border-hair border-border bg-card px-4 py-5 lg:flex">
         <div className="mb-6 flex items-center gap-2 px-1">
@@ -98,13 +99,13 @@ export function AppShell({
           <span className="text-[17px] font-semibold">Offcut</span>
         </div>
 
-        <button
+        <Button
           type="button"
           onClick={() => go('/new')}
-          className="mb-5 flex h-[52px] items-center justify-center rounded-[16px] bg-brand text-[15px] font-semibold text-brand-fg transition-colors hover:bg-brand-hover active:scale-[0.98]"
+          className="mb-5 flex items-center justify-center rounded-lg bg-brand text-[15px] font-semibold text-brand-fg  active:scale-[0.98]"
         >
           + New cutting job
-        </button>
+        </Button>
 
         <nav className="flex flex-1 flex-col gap-1">
           {tabs.map(({ key, label, icon: Icon, to }) => (
@@ -130,17 +131,17 @@ export function AppShell({
           ))}
         </nav>
 
-        <div className="mt-4 flex flex-col gap-2 border-t border-hair border-border pt-4">
+        <div className="mt-4 flex flex-col gap-2  border-border pt-4">
           <SyncBadge />
           {email && <p className="truncate px-1 text-[12px] text-muted-foreground">{email}</p>}
-          <button
+          <Button
             type="button"
             onClick={() => logout()}
-            className="flex h-9 items-center gap-2 rounded-[10px] px-1 text-[13px] text-muted-foreground hover:text-foreground"
+            className="flex h-9 bg-red-800 items-center gap-2 rounded-[10px] px-1 text-[13px] text-foreground hover:text-foreground"
           >
             <IconLogout size={16} />
             Log out
-          </button>
+          </Button>
         </div>
       </aside>
 
@@ -171,14 +172,14 @@ export function AppShell({
       </nav>
 
       {/* Main column: header + scrolling content + (phone) floating tab bar */}
-      <div className="flex min-w-0 flex-1 flex-col">
+      <div className="flex min-h-0 min-w-0 flex-1 flex-col">
         <a
           href="#main-content"
           className="sr-only focus:not-sr-only focus:absolute focus:left-3 focus:top-3 focus:z-50 focus:rounded-lg focus:bg-brand focus:px-3 focus:py-2 focus:text-sm focus:text-brand-fg"
         >
           Skip to content
         </a>
-        <div className="mx-auto flex w-full flex-1 flex-col px-5 pt-[env(safe-area-inset-top)] lg:px-8">
+        <div className="mx-auto flex min-h-0 w-full flex-1 flex-col px-5 pt-[env(safe-area-inset-top)] lg:px-8">
           {verifyBanner}
           <header className="flex h-14 flex-none items-center justify-between gap-2">
             <div className="flex min-w-0 items-center gap-1">
