@@ -94,3 +94,17 @@ button {
     animation: none !important;
   }
 }
+
+/* Shared thin scroll styling for independently-scrolling lists (Home's Recent jobs,
+   Stock's leftover list). scrollbarWidth: 'thin' (set inline, Firefox-only) is paired
+   here with cross-browser WebKit rules so Chrome/Safari/Edge match visually too. */
+.thin-scroll::-webkit-scrollbar {
+  width: 7px;
+}
+.thin-scroll::-webkit-scrollbar-track {
+  background: transparent;
+}
+.thin-scroll::-webkit-scrollbar-thumb {
+  background: var(--border-strong);
+  border-radius: 4px;
+}

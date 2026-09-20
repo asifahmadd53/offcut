@@ -116,7 +116,7 @@ export default function Home() {
                 <div
                   ref={listRef}
                   onScroll={onListScroll}
-                  className="overflow-y-auto overscroll-contain"
+                  className="thin-scroll overflow-y-auto overscroll-contain"
                   style={{
                     maxHeight: 'max(40vh, 220px)',
                     WebkitOverflowScrolling: 'touch',

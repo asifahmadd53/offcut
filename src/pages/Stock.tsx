@@ -1,3 +1,4 @@
+import { useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { IconLayoutGrid } from '@tabler/icons-react'
 import { AppShell } from '@/components/AppShell'
@@ -16,9 +17,23 @@ function originText(l: Leftover): string {
 export default function Stock() {
   const navigate = useNavigate()
   const derived = useData((s) => s.derived)
+  const listRef = useRef<HTMLDivElement>(null)
+  const [atBottom, setAtBottom] = useState(false)
 
   const sorted = [...derived.freeLeftovers].sort((a, b) => b.w * b.h - a.w * a.h)
   const totalArea = sorted.reduce((sum, l) => sum + l.w * l.h, 0)
+
+  function onListScroll() {
+    const el = listRef.current
+    if (!el) return
+    const overflowing = el.scrollHeight > el.clientHeight + 1
+    setAtBottom(!overflowing || el.scrollHeight - el.scrollTop - el.clientHeight < 4)
+  }
+
+  useEffect(() => {
+    onListScroll()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sorted.length])
 
   return (
     <AppShell title="Leftover stock" tab="stock" headerRight={<SyncBadge />}>
@@ -55,20 +70,36 @@ export default function Stock() {
           </div>
 
           <p className="mb-0.5 text-[13px] text-muted-foreground">Biggest first</p>
-          {sorted.map((l) => (
-            <button
-              key={l.id}
-              type="button"
-              onClick={() => navigate(`/stock/${l.id}`)}
-              className="flex w-full items-center justify-between border-b border-hair border-border py-2.5 text-left"
+          <div className="relative">
+            <div
+              ref={listRef}
+              onScroll={onListScroll}
+              className="thin-scroll overflow-y-auto overscroll-contain"
+              style={{
+                maxHeight: 'max(40vh, 220px)',
+                WebkitOverflowScrolling: 'touch',
+                scrollbarWidth: 'thin',
+              }}
             >
-              <div>
-                <p className="mb-0 text-[18px] font-semibold">{fmtLeft(l.w, l.h)}</p>
-                <p className="mb-0 text-[13px] text-muted-foreground">{originText(l)}</p>
-              </div>
-              <span className="text-faint">›</span>
-            </button>
-          ))}
+              {sorted.map((l) => (
+                <button
+                  key={l.id}
+                  type="button"
+                  onClick={() => navigate(`/stock/${l.id}`)}
+                  className="flex w-full items-center justify-between border-b border-hair border-border py-2.5 text-left"
+                >
+                  <div>
+                    <p className="mb-0 text-[18px] font-semibold">{fmtLeft(l.w, l.h)}</p>
+                    <p className="mb-0 text-[13px] text-muted-foreground">{originText(l)}</p>
+                  </div>
+                  <span className="text-faint">›</span>
+                </button>
+              ))}
+            </div>
+            {!atBottom && (
+              <div className="pointer-events-none absolute inset-x-0 bottom-0 h-8 bg-gradient-to-t from-background to-transparent" />
+            )}
+          </div>
 
           <Button
             variant="outline"
