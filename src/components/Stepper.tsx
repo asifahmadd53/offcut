@@ -13,14 +13,14 @@ export function Stepper({ value, onChange, min = 1, max = 99 }: StepperProps) {
   const inc = () => onChange(Math.min(max, value + 1))
 
   return (
-    <div className="flex items-center justify-between rounded-lg border-hair border-border-strong px-1 py-1">
+    <div className="flex items-center justify-between rounded-lg border-hair border-border-strong p-1 ">
       <button
         type="button"
         onClick={dec}
         disabled={value <= min}
         aria-label="Fewer pieces"
         className={cn(
-          'flex h-11 w-11 items-center justify-center rounded-lg text-foreground transition-colors active:scale-[0.98] disabled:opacity-30',
+          'flex h-9 w-9 items-center justify-center rounded-lg text-foreground transition-colors active:scale-[0.98] disabled:opacity-30',
           value > min && 'hover:bg-muted',
         )}
       >
@@ -43,7 +43,7 @@ export function Stepper({ value, onChange, min = 1, max = 99 }: StepperProps) {
         disabled={value >= max}
         aria-label="More pieces"
         className={cn(
-          'flex h-11 w-11 items-center justify-center rounded-lg text-foreground transition-colors active:scale-[0.98] disabled:opacity-30',
+          'flex h-9 w-9 items-center justify-center rounded-lg text-foreground transition-colors active:scale-[0.98] disabled:opacity-30',
           value < max && 'hover:bg-muted',
         )}
       >

@@ -33,9 +33,9 @@ export default function AddLeftover() {
   const showErr = touched && (wVal === null || hVal === null) && (width.trim() !== '' || height.trim() !== '')
 
   function errMessage(): string {
-    if (wZero) return 'Width must be more than 0. Try 23 or 22 1/2.'
-    if (hZero) return 'Height must be more than 0. Try 23 or 22 1/2.'
-    return 'That is not a size. Type a number like 23, 22.5 or 22 1/2.'
+    if (wZero) return 'Width must be more than 0. Try 23 or 22.5.'
+    if (hZero) return 'Height must be more than 0. Try 23 or 22.5.'
+    return 'That is not a size. Type a number like 23 or 22.5.'
   }
 
   function onAdd() {
@@ -66,6 +66,16 @@ export default function AddLeftover() {
     toast(`${plural(qty, 'leftover')} added.`)
     navigate('/stock')
   }
+  function cleanNumber(raw: string): string {
+    let v = raw.replace(/,/g, '.').replace(/[^0-9.]/g, '')
+    const firstDot = v.indexOf('.')
+    if (firstDot !== -1) {
+      v = v.slice(0, firstDot + 1) + v.slice(firstDot + 1).replace(/\./g, '')
+    }
+    if (v.startsWith('.')) v = '0' + v
+    return v
+  }
+
 
   return (
     <AppShell title="Add leftover by hand" back="/stock">
@@ -73,34 +83,40 @@ export default function AddLeftover() {
         For offcuts already standing in your workshop.
       </p>
 
-      <div className="mb-2.5 grid grid-cols-2 gap-3">
+      <div className="mb-2.5 grid grid-cols-1 gap-3 p-2 lg:grid-cols-2">
         <div>
           <Label htmlFor="aw">Width (in)</Label>
           <Input
             id="aw"
             ref={widthRef}
-            inputMode="text"
+            type="text"
+            inputMode="decimal"
             autoComplete="off"
-            autoCapitalize="off"
             enterKeyHint="next"
-            className="h-[42px] text-[18px]"
+            className="h-[42px] border border-border-stronger bg-transparent px-3 text-[18px]"
             value={width}
-            onChange={(e) => setWidth(e.target.value)}
-            onBlur={() => setTouched(true)}
+            onChange={(e) => setWidth(cleanNumber(e.target.value))}
+            onBlur={() => {
+              setWidth((v) => v.replace(/\.$/, ''))
+              setTouched(true)
+            }}
           />
         </div>
         <div>
           <Label htmlFor="ah">Height (in)</Label>
           <Input
             id="ah"
-            inputMode="text"
+            type="text"
+            inputMode="decimal"
             autoComplete="off"
-            autoCapitalize="off"
             enterKeyHint="done"
-            className="h-[42px] text-[18px]"
+            className="h-[42px] border border-border-stronger bg-transparent px-3 text-[18px]"
             value={height}
-            onChange={(e) => setHeight(e.target.value)}
-            onBlur={() => setTouched(true)}
+            onChange={(e) => setHeight(cleanNumber(e.target.value))}
+            onBlur={() => {
+              setHeight((v) => v.replace(/\.$/, ''))
+              setTouched(true)
+            }}
           />
         </div>
       </div>
@@ -116,12 +132,12 @@ export default function AddLeftover() {
         <Stepper value={qty} onChange={setQty} />
       </div>
 
-      <div className="mb-4.5 rounded-lg bg-muted p-3 text-[13.5px]">
+      <div className="mb-4.5 mb-2 rounded-lg bg-muted p-3 text-[13.5px]">
         These are saved as loose pieces with no parent sheet, so they will not appear inside a
         sheet diagram.
       </div>
 
-      <Button size="lg" className="h-14 w-full" disabled={!bothValid} onClick={onAdd}>
+      <Button size="lg" className="w-full" disabled={!bothValid} onClick={onAdd}>
         Add to stock
       </Button>
     </AppShell>

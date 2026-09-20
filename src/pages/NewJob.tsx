@@ -12,12 +12,12 @@ import { useJob, type LeftoverFitCheck } from '@/store/job'
 import { useSettings } from '@/store/settings'
 import { useData } from '@/store/data'
 import { useToast } from '@/store/toast'
-
+import { Switch } from '@/components/ui/switch'
 type FieldError = 'zero' | 'nan' | null
 
 function fieldMessage(which: 'Width' | 'Height', err: FieldError): string | null {
-  if (err === 'zero') return `${which} must be more than 0. Try 23 or 22 1/2.`
-  if (err === 'nan') return 'That is not a size. Type a number like 23, 22.5 or 22 1/2.'
+  if (err === 'zero') return `${which} must be more than 0. Try 23 or 22.5.`
+  if (err === 'nan') return 'That is not a size. Type a number like 23 or 22.5.'
   return null
 }
 
@@ -115,6 +115,16 @@ export default function NewJob() {
     navigate('/stock')
   }
 
+  function cleanNumber(raw: string): string {
+    let v = raw.replace(/,/g, '.').replace(/[^0-9.]/g, '')
+    const firstDot = v.indexOf('.')
+    if (firstDot !== -1) {
+      v = v.slice(0, firstDot + 1) + v.slice(firstDot + 1).replace(/\./g, '')
+    }
+    if (v.startsWith('.')) v = '0' + v
+    return v
+  }
+
   const hasTypedValid = bothValid && !tooBig
   const canMakePlan = pieces.length > 0 || hasTypedValid
 
@@ -137,38 +147,45 @@ export default function NewJob() {
         </div>
       )}
 
-      <div className="mb-2.5 grid grid-cols-2 gap-3">
+      <div className="mb-2.5 grid grid-cols-1 gap-3 p-2 lg:grid-cols-2">
         <div>
           <Label htmlFor="w">Width (in)</Label>
           <Input
             id="w"
             ref={widthRef}
-            inputMode="text"
+            type="text"
+            inputMode="decimal"
             autoComplete="off"
-            autoCapitalize="off"
+            placeholder='22.3'
             enterKeyHint="next"
-            className="h-[42px] text-[18px]"
+            className="h-[42px] border border-border-stronger bg-transparent px-3 text-[18px]"
             value={width}
-            onChange={(e) => setWidth(e.target.value)}
-            onBlur={() => setTouchedW(true)}
+            onChange={(e) => setWidth(cleanNumber(e.target.value))}
+            onBlur={() => {
+              setWidth((v) => v.replace(/\.$/, ''))
+              setTouchedW(true)
+            }}
           />
         </div>
         <div>
           <Label htmlFor="h">Height (in)</Label>
           <Input
             id="h"
-            inputMode="text"
+            type="text"
+            inputMode="decimal"
             autoComplete="off"
-            autoCapitalize="off"
-            enterKeyHint="next"
-            className="h-[42px] text-[18px]"
+            enterKeyHint="done"
+            placeholder='77.2'
+            className="h-[42px] border border-border-stronger bg-transparent px-3 text-[18px]"
             value={height}
-            onChange={(e) => setHeight(e.target.value)}
-            onBlur={() => setTouchedH(true)}
+            onChange={(e) => setHeight(cleanNumber(e.target.value))}
+            onBlur={() => {
+              setHeight((v) => v.replace(/\.$/, ''))
+              setTouchedH(true)
+            }}
           />
         </div>
       </div>
-
       {showWErr ? (
         <p className="mb-3.5 text-[13px] text-danger-text">
           {fieldMessage('Width', wZero ? 'zero' : 'nan')}
@@ -178,7 +195,7 @@ export default function NewJob() {
           {fieldMessage('Height', hZero ? 'zero' : 'nan')}
         </p>
       ) : (
-        <p className="mb-3.5 text-[12px] text-faint">Fractions work too, like 22 1/2 or 22.5</p>
+          <p className="mb-3.5 text-[12px] text-faint">Use numbers like 23 or 22.5</p>
       )}
 
       <Label>How many pieces</Label>
@@ -190,14 +207,14 @@ export default function NewJob() {
         type="button"
         variant="outline"
         size="default"
-        className="mb-4.5 h-12 w-full"
+        className="mb-4.5 h-11 w-full"
         disabled={!bothValid || tooBig}
         onClick={doAdd}
       >
         + Add this piece
       </Button>
 
-      <p className="mb-0.5 text-[13px] text-muted-foreground">Pieces in this job</p>
+      <p className="my-1 mt-2 text-[13px] text-muted-foreground">Pieces in this job</p>
       {pieces.length === 0 ? (
         <div className="mb-4.5 rounded-lg bg-muted p-4.5 text-center text-[13px] text-muted-foreground">
           Add a piece above to begin.
@@ -205,7 +222,7 @@ export default function NewJob() {
       ) : (
         <div className="mb-4.5">
           {pieces.map((p) => (
-            <div key={p.id} className="flex items-center justify-between border-b border-hair border-border py-2.5">
+            <div key={p.id} className="flex items-center justify-between border-b border-hair border-border rounded-md px-2 py-1">
               <span className="text-[16px] font-semibold">
                 {fmtDims(p.w, p.h)} <span className="font-normal text-muted-foreground">· {p.qty} pcs</span>
               </span>
@@ -222,20 +239,21 @@ export default function NewJob() {
         </div>
       )}
 
-      <button
-        type="button"
-        onClick={() => {
-          const next = !settings.kerfOn
-          updateSettings({ kerfOn: next })
-          toast(next ? 'Blade thickness on' : 'Blade thickness off')
-        }}
-        className="mb-4.5 flex w-full items-center justify-between py-1 text-[15px]"
-      >
-        <span>Include blade thickness</span>
-        <span className="text-[14px] text-muted-foreground">{settings.kerfOn ? 'On' : 'Off'}</span>
-      </button>
+      <div className="mb-4.5 mt-2 flex w-full items-center justify-between py-1">
+        <label htmlFor="blade" className="flex-1 cursor-pointer text-[15px]">
+          Include blade thickness
+        </label>
+        <Switch
+          id="blade"
+          checked={settings.kerfOn}
+          onCheckedChange={(next) => {
+            updateSettings({ kerfOn: next })
+            toast(next ? 'Blade thickness on' : 'Blade thickness off')
+          }}
+        />
+      </div>
 
-      <Button size="lg" className="h-14 w-full" disabled={!canMakePlan} onClick={onMakePlan}>
+      <Button size="lg" className="w-full" disabled={!canMakePlan} onClick={onMakePlan}>
         Make cutting plan
       </Button>
 

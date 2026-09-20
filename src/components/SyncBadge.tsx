@@ -49,7 +49,7 @@ export function SyncBadge() {
       <DialogTrigger asChild>
         <button
           type="button"
-          className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[12px] font-semibold ${colorClasses[state.color]}`}
+          className={`inline-flex w-fit shrink-0 items-center gap-1.5 self-start whitespace-nowrap rounded-full px-2.5 py-1 text-[11px] font-semibold ${colorClasses[state.color]}`}
         >
           {state.color === 'grey' && <IconWifiOff size={13} />}
           {state.text}

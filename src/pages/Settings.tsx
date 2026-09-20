@@ -177,15 +177,15 @@ export default function Settings() {
       tab="settings"
       onNavigate={onNavigate}
       stickyBar={
-        <div className="flex flex-none items-center justify-between gap-3 border-t border-hair border-border pt-3">
-          <button
-            type="button"
-            onClick={discard}
+        <div className="flex flex-none items-center gap-2.5 border-t border-hair border-border pt-3">
+          <Button
+            variant="outline"
+            className="h-[52px] flex-none px-5"
             disabled={!dirty}
-            className="text-[14px] text-muted-foreground underline-offset-4 hover:underline disabled:pointer-events-none disabled:opacity-40"
+            onClick={discard}
           >
             Discard
-          </button>
+          </Button>
           <Button size="lg" className="h-[52px] flex-1" disabled={!dirty} onClick={onSave}>
             Save changes
           </Button>

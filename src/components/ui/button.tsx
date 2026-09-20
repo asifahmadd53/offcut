@@ -10,16 +10,16 @@ const buttonVariants = cva(
       variant: {
         default: 'bg-primary text-primary-foreground font-medium hover:opacity-90',
         outline:
-          'border-hair border-border-strong bg-transparent font-normal hover:bg-muted',
+          'border border-border-strong bg-background font-medium text-foreground shadow-sm hover:bg-muted',
         ghost: 'font-normal hover:bg-muted',
         link: 'font-normal text-accent-text underline-offset-4 hover:underline',
       },
       size: {
         default: 'h-12 px-4 text-[15px]',
         sm: 'h-10 px-3 text-sm',
-        lg: 'h-[52px] px-4 text-base',
-        xl: 'h-14 px-4 text-[17px]',
-        hero: 'h-[60px] px-4 text-[17px]',
+        lg: 'h-[38px] px-4 text-base',
+        xl: 'h-14 px-4 text-[15px]',
+        hero: 'h-[48px] px-4 text-[16px]',
         icon: 'h-10 w-10',
       },
     },

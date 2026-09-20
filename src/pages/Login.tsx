@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { IconScissors, IconWifiOff } from '@tabler/icons-react'
+import { IconScissors, IconWifiOff, IconLoader2 } from '@tabler/icons-react'
 import {
   BAD_EMAIL_MESSAGE,
   EMAIL_MISMATCH_MESSAGE,
@@ -151,21 +151,35 @@ export default function Login() {
           {error && <p className="mt-1.5 text-[13px] text-danger-text">{error}</p>}
         </div>
 
-        <Button type="submit" size="lg" className="mt-1 h-[52px]" disabled={!canSubmit}>
-          {busy
-            ? mode === 'login'
-              ? 'Logging in…'
-              : 'Creating account…'
-            : mode === 'login'
-              ? 'Log in'
-              : 'Create account'}
-        </Button>
+          <Button
+            type="submit"
+            size="lg"
+            className={busy ? 'mt-1 disabled:opacity-100' : 'mt-1'}
+            disabled={!canSubmit || busy}
+            aria-busy={busy}
+          >
+            {busy ? (
+              <>
+                <IconLoader2
+                  className="size-5 animate-spin motion-reduce:animate-pulse"
+                  aria-hidden="true"
+                />
+                <span className="sr-only" role="status">
+                  {mode === 'login' ? 'Logging in' : 'Creating account'}
+                </span>
+              </>
+            ) : mode === 'login' ? (
+              'Log in'
+            ) : (
+              'Create account'
+            )}
+          </Button>
 
         {mode === 'login' && (
           <button
             type="button"
             onClick={onForgotPassword}
-            className="text-center text-[13px] text-accent-text"
+            className="text-center hover:underline text-[13px] text-accent-text"
           >
             Forgot password
           </button>
@@ -174,7 +188,7 @@ export default function Login() {
         <button
           type="button"
           onClick={() => switchMode(mode === 'login' ? 'register' : 'login')}
-          className="text-center text-[14px] text-accent-text"
+          className="text-center text-[14px] hover:underline text-accent-text"
         >
           {mode === 'login' ? 'Create shop account' : 'I already have an account'}
         </button>

@@ -69,14 +69,14 @@ export default function Stock() {
             </div>
           </div>
 
-          <p className="mb-0.5 text-[13px] text-muted-foreground">Biggest first</p>
+            <p className="mb-1 flex-none text-[13px] mt-4 text-muted-foreground">Biggest first</p>
           <div className="relative">
             <div
               ref={listRef}
               onScroll={onListScroll}
-              className="thin-scroll overflow-y-auto overscroll-contain"
+              className="thin-scroll overflow-y-auto overscroll-contain pr-1.5"
               style={{
-                maxHeight: 'max(40vh, 220px)',
+                maxHeight: 'max(50vh, 220px)',
                 WebkitOverflowScrolling: 'touch',
                 scrollbarWidth: 'thin',
               }}
@@ -86,10 +86,10 @@ export default function Stock() {
                   key={l.id}
                   type="button"
                   onClick={() => navigate(`/stock/${l.id}`)}
-                  className="flex w-full items-center justify-between border-b border-hair border-border py-2.5 text-left"
+                  className="flex w-full items-center justify-between border-b p-4 rounded-md mb-2 border-hair border-border py-2.5 text-left"
                 >
                   <div>
-                    <p className="mb-0 text-[18px] font-semibold">{fmtLeft(l.w, l.h)}</p>
+                    <p className="mb-0 flex items-center gap-1.5 text-[15px] font-semibold">{fmtLeft(l.w, l.h)}</p>
                     <p className="mb-0 text-[13px] text-muted-foreground">{originText(l)}</p>
                   </div>
                   <span className="text-faint">›</span>
@@ -102,8 +102,8 @@ export default function Stock() {
           </div>
 
           <Button
-            variant="outline"
-            className="mt-4 h-[50px] w-full"
+            size="hero" variant="outline" className="mt-6 h-12 w-full "
+            // className="mt-4 h-[50px] w-full"
             onClick={() => navigate('/stock/add')}
           >
             + Add leftover by hand

@@ -78,7 +78,7 @@ export default function Home() {
           <p className="mx-auto mb-5 max-w-[34ch] text-[13px] text-muted-foreground">
             Start your first job, or add the offcuts already standing in the workshop.
           </p>
-          <Button size="hero" className="mb-2.5 w-full" onClick={startNewJob}>
+          <Button size="hero" className="mb-2.5 w-full rounded-none" onClick={startNewJob}>
             + New cutting job
           </Button>
           <Button variant="outline" className="h-12 w-full" onClick={() => navigate('/stock/add')}>
@@ -102,23 +102,23 @@ export default function Home() {
             </div>
           </div>
 
-          <Button size="hero" className="mb-2.5 w-full" onClick={startNewJob}>
+          <Button size="lg" className="mb-2.5 w-full" onClick={startNewJob}>
             + New cutting job
           </Button>
-          <Button variant="outline" className="mb-4.5 h-12 w-full" onClick={() => navigate('/stock')}>
+          <Button size="lg" variant="outline" className="mb-4.5 w-full " onClick={() => navigate('/stock')}>
             Leftover stock
           </Button>
 
           {recent.length > 0 && (
             <>
-              <p className="mb-0.5 flex-none text-[13px] text-muted-foreground">Recent jobs</p>
+              <p className="mb-1 flex-none text-[13px] mt-4 text-muted-foreground">Recent jobs</p>
               <div className="relative">
                 <div
                   ref={listRef}
                   onScroll={onListScroll}
-                  className="thin-scroll overflow-y-auto overscroll-contain"
+                  className="thin-scroll overflow-y-auto overscroll-contain pr-1.5"
                   style={{
-                    maxHeight: 'max(40vh, 220px)',
+                    maxHeight: 'max(50vh, 220px)',
                     WebkitOverflowScrolling: 'touch',
                     scrollbarWidth: 'thin',
                   }}
@@ -128,7 +128,7 @@ export default function Home() {
                       key={j.cut.id}
                       type="button"
                       onClick={() => navigate(`/job/${j.cut.id}`)}
-                      className="flex w-full items-center justify-between border-b border-hair border-border py-2.5 text-left"
+                      className="flex w-full items-center justify-between border-b p-4 rounded-md mb-2 border-hair border-border py-2.5 text-left"
                     >
                       <div>
                         <p className="mb-0 flex items-center gap-1.5 text-[15px] font-semibold">
