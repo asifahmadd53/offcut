@@ -9,3 +9,4 @@ dev-dist
 tsconfig.tsbuildinfo
 .env.example
 docs
+.gitignore
