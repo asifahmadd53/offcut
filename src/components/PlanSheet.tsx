@@ -1,5 +1,6 @@
 import { useRef, useState } from 'react'
 import { TransformComponent, TransformWrapper, type ReactZoomPanPinchRef } from 'react-zoom-pan-pinch'
+import { IconX } from '@tabler/icons-react'
 import { dayMonth } from '@/lib/format'
 import { fmtLeft } from '@/lib/inches'
 import { badgedLeftovers } from '@/lib/labelChoice'
@@ -164,7 +165,13 @@ export function PlanSheet({ sheet, blocks, highlightIndex }: PlanSheetProps) {
       <Dialog open={fullScreen} onOpenChange={setFullScreen}>
         <DialogContent className="h-[100dvh] max-h-[100dvh] w-[100vw] max-w-[100vw] rounded-none">
           <DialogTitle className="sr-only">Sheet diagram, full screen</DialogTitle>
-          <FullScreenDiagram sheet={sheet} blocks={blocks} activeCut={activeCut} onCutToggle={toggleCut} />
+          <FullScreenDiagram
+            sheet={sheet}
+            blocks={blocks}
+            activeCut={activeCut}
+            onCutToggle={toggleCut}
+            onClose={() => setFullScreen(false)}
+          />
         </DialogContent>
       </Dialog>
     </div>
@@ -176,26 +183,39 @@ function FullScreenDiagram({
   blocks,
   activeCut,
   onCutToggle,
+  onClose,
 }: {
   sheet: SheetPlan
   blocks: Block[]
   activeCut: number | null
   onCutToggle: (n: number) => void
+  onClose: () => void
 }) {
   const wrapperRef = useRef<ReactZoomPanPinchRef | null>(null)
   const [zoomed, setZoomed] = useState(false)
 
   return (
     <div className="flex h-full w-full flex-col">
-      {zoomed && (
+      <div className="mb-2 flex items-center justify-between">
         <button
           type="button"
-          onClick={() => wrapperRef.current?.resetTransform()}
-          className="mb-2 h-11 self-start rounded-lg border-hair border-border px-3 text-[13px] font-semibold"
+          onClick={onClose}
+          aria-label="Close full screen"
+          className="flex h-11 items-center gap-1.5 self-start rounded-lg border-hair border-border px-3 text-[13px] font-semibold"
         >
-          Reset zoom
+          <IconX size={18} />
+          Close
         </button>
-      )}
+        {zoomed && (
+          <button
+            type="button"
+            onClick={() => wrapperRef.current?.resetTransform()}
+            className="h-11 self-start rounded-lg border-hair border-border px-3 text-[13px] font-semibold"
+          >
+            Reset zoom
+          </button>
+        )}
+      </div>
       <div className="min-h-0 flex-1">
         <TransformWrapper
           ref={wrapperRef}
@@ -242,13 +262,41 @@ function SaveImageButton({ sheet }: { sheet: SheetPlan; blocks: Block[] }) {
       clone.setAttribute('viewBox', `0 0 ${w} ${h}`)
       clone.setAttribute('width', String(w))
       clone.setAttribute('height', String(h))
+
+      // The live SVG's fills/strokes reference var(--token) custom properties, which only
+      // resolve against the page's own stylesheet — a cloned SVG serialized to a standalone
+      // blob and loaded as a plain <img> has no such stylesheet, so every var(...) silently
+      // computes to nothing and paints black. Same fix as the print page (CLAUDE.md C29):
+      // pin every token this diagram actually uses to its light-mode hex value directly on
+      // the clone, regardless of the device's dark-mode setting, since the saved image (like
+      // paper) is always meant to read on a light background.
+      const style = document.createElementNS('http://www.w3.org/2000/svg', 'style')
+      style.textContent = `
+        svg {
+          --background: #f6f3ee;
+          --muted: #ece8e0;
+          --muted-foreground: #5f5a50;
+          --faint: #736d62;
+          --border: #e8e2d8;
+          --border-strong: #8f8270;
+          --border-stronger: #736853;
+          --accent-bg: #dbeafe;
+          --accent-border: #60a5fa;
+          --accent-text: #1e3a8a;
+          --success-bg: #dcfce7;
+          --success-border: #16a34a;
+          --success-text: #14532d;
+        }
+      `
+      clone.insertBefore(style, clone.firstChild)
+
       const bg = document.createElementNS('http://www.w3.org/2000/svg', 'rect')
       bg.setAttribute('x', '0')
       bg.setAttribute('y', '0')
       bg.setAttribute('width', String(w))
       bg.setAttribute('height', String(h))
-      bg.setAttribute('fill', getComputedStyle(document.body).backgroundColor || '#ffffff')
-      clone.insertBefore(bg, clone.firstChild)
+      bg.setAttribute('fill', '#f6f3ee')
+      clone.insertBefore(bg, style.nextSibling)
 
       const title = document.createElementNS('http://www.w3.org/2000/svg', 'text')
       title.setAttribute('x', '8')
