@@ -167,7 +167,7 @@ export default function Plan() {
     const usedLetters = sheets.filter((s) => !s.isNew).map((s) => s.usedLetter).filter(Boolean) as string[]
     clearJob()
     if (settings.showPrintAfterConfirm) {
-      navigate('/cut-saved', { state: { cutId: doc.id, sheetCount: sheets.length } })
+      navigate('/cut-saved', { state: { cut: doc } })
       return
     }
 

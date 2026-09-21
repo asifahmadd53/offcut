@@ -1,10 +1,15 @@
+import { useState } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { IconCheck } from '@tabler/icons-react'
+import { PrintOrPdfDialog } from '@/components/PrintOrPdfDialog'
 import { plural } from '@/lib/format'
+import type { CutDoc } from '@/lib/types'
 
 interface CutSavedState {
-  cutId: string
-  sheetCount: number
+  /** The full record Plan.tsx just saved (fire-and-forget, per R10) — passed directly
+   *  rather than looked up again, so this screen never has to wait on or race the
+   *  Firestore write actually reaching the local cache. */
+  cut: Omit<CutDoc, 'syncedAt'>
 }
 
 /**
@@ -18,21 +23,16 @@ export default function CutSaved() {
   const navigate = useNavigate()
   const location = useLocation()
   const state = location.state as CutSavedState | null
+  const [printOpen, setPrintOpen] = useState(false)
 
   if (!state) {
     navigate('/', { replace: true })
     return null
   }
 
-  const { cutId, sheetCount } = state
-
-  function printNow() {
-    navigate(`/print/${cutId}`)
-  }
-
-  function saveAsPdf() {
-    navigate(`/print/${cutId}`, { state: { hint: 'pdf' } })
-  }
+  const { cut } = state
+  const sheetCount = cut.sheets.length
+  const cutDoc: CutDoc = { ...cut, syncedAt: null }
 
   return (
     <div className="mx-auto flex min-h-dvh w-full max-w-[480px] flex-col items-center justify-center px-6 text-center">
@@ -46,21 +46,21 @@ export default function CutSaved() {
 
       <button
         type="button"
-        onClick={printNow}
-        className="mb-2.5 flex h-14 w-full items-center justify-center rounded-lg bg-primary text-[16px] font-semibold text-primary-foreground"
+        onClick={() => setPrintOpen(true)}
+        className="mb-4 flex h-14 w-full items-center justify-center rounded-lg bg-primary text-[16px] font-semibold text-primary-foreground"
       >
-        Print
-      </button>
-      <button
-        type="button"
-        onClick={saveAsPdf}
-        className="mb-4 flex h-12 w-full items-center justify-center rounded-lg border-hair border-border-strong text-[15px] font-semibold text-foreground"
-      >
-        Save as PDF
+        Print or save PDF
       </button>
       <button type="button" onClick={() => navigate('/')} className="text-[14px] text-accent-text">
         Done
       </button>
+
+      <PrintOrPdfDialog
+        open={printOpen}
+        onOpenChange={setPrintOpen}
+        cut={cutDoc}
+        onPrint={() => navigate(`/print/${cutDoc.id}`)}
+      />
     </div>
   )
 }

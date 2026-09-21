@@ -1,6 +1,8 @@
+import { useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { AppShell } from '@/components/AppShell'
 import { PlanSheet } from '@/components/PlanSheet'
+import { PrintOrPdfDialog } from '@/components/PrintOrPdfDialog'
 import { Button } from '@/components/ui/button'
 import { dayMonth } from '@/lib/format'
 import { pieceSummary, sourceSummary } from '@/lib/summary'
@@ -13,6 +15,7 @@ export default function JobDetail() {
   const navigate = useNavigate()
   const derived = useData((s) => s.derived)
   const setPieces = useJob((s) => s.setPieces)
+  const [printOpen, setPrintOpen] = useState(false)
 
   const job = derived.jobs.find((j) => j.cut.id === id)
 
@@ -53,12 +56,19 @@ export default function JobDetail() {
         <PlanSheet key={sheet.sheetId + i} sheet={sheet} blocks={buildBlocks(sheet, derived, cut.id)} />
       ))}
 
-      <Button variant="outline" className="mb-2.5 h-12 w-full" onClick={() => navigate(`/print/${cut.id}`)}>
-        Print
+      <Button variant="outline" className="mb-2.5 h-12 w-full" onClick={() => setPrintOpen(true)}>
+        Print or save PDF
       </Button>
       <Button variant="outline" className="h-12 w-full" onClick={cutAgain}>
         Cut these pieces again
       </Button>
+
+      <PrintOrPdfDialog
+        open={printOpen}
+        onOpenChange={setPrintOpen}
+        cut={cut}
+        onPrint={() => navigate(`/print/${cut.id}`)}
+      />
     </AppShell>
   )
 }
