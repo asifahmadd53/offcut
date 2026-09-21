@@ -93,7 +93,7 @@ export function SheetDiagram({
     const sheetPxW = sheetW * pxPerInch
     const sheetPxH = sheetH * pxPerInch
     const svgW = LEFT_MARGIN + sheetPxW + RIGHT_MARGIN
-    const svgH = TOP_MARGIN + sheetPxH + BOTTOM_MARGIN + 28 // + ruler strip
+    const baseSvgH = TOP_MARGIN + sheetPxH + BOTTOM_MARGIN + 28 // + ruler strip
 
     const region = { x: 0, y: 0, w: sheetW, h: sheetH }
     const wasteCells = computeWasteCells(blocks, region)
@@ -124,7 +124,18 @@ export function SheetDiagram({
     // inline (a 'legend' or 'badge' choice) gets a dotted callout outside the sheet
     // instead, never rotated text. Stacked via nudgeLabels so callouts on one sheet
     // never touch. Waste keeps its own simple "Waste" text (no size), unrelated to this.
-    const callouts = blockCallouts(blocks, pxPerInch)
+    // Text is fit to RIGHT_MARGIN minus the leader-line offset (22px) and a 4px right
+    // padding, so a callout can never run past the SVG's own right edge into whatever
+    // sits beside the diagram (e.g. print's info column) — the fix for callout text
+    // overlapping neighbouring content.
+    const calloutMaxTextWidth = Math.max(RIGHT_MARGIN - 22 - 4, 20)
+    const callouts = blockCallouts(blocks, pxPerInch, calloutMaxTextWidth)
+    // Callouts are never dropped (nudgeLabels' Infinity factor above), so the SVG's own
+    // height must grow to actually fit them when a sheet is crowded enough to nudge one
+    // past the sheet's own bottom edge — otherwise a callout could be pushed past the
+    // viewBox and clipped by an ancestor's overflow:hidden even though it was "placed".
+    const maxCalloutY = callouts.reduce((max, c) => Math.max(max, TOP_MARGIN + c.y), 0)
+    const svgH = Math.max(baseSvgH, maxCalloutY + 12)
 
     return {
       pxPerInch,

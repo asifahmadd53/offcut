@@ -18,8 +18,8 @@ import { useToast } from '@/store/toast'
 import type { Settings as SettingsShape } from '@/lib/types'
 
 interface Draft {
-  sheetH: string
   sheetW: string
+  sheetH: string
   kerfOn: boolean
   kerfSize: string
   minLeftover: string
@@ -28,16 +28,16 @@ interface Draft {
 }
 
 interface FieldErrors {
-  sheetH?: string
   sheetW?: string
+  sheetH?: string
   kerfSize?: string
   minLeftover?: string
 }
 
 function draftFrom(s: SettingsShape): Draft {
   return {
-    sheetH: fmt(s.sheetH),
     sheetW: fmt(s.sheetW),
+    sheetH: fmt(s.sheetH),
     kerfOn: s.kerfOn,
     kerfSize: fmt(s.kerfSize),
     minLeftover: fmt(s.minLeftover),
@@ -49,14 +49,14 @@ function draftFrom(s: SettingsShape): Draft {
 /** Sheet size, blade width and minimum leftover must be positive; minimum leftover may be 0. */
 function validate(draft: Draft): { errors: FieldErrors; values?: Partial<SettingsShape> } {
   const errors: FieldErrors = {}
-  const sheetH = parseInches(draft.sheetH)
   const sheetW = parseInches(draft.sheetW)
+  const sheetH = parseInches(draft.sheetH)
   const kerfSize = draft.kerfOn ? parseInches(draft.kerfSize) : 0
   const minTrim = draft.minLeftover.trim()
   const minLeftover = minTrim === '0' ? 0 : parseInches(draft.minLeftover)
 
-  if (sheetH === null) errors.sheetH = 'Type a number like 96.'
   if (sheetW === null) errors.sheetW = 'Type a number like 48.'
+  if (sheetH === null) errors.sheetH = 'Type a number like 96.'
   if (draft.kerfOn && kerfSize === null) errors.kerfSize = 'Type a number like 1/8.'
   if (minLeftover === null) errors.minLeftover = 'Type a number like 1, or 0 to keep everything.'
 
@@ -64,8 +64,8 @@ function validate(draft: Draft): { errors: FieldErrors; values?: Partial<Setting
   return {
     errors,
     values: {
-      sheetH: sheetH!,
       sheetW: sheetW!,
+      sheetH: sheetH!,
       kerfSize: kerfSize ?? 0,
       minLeftover: minLeftover!,
       showPrintAfterConfirm: draft.showPrintAfterConfirm,
@@ -92,8 +92,8 @@ export default function Settings() {
 
   const saved = draftFrom(settings)
   const dirty =
-    draft.sheetH !== saved.sheetH ||
     draft.sheetW !== saved.sheetW ||
+    draft.sheetH !== saved.sheetH ||
     draft.kerfOn !== saved.kerfOn ||
     draft.kerfSize !== saved.kerfSize ||
     draft.minLeftover !== saved.minLeftover ||
@@ -127,7 +127,7 @@ export default function Settings() {
     setErrors(fieldErrors)
     if (!values) return
 
-    const sizeChanged = values.sheetH !== settings.sheetH || values.sheetW !== settings.sheetW
+    const sizeChanged = values.sheetW !== settings.sheetW || values.sheetH !== settings.sheetH
     if (sizeChanged) {
       setPendingValues(values)
       setConfirmSizeOpen(true)
@@ -199,17 +199,11 @@ export default function Settings() {
         <Label>Sheet size (in)</Label>
         <div className="grid grid-cols-2 gap-3">
           <div>
+            <Label htmlFor="sheet-width" className="mb-1 text-[12.5px] font-normal text-muted-foreground">
+              Width
+            </Label>
             <Input
-              inputMode="text"
-              autoComplete="off"
-              value={draft.sheetH}
-              className="h-[42px] border border-border-stronger bg-transparent px-3 text-[18px]"
-              onChange={(e) => patch({ sheetH: e.target.value })}
-            />
-            {errors.sheetH && <p className="mt-1 text-[12.5px] text-danger-text">{errors.sheetH}</p>}
-          </div>
-          <div>
-            <Input
+              id="sheet-width"
               inputMode="text"
               autoComplete="off"
               value={draft.sheetW}
@@ -218,8 +212,22 @@ export default function Settings() {
             />
             {errors.sheetW && <p className="mt-1 text-[12.5px] text-danger-text">{errors.sheetW}</p>}
           </div>
+          <div>
+            <Label htmlFor="sheet-height" className="mb-1 text-[12.5px] font-normal text-muted-foreground">
+              Height
+            </Label>
+            <Input
+              id="sheet-height"
+              inputMode="text"
+              autoComplete="off"
+              value={draft.sheetH}
+              className="h-[42px] border border-border-stronger bg-transparent px-3 text-[18px]"
+              onChange={(e) => patch({ sheetH: e.target.value })}
+            />
+            {errors.sheetH && <p className="mt-1 text-[12.5px] text-danger-text">{errors.sheetH}</p>}
+          </div>
         </div>
-        <p className="mt-1.5 text-[12.5px] text-faint">Length, then width.</p>
+        <p className="mt-1.5 text-[12.5px] text-faint">Width across, then height. Default 48 × 96.</p>
       </div>
 
       <div className="border-b border-border py-3">
@@ -236,7 +244,7 @@ export default function Settings() {
             <Input
               inputMode="text"
               autoComplete="off"
-              className="w-28"
+              className=" border border-border-stronger bg-transparent px-3 text-[18px]"
               value={draft.kerfSize}
               onChange={(e) => patch({ kerfSize: e.target.value })}
             />
@@ -251,6 +259,7 @@ export default function Settings() {
           inputMode="text"
           autoComplete="off"
           value={draft.minLeftover}
+          className=" border border-border-stronger bg-transparent px-3 text-[18px]"
           onChange={(e) => patch({ minLeftover: e.target.value })}
         />
         {errors.minLeftover && <p className="mt-1 text-[12.5px] text-danger-text">{errors.minLeftover}</p>}
@@ -325,8 +334,8 @@ export default function Settings() {
       <Dialog open={confirmSizeOpen} onOpenChange={setConfirmSizeOpen}>
         <DialogContent>
           <DialogTitle>
-            Change sheet size to {pendingValues ? fmt(pendingValues.sheetH!) : ''} ×{' '}
-            {pendingValues ? fmt(pendingValues.sheetW!) : ''}?
+            Change sheet size to {pendingValues ? fmt(pendingValues.sheetW!) : ''} ×{' '}
+            {pendingValues ? fmt(pendingValues.sheetH!) : ''}?
           </DialogTitle>
           <DialogDescription>
             This applies to new plans only. Saved leftovers and past jobs keep their own sizes.

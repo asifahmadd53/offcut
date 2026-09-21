@@ -254,9 +254,8 @@ not saved"]
 
 The top-left corner of a sheet is the origin, `(0, 0)`. `x` increases to
 the right across the 48 in width. `y` increases downward along the 96 in
-length. Inside the engine, sizes are written width × height (48 × 96).
-On screen, a sheet is written length × width (**96 × 48**), because that
-is how the material is bought and spoken. Every piece and every leftover
+length. Sizes are written width × height everywhere, on screen and
+inside the engine alike (**48 × 96**). Every piece and every leftover
 is stored as `{x, y, w, h}` in the coordinates of the original full
 sheet, never relative to a leftover. This is what allows the app to draw
 a sheet that has been cut across three separate jobs on three different
@@ -369,7 +368,7 @@ because the owner specifically asked that even a 2 in strip be saved.
 
 ### 5.6 Worked example: the owner\'s own case
 
-Input: 23 × 77, quantity 2. Sheet: 96 × 48 (96 long, 48 wide), kerf off,
+Input: 23 × 77, quantity 2. Sheet: 48 × 96 (48 wide, 96 long), kerf off,
 minimum leftover 1 in.
 
 ::: tablewrap
@@ -1224,7 +1223,7 @@ New job
 :::
 
 ::: {style="background:var(--amb-bg);border-radius:10px;padding:12px;margin-bottom:14px"}
-**Too big for a sheet.** Your sheets are 96 × 48 in. A 60 × 120 piece
+**Too big for a sheet.** Your sheets are 48 × 96 in. A 60 × 120 piece
 will not fit even turned.
 :::
 
@@ -1365,7 +1364,7 @@ restricting to one leftover from Leftover detail keeps its own strict
 Cutting plan
 :::
 
-New sheet 96 × 48 · 23 × 77, 2 pcs
+New sheet 48 × 96 · 23 × 77, 2 pcs
 
 ::: {style="display:flex;gap:24px;align-items:flex-start;margin-bottom:14px"}
 ::: {.sheet style="width:144px;height:288px"}
@@ -1591,7 +1590,7 @@ Piece 5 does not fit on any sheet. Split it or change the sheet size.
   --------------------------- -----------------------------------------------------------------------------------------------------------------------------
   Header line                 Says immediately whether this is a new sheet or a leftover, and restates the pieces
   Green reuse banner          Only on a reuse plan. This is the app\'s main payoff, so it is stated in words, not implied by colour alone
-  Diagram                     Drawn to scale, 1:2 aspect for a 96 × 48 sheet. Four block types: cut piece, new leftover, other free leftover, earlier cut
+  Diagram                     Drawn to scale, 1:2 aspect for a 48 × 96 sheet. Four block types: cut piece, new leftover, other free leftover, earlier cut
   Narrow blocks               A block too small for its label shows a small badge on the block instead --- a number for a piece, a letter for a leftover --- and its size still appears in the Sizes list below
   Turned tag                  Shown whenever a piece was rotated, so the carpenter orients the board correctly
   Sheet used                  Placed area ÷ region area, rounded to a whole percent
@@ -2105,7 +2104,7 @@ and blade width must be more than 0; the minimum leftover may be 0
 blocks the save until fixed.
 
 Changing the sheet size asks for confirmation first: *"Change sheet
-size to 96 × 48? This applies to new plans only. Saved leftovers and
+size to 48 × 96? This applies to new plans only. Saved leftovers and
 past jobs keep their own sizes."* Saving shows the toast *"Settings
 saved."* and hides the bar. Leaving Settings with unsaved changes ---
 by the back arrow or a tab --- asks *"Save your changes?"* with Save,

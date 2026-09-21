@@ -22,7 +22,7 @@ function subtitleFor(sheets: SheetPlan[], pieces: Piece[]): string {
   if (newCount === sheets.length && newCount > 0) {
     const first = sheets[0]
     const sheetLabel = newCount > 1 ? `${newCount} new sheets` : 'New sheet'
-    return `${sheetLabel} ${first.sheetH} × ${first.sheetW} · ${pieceText}`
+    return `${sheetLabel} ${first.sheetW} × ${first.sheetH} · ${pieceText}`
   }
   return pieceText
 }

@@ -44,6 +44,28 @@ export default function Print() {
     <div className="min-h-dvh bg-muted">
       <style>{`
         @page { size: ${settings.paperSize === 'A4' ? 'A4' : 'letter'}; margin: 0; }
+        /* SheetDiagram and PrintPage read the app's CSS variable tokens, which flip to
+           dark values under prefers-color-scheme: dark (index.css). Paper is always
+           light, so every token .print-page's own content reads is pinned back to its
+           light-mode value here regardless of the device's OS theme. */
+        .print-page {
+          --background: #f6f3ee;
+          --card: #ffffff;
+          --foreground: #1b1a17;
+          --muted: #ece8e0;
+          --muted-foreground: #5f5a50;
+          --faint: #736d62;
+          --border: #e8e2d8;
+          --border-strong: #8f8270;
+          --border-stronger: #736853;
+          --accent-bg: #dbeafe;
+          --accent-border: #60a5fa;
+          --accent-text: #1e3a8a;
+          --success-bg: #dcfce7;
+          --success-border: #16a34a;
+          --success-text: #14532d;
+          color-scheme: light;
+        }
         @media print {
           .no-print { display: none !important; }
           html, body { background: #fff !important; }
@@ -51,6 +73,8 @@ export default function Print() {
             width: ${size.w};
             height: ${size.h};
             padding: 9mm;
+            background: #fff;
+            color: #1f1e1c;
             box-shadow: none !important;
             margin: 0 !important;
             overflow: hidden;
@@ -63,7 +87,7 @@ export default function Print() {
             width: ${size.w};
             height: ${size.h};
             padding: 9mm;
-            background: white;
+            background: #fff;
             color: #1f1e1c;
             box-shadow: 0 1px 4px rgba(0,0,0,0.15);
             margin: 0 auto 24px auto;

@@ -134,12 +134,41 @@ export interface BlockCallout {
 }
 
 /**
+ * Shortens callout text to fit `maxWidthPx` at 11px: first drops the " free" suffix, then
+ * drops the "letter · " prefix, then hard-truncates with an ellipsis. Guarantees the
+ * returned string's estimated width never exceeds maxWidthPx (unless even a single
+ * character doesn't fit, which can't happen at any sane RIGHT_MARGIN/font size).
+ */
+export function fitCalloutText(text: string, maxWidthPx: number, measure: Measure = estimateTextWidth): string {
+  if (measure(text, 11) <= maxWidthPx) return text
+  const noFree = text.replace(/ free$/, '')
+  if (measure(noFree, 11) <= maxWidthPx) return noFree
+  const noPrefix = noFree.replace(/^[^·]+·\s*/, '')
+  if (measure(noPrefix, 11) <= maxWidthPx) return noPrefix
+  let cur = noPrefix
+  while (cur.length > 1 && measure(cur + '…', 11) > maxWidthPx) {
+    cur = cur.slice(0, -1)
+  }
+  return cur.length < noPrefix.length ? cur + '…' : cur
+}
+
+export type Measure = (text: string, fontSize: number) => number
+
+/**
  * Every block whose chosen label is too small to draw inline (a piece's 'legend', a free
  * block's 'badge', or an earlier/waste block's 'legend') gets a dotted callout outside the
  * sheet instead, so its size is never lost (R15) and never drawn as rotated text. Several
  * callouts on one sheet are stacked vertically via nudgeLabels so their text never touches.
+ * `maxTextWidthPx` (the caller's own RIGHT_MARGIN budget, minus the leader-line length) is
+ * enforced via fitCalloutText so a callout's text can never run past its own drawing box —
+ * this is the direct fix for callout text overlapping neighbouring content outside the box.
  */
-export function blockCallouts(blocks: Block[], pxPerInch: number): BlockCallout[] {
+export function blockCallouts(
+  blocks: Block[],
+  pxPerInch: number,
+  maxTextWidthPx = Infinity,
+  measure: Measure = estimateTextWidth,
+): BlockCallout[] {
   const seeds = blocks
     .map((b, blockIndex) => {
       const pw = b.w * pxPerInch
@@ -154,15 +183,20 @@ export function blockCallouts(blocks: Block[], pxPerInch: number): BlockCallout[
         text = plan.earlier!.line1
       }
       if (text === null) return null
+      text = fitCalloutText(text, maxTextWidthPx, measure)
       const anchorX = b.x * pxPerInch + pw
       const anchorY = b.y * pxPerInch + ph / 2
       return { blockIndex, text, anchorX, anchorY }
     })
     .filter((s): s is NonNullable<typeof s> => s !== null)
 
+  // maxNudgeFactor: Infinity — a callout is the one place a too-small block's size is
+  // shown at all (R15), so it must never be dropped, however far down the page it has to
+  // be nudged to stay non-overlapping with the others.
   const { placed } = nudgeLabels(
     seeds.map((s, i) => ({ center: s.anchorY, text: String(i), halfWidth: 7 })),
     6,
+    Infinity,
   )
   const byId = new Map(seeds.map((s, i) => [String(i), s]))
   return placed.map((p) => {
@@ -312,9 +346,15 @@ export interface NudgeResult {
  * Greedily nudges label centers apart, left to right, so adjacent labels never overlap.
  * A label nudged more than its own width away from its natural center is flagged so the
  * caller can draw a short leader line back to its segment. If nudging cannot resolve an
- * overlap (segment too narrow, labels packed too tight), that label is dropped to `overflow`.
+ * overlap within `maxNudgeFactor` × the label's own half-width (segment too narrow, labels
+ * packed too tight), that label is dropped to `overflow` — this only ever applies to
+ * dimension-segment labels, whose size text is never the sole place a size is shown (the
+ * block itself still carries it). `blockCallouts` below passes `Infinity` so a callout,
+ * which IS the only place a too-small block's size is shown (R15), is never dropped —
+ * `placed` is still guaranteed collision-free either way, since the core greedy placement
+ * (not the drop threshold) is what prevents overlap.
  */
-export function nudgeLabels(labels: PlacedLabel[], minGap = 2): NudgeResult {
+export function nudgeLabels(labels: PlacedLabel[], minGap = 2, maxNudgeFactor = 4): NudgeResult {
   const sorted = [...labels].sort((a, b) => a.center - b.center)
   const placed: NudgeResult['placed'] = []
   const overflow: string[] = []
@@ -327,7 +367,7 @@ export function nudgeLabels(labels: PlacedLabel[], minGap = 2): NudgeResult {
       center = lastRightEdge + minGap + lbl.halfWidth
     }
     const movedBy = Math.abs(center - lbl.center)
-    if (movedBy > lbl.halfWidth * 4) {
+    if (movedBy > lbl.halfWidth * maxNudgeFactor) {
       // Nudging this far means the row is too crowded; drop it to the overflow list
       // instead of stacking labels illegibly on top of each other.
       overflow.push(lbl.text)

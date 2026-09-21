@@ -141,7 +141,7 @@ export default function NewJob() {
         <div className="mb-3 rounded-lg bg-warning-bg p-3 text-[14px] text-warning-text">
           <p className="mb-0 font-semibold">Too big for a sheet.</p>
           <p className="mb-0">
-            Your sheets are {settings.sheetH} × {settings.sheetW} in. A {width} × {height} piece
+            Your sheets are {settings.sheetW} × {settings.sheetH} in. A {width} × {height} piece
             will not fit even turned.
           </p>
         </div>

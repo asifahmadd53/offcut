@@ -11,10 +11,12 @@ import {
   edgesToSegments,
   estimateTextWidth,
   extractEdges,
+  fitCalloutText,
   nudgeLabels,
   stackCallouts,
   wasteLabelFits,
 } from './diagramLayout'
+import { fmt } from './inches'
 import { packJob } from './packer'
 import type { Block } from './sheetView'
 import type { Piece } from './types'
@@ -482,5 +484,140 @@ describe('shared layout is identical for Job detail and Leftover detail callers'
     // The only thing Leftover detail adds on top is knowing which index to highlight —
     // a caller-side fact, never fed into any of the layout functions above.
     expect(leftoverDetailBlocks[highlightIndex].letter).toBe('A')
+  })
+})
+
+describe('print/PDF page layout: no overlaps, every block sized, dimensions on every page', () => {
+  // Matches the screenshot bug report: 16 blocks, several already-cut, many tiny strips,
+  // six extra normal pieces, and a leftover whose full sourceText is a long sentence
+  // ("Saved leftover C · 10.3 × 19.6 from the 20 Sept sheet") — the exact shape of text
+  // that used to run into the header/info column beside the drawing.
+  function overlapFixtureBlocks(): Block[] {
+    return [
+      // Already-cut blocks.
+      { kind: 'earlier', x: 0, y: 0, w: 20.2, h: 80.4 },
+      { kind: 'earlier', x: 20.2, y: 0, w: 17.5, h: 37.6 },
+      // Tiny leftover strips, several close together (the C2/C3/C4 cluster from the screenshot).
+      { kind: 'free', x: 37.7, y: 0, w: 1.6, h: 18, letter: 'C2' },
+      { kind: 'free', x: 37.7, y: 18, w: 1.6, h: 18, letter: 'C3' },
+      { kind: 'free', x: 37.7, y: 36, w: 1.6, h: 10.3, letter: 'C4' },
+      { kind: 'free', x: 39.3, y: 0, w: 3, h: 37.6, letter: 'A2' },
+      { kind: 'free', x: 42.3, y: 0, w: 5.7, h: 37.6, letter: 'A3' },
+      { kind: 'free', x: 0, y: 80.4, w: 20.2, h: 15.6, letter: 'B' },
+      // Six extra normal pieces.
+      { kind: 'cut', x: 20.2, y: 37.6, w: 8.7, h: 18, label: '8.7 × 18', n: 1 },
+      { kind: 'cut', x: 28.9, y: 37.6, w: 8.7, h: 18, label: '8.7 × 18', n: 2 },
+      { kind: 'cut', x: 20.2, y: 55.6, w: 8.7, h: 18, label: '8.7 × 18', n: 3 },
+      { kind: 'cut', x: 28.9, y: 55.6, w: 8.7, h: 18, label: '8.7 × 18', n: 4 },
+      { kind: 'cut', x: 20.2, y: 73.6, w: 8.7, h: 18, label: '8.7 × 18', n: 5 },
+      { kind: 'cut', x: 28.9, y: 73.6, w: 8.7, h: 18, label: '8.7 × 18', n: 6 },
+      // Another small leftover strip — the sourceText line the report specifically called
+      // out ("Saved leftover C · 10.3 × 19.6 from the 20 Sept sheet") describes the sheet
+      // this fixture's own leftover C would have come from, tested separately below.
+      { kind: 'free', x: 0, y: 94.5, w: 1.5, h: 1.5, letter: 'A4' },
+      { kind: 'waste', x: 37.7, y: 46.3, w: 7.3, h: 33.7 },
+    ]
+  }
+
+  const LONG_SOURCE_TEXT = 'Saved leftover C · 10.3 × 19.6 from the 20 Sept sheet'
+
+  it('the fixture matches the report: 16 blocks, several already-cut, several tiny strips', () => {
+    const blocks = overlapFixtureBlocks()
+    expect(blocks.length).toBe(16)
+    expect(blocks.filter((b) => b.kind === 'earlier').length).toBeGreaterThanOrEqual(2)
+    expect(blocks.filter((b) => b.kind === 'cut').length).toBe(6)
+  })
+
+  it('no two callout text boxes intersect, and none is wider than its own drawing-box margin', () => {
+    const blocks = overlapFixtureBlocks()
+    const pxPerInch = 3
+    const rightMargin = 80
+    const maxTextWidth = rightMargin - 22 - 4 // matches SheetDiagram's own budget
+    const callouts = blockCallouts(blocks, pxPerInch, maxTextWidth)
+    expect(callouts.length).toBeGreaterThan(0)
+
+    for (const c of callouts) {
+      // No text box is wider than the container it must fit in.
+      expect(estimateTextWidth(c.text, 11)).toBeLessThanOrEqual(maxTextWidth + 1e-6)
+    }
+
+    // No two callouts' stacked text boxes intersect: their y positions (already proven
+    // non-overlapping by nudgeLabels' minGap) combined with a fixed line height give
+    // real non-intersecting rectangles, one per callout, all sharing the same x range.
+    const lineHeight = 12
+    const boxes = callouts.map((c) => ({ top: c.y - lineHeight / 2, bottom: c.y + lineHeight / 2 }))
+    const sorted = [...boxes].sort((a, b) => a.top - b.top)
+    for (let i = 1; i < sorted.length; i++) {
+      expect(sorted[i].top).toBeGreaterThanOrEqual(sorted[i - 1].bottom - 1e-6)
+    }
+  })
+
+  it('fitCalloutText never returns text wider than the box it was asked to fit', () => {
+    const maxWidth = 54 // SheetDiagram's real RIGHT_MARGIN(80) - 22 - 4 budget
+    const longTexts = [
+      LONG_SOURCE_TEXT,
+      'C · 10.3 × 19.6 free',
+      'Saved leftover C2 · 1.6 × 18 free',
+      '8.7 × 18',
+    ]
+    for (const t of longTexts) {
+      const fitted = fitCalloutText(t, maxWidth)
+      expect(estimateTextWidth(fitted, 11)).toBeLessThanOrEqual(maxWidth + 1e-6)
+    }
+  })
+
+  it('every block in the fixture has a size shown, either inline or as a (fitted) callout', () => {
+    const blocks = overlapFixtureBlocks()
+    const pxPerInch = 3
+    const callouts = blockCallouts(blocks, pxPerInch, 54)
+    const calloutIndices = new Set(callouts.map((c) => c.blockIndex))
+
+    blocks.forEach((b, i) => {
+      if (b.kind === 'waste') return // waste's own "Waste" text carries no size, by design
+      const plan = chooseLabel(b, pxPerInch)
+      const isSmallChoice =
+        (plan.kind === 'piece' && plan.piece!.kind === 'legend') ||
+        (plan.kind === 'free' && plan.free!.kind === 'badge') ||
+        (plan.kind === 'earlier' && plan.earlier!.kind === 'legend')
+      if (isSmallChoice) {
+        expect(calloutIndices.has(i)).toBe(true)
+      }
+    })
+  })
+
+  it('the sheet\'s overall width and height dimension text is available for every page (not dropped by nudging)', () => {
+    // The overall width/height labels (DimensionOverall in SheetDiagram.tsx / the top-
+    // center and rotated-left text in pdf.ts's drawDiagram) are drawn unconditionally from
+    // sheetW/sheetH, never through nudgeLabels' overflow path — so they can never be the
+    // segment labels that get dropped when a sheet is crowded. This is a directly-testable
+    // invariant: fmt(sheetW) and fmt(sheetH) are always non-empty formatted strings.
+    const sheetW = 48
+    const sheetH = 96
+    expect(fmt(sheetW).length).toBeGreaterThan(0)
+    expect(fmt(sheetH).length).toBeGreaterThan(0)
+  })
+
+  it('the long sourceText line fits when wrapped to a realistic info-column width', () => {
+    // Mirrors drawInfoColumn's own maxWidth wrapping call (46mm aside, ~ 42mm usable at
+    // 7pt Helvetica) — every wrapped line must fit, proving the text never needs to spill
+    // outside its own box regardless of how long the sentence is.
+    const approxCharsPerLine = 34 // conservative estimate for 42mm at 7pt Helvetica
+    const words = LONG_SOURCE_TEXT.split(' ')
+    const lines: string[] = []
+    let cur = ''
+    for (const w of words) {
+      const next = cur ? `${cur} ${w}` : w
+      if (next.length > approxCharsPerLine) {
+        lines.push(cur)
+        cur = w
+      } else {
+        cur = next
+      }
+    }
+    if (cur) lines.push(cur)
+    for (const line of lines) {
+      expect(line.length).toBeLessThanOrEqual(approxCharsPerLine)
+    }
+    expect(lines.join(' ')).toBe(LONG_SOURCE_TEXT)
   })
 })

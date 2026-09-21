@@ -130,7 +130,10 @@ function drawDiagram(doc: JsPdfDoc, page: PrintPage, box: DiagramBox) {
 
   // Callouts for every block too small for an inline label — the same rule as the screen
   // (a block never loses its size, R15), drawn as a short leader line + text to the right
-  // of the sheet outline instead of overlapping the drawing.
+  // of the sheet outline instead of overlapping the drawing. Text is fit to the remaining
+  // space in `box` via getTextWidth (jsPDF's real font metrics, not an estimate) so it can
+  // never run past the diagram box into the info column beside it — the direct fix for
+  // callout text overlapping the header/info text on the right.
   const calloutBlocks = allRectSizeLabels(blocks, pxPerInch).filter((l) => l.placement === 'callout')
   let calloutY = Y(0) + 4
   doc.setFontSize(7)
@@ -140,11 +143,14 @@ function drawDiagram(doc: JsPdfDoc, page: PrintPage, box: DiagramBox) {
     const anchorX = X(b.x + b.w)
     const anchorY = Y(b.y + b.h / 2)
     const labelX = Math.min(anchorX + 4, box.x + box.w - 2)
+    const maxTextWidth = Math.max(box.x + box.w - 2 - labelX, 6)
+    const fullText = `${c.name}: ${c.width} x ${c.height}`
+    const text = fitCalloutTextMm(doc, fullText, maxTextWidth)
     doc.setLineDashPattern([0.4, 0.6], 0)
     doc.line(anchorX, anchorY, labelX, calloutY)
     doc.setLineDashPattern([], 0)
     doc.setTextColor(90, 85, 75)
-    doc.text(`${c.name}: ${c.width} x ${c.height}`, labelX, calloutY, { baseline: 'middle' })
+    doc.text(text, labelX, calloutY, { baseline: 'middle', maxWidth: maxTextWidth })
     calloutY += 3.4
   }
 
@@ -260,15 +266,21 @@ function drawInfoColumn(doc: JsPdfDoc, page: PrintPage, box: DiagramBox) {
   doc.line(x, y, x + box.w, y)
   y += 2.6
   doc.setTextColor(60, 58, 52)
+  const rowLineHeight = 2.6
   for (const row of page.parts) {
-    if (y > box.y + box.h - 8) break // out of room; footer still needs its own space
-    cx = x
     const cells = [row.label, row.width, row.height, row.status]
+    // A row's height must grow with whichever cell wraps to the most lines, or the next
+    // row's text starts on top of this one's wrapped second line — the direct fix for
+    // the Status column overlapping between rows.
+    const lineCounts = cells.map((c, i) => splitLines(doc, c, colW[i] - 1))
+    const rowHeight = Math.max(...lineCounts) * rowLineHeight
+    if (y + rowHeight > box.y + box.h - 8) break // out of room; footer still needs its own space
+    cx = x
     for (let i = 0; i < cells.length; i++) {
       doc.text(cells[i], cx, y, { maxWidth: colW[i] - 1 })
       cx += colW[i]
     }
-    y += 3.2
+    y += rowHeight
   }
 
   doc.setFontSize(6)
@@ -276,6 +288,21 @@ function drawInfoColumn(doc: JsPdfDoc, page: PrintPage, box: DiagramBox) {
   const footerY = box.y + box.h - 5
   doc.text(page.footerLeft, x, footerY, { maxWidth: box.w })
   doc.text(`Page ${page.pageNumber} of ${page.pageTotal}`, x, footerY + 3)
+}
+
+/**
+ * Truncates a callout string to fit maxWidthMm at the doc's current font size, measured
+ * with jsPDF's own getTextWidth (real font metrics), one character at a time with an
+ * ellipsis — a single-line guarantee for a leader-line callout, distinct from
+ * splitLines/wrapping used elsewhere for multi-line text blocks.
+ */
+function fitCalloutTextMm(doc: JsPdfDoc, text: string, maxWidthMm: number): string {
+  if (doc.getTextWidth(text) <= maxWidthMm) return text
+  let cur = text
+  while (cur.length > 1 && doc.getTextWidth(cur + '…') > maxWidthMm) {
+    cur = cur.slice(0, -1)
+  }
+  return cur + '…'
 }
 
 /** How many wrapped lines jsPDF's own splitTextToSize would produce, for simple line-advance math. */

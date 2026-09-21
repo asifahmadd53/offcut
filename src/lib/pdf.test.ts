@@ -122,6 +122,33 @@ describe('buildPrintPdf', () => {
     const text = await blob.text()
     expect(text.startsWith('%PDF')).toBe(true)
   })
+
+  it('builds a valid multi-page PDF for a crowded, many-piece job at both paper sizes', async () => {
+    // A dense job (many small pieces + a big leftover-producing piece) mirrors the
+    // screenshot's crowded sheet: several tiny strips, several already-cut-style blocks
+    // across pages, and a parts table long enough to risk the old row-height bug.
+    const stockPlan = packJob([piece(10, 10, 1)], [], opts)
+    const seedCut = cutFrom([piece(10, 10, 1)], stockPlan.sheets)
+    const d0 = deriveStock([seedCut])
+    const r = packJob(
+      [piece(8.7, 18, 6), piece(1.6, 18, 1), piece(48, 96, 1)],
+      d0.freeLeftovers,
+      opts,
+      new Set(),
+      d0.sheetLetters,
+    )
+    const cut = cutFrom([piece(8.7, 18, 6), piece(1.6, 18, 1), piece(48, 96, 1)], r.sheets)
+    const derived = deriveStock([seedCut, cut])
+    const pages = buildPrintPages(cut, derived, DEFAULT_SETTINGS)
+    expect(pages.length).toBeGreaterThan(0)
+
+    for (const paperSize of ['A4', 'Letter'] as const) {
+      const blob = await buildPrintPdf(pages, paperSize, jsPDF)
+      const text = await blob.text()
+      expect(text.startsWith('%PDF')).toBe(true)
+      expect(countPdfPages(text)).toBe(pages.length)
+    }
+  })
 })
 
 /** Counts "/Type /Page" (not "/Pages") object entries in the raw PDF body. */

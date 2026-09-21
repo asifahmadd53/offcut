@@ -292,7 +292,7 @@ img{max-width:100%}
 </pre>
 
 <h3>4.2 Coordinate system</h3>
-<p>The top-left corner of a sheet is the origin, <code>(0, 0)</code>. <code>x</code> increases to the right across the 48 in width. <code>y</code> increases downward along the 96 in length. Inside the engine, sizes are written width × height (48 × 96). On screen, a sheet is written length × width (<strong>96 × 48</strong>), because that is how the material is bought and spoken. Every piece and every leftover is stored as <code>{x, y, w, h}</code> in the coordinates of the original full sheet, never relative to a leftover. This is what allows the app to draw a sheet that has been cut across three separate jobs on three different days as one coherent picture.</p>
+<p>The top-left corner of a sheet is the origin, <code>(0, 0)</code>. <code>x</code> increases to the right across the 48 in width. <code>y</code> increases downward along the 96 in length. Sizes are written width × height everywhere, on screen and inside the engine alike (<strong>48 × 96</strong>). Every piece and every leftover is stored as <code>{x, y, w, h}</code> in the coordinates of the original full sheet, never relative to a leftover. This is what allows the app to draw a sheet that has been cut across three separate jobs on three different days as one coherent picture.</p>
 
 <h3>4.3 Naming of leftovers</h3>
 <p>Leftovers created from a full sheet are lettered <code>A</code>, <code>B</code>, <code>C</code> in order of size, largest first. When leftover <code>A</code> is later cut into, its remainder is called <code>A2</code>, then <code>A3</code>. The chain of names lets the carpenter identify a physical board against the wall without measuring it.</p>
@@ -344,7 +344,7 @@ img{max-width:100%}
 <p>A remaining rectangle is saved only if its shorter side is at least the minimum leftover size, 1 inch by default and editable. Anything smaller is waste and is silently dropped. The default is deliberately low because the owner specifically asked that even a 2 in strip be saved.</p>
 
 <h3>5.6 Worked example: the owner's own case</h3>
-<p>Input: 23 × 77, quantity 2. Sheet: 96 × 48 (96 long, 48 wide), kerf off, minimum leftover 1 in.</p>
+<p>Input: 23 × 77, quantity 2. Sheet: 48 × 96 (48 wide, 96 long), kerf off, minimum leftover 1 in.</p>
 <div class="tablewrap"><table>
 <thead><tr><th>Step</th><th>Result</th></tr></thead>
 <tbody>
@@ -840,7 +840,7 @@ SheetPlan {
 <div class="phone">
   <div style="display:flex;align-items:center;gap:10px;margin-bottom:16px"><span style="font-size:20px">‹</span><p class="p-t">New job</p></div>
   <div style="background:var(--amb-bg);border-radius:10px;padding:12px;margin-bottom:14px">
-    <p style="margin:0;font-size:14px;color:var(--amb-tx)"><strong>Too big for a sheet.</strong> Your sheets are 96 × 48 in. A 60 × 120 piece will not fit even turned.</p>
+    <p style="margin:0;font-size:14px;color:var(--amb-tx)"><strong>Too big for a sheet.</strong> Your sheets are 48 × 96 in. A 60 × 120 piece will not fit even turned.</p>
   </div>
   <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:10px">
     <div><p class="p-lab">Width (in)</p><div class="p-in" style="height:42px;font-size:18px">60</div></div>
@@ -903,7 +903,7 @@ SheetPlan {
 <div>
 <div class="phone">
   <div style="display:flex;align-items:center;gap:10px;margin-bottom:3px"><span style="font-size:20px">‹</span><p class="p-t">Cutting plan</p></div>
-  <p class="p-sub" style="margin:0 0 14px">New sheet 96 × 48 · 23 × 77, 2 pcs</p>
+  <p class="p-sub" style="margin:0 0 14px">New sheet 48 × 96 · 23 × 77, 2 pcs</p>
   <div style="display:flex;gap:24px;align-items:flex-start;margin-bottom:14px">
     <div class="sheet" style="width:144px;height:288px">
       <div class="bl cut" style="left:0;top:0;width:69px;height:231px">23 × 77<br>Piece 1</div>
@@ -990,7 +990,7 @@ SheetPlan {
 <tbody>
 <tr><td>Header line</td><td>Says immediately whether this is a new sheet or a leftover, and restates the pieces</td></tr>
 <tr><td>Green reuse banner</td><td>Only on a reuse plan. This is the app's main payoff, so it is stated in words, not implied by colour alone</td></tr>
-<tr><td>Diagram</td><td>Drawn to scale, 1:2 aspect for a 96 × 48 sheet. Four block types: cut piece, new leftover, other free leftover, earlier cut</td></tr>
+<tr><td>Diagram</td><td>Drawn to scale, 1:2 aspect for a 48 × 96 sheet. Four block types: cut piece, new leftover, other free leftover, earlier cut</td></tr>
 <tr><td>Narrow blocks</td><td>A block too small for its label shows a small badge on the block instead — a number for a piece, a letter for a leftover — and its size still appears in the Sizes list below</td></tr>
 <tr><td>Turned tag</td><td>Shown whenever a piece was rotated, so the carpenter orients the board correctly</td></tr>
 <tr><td>Sheet used</td><td>Placed area ÷ region area, rounded to a whole percent</td></tr>
@@ -1173,7 +1173,7 @@ SheetPlan {
 <h4>9.8.1 Settings are saved with a clear action, not silently on blur</h4>
 <p>Sheet size, the blade toggle and its width, and the minimum leftover are all edited as a local draft. The moment the draft differs from what is saved, a sticky bar appears above the tab bar: a primary <strong>Save changes</strong> button and a text <strong>Discard</strong> link. The bar is never a disabled button sitting there doing nothing — it simply is not shown once there is nothing to save.</p>
 <p>Fields are validated only on Save, not as the user types. Sheet size and blade width must be more than 0; the minimum leftover may be 0 (keep everything). An invalid field shows its message underneath and blocks the save until fixed.</p>
-<p>Changing the sheet size asks for confirmation first: <em>"Change sheet size to 96 × 48? This applies to new plans only. Saved leftovers and past jobs keep their own sizes."</em> Saving shows the toast <em>"Settings saved."</em> and hides the bar. Leaving Settings with unsaved changes — by the back arrow or a tab — asks <em>"Save your changes?"</em> with Save, Discard and Stay.</p>
+<p>Changing the sheet size asks for confirmation first: <em>"Change sheet size to 48 × 96? This applies to new plans only. Saved leftovers and past jobs keep their own sizes."</em> Saving shows the toast <em>"Settings saved."</em> and hides the bar. Leaving Settings with unsaved changes — by the back arrow or a tab — asks <em>"Save your changes?"</em> with Save, Discard and Stay.</p>
 <p>The blade toggle on New job (§9.4) is a separate, instant setting: tapping it saves immediately and shows a toast, <em>"Blade thickness on"</em> or <em>"off"</em>. It does not go through Settings' draft/save flow.</p>
 
 <h4>9.8.2 Print settings</h4>
