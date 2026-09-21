@@ -116,6 +116,7 @@ export default function Login() {
             inputMode="email"
             autoComplete="username"
             autoCapitalize="off"
+              className="border border-border bg-transparent"
             placeholder="name@company.com"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
@@ -131,6 +132,7 @@ export default function Login() {
               inputMode="email"
               autoComplete="username"
               autoCapitalize="off"
+                className="border border-border bg-transparent"
               placeholder="name@company.com"
               value={confirmEmail}
               onChange={(e) => setConfirmEmail(e.target.value)}
@@ -145,6 +147,7 @@ export default function Login() {
             type="password"
             autoComplete={mode === 'login' ? 'current-password' : 'new-password'}
             placeholder="Your password"
+            className="border border-border bg-transparent"
             value={password}
             onChange={(e) => setPassword(e.target.value)}
           />
