@@ -226,11 +226,10 @@ function FullScreenDiagram({
               sheetW={sheet.sheetW}
               sheetH={sheet.sheetH}
               blocks={blocks}
-              maxW={480}
-              maxH={800}
               cuts={sheet.cuts}
               activeCut={activeCut}
               onCutToggle={onCutToggle}
+              fill
             />
           </TransformComponent>
         </TransformWrapper>
