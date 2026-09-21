@@ -179,9 +179,9 @@ export function AppShell({
         >
           Skip to content
         </a>
-        <div className="mx-auto flex min-h-0 w-full flex-1 flex-col px-5 pt-[env(safe-area-inset-top)] lg:px-8">
-          {verifyBanner}
-          <header className="flex h-14 flex-none items-center justify-between gap-2">
+        <div className="mx-auto flex min-h-0 w-full flex-1 flex-col pt-[env(safe-area-inset-top)]">
+          <div className="flex-none px-5 lg:px-8">{verifyBanner}</div>
+          <header className="flex h-14 flex-none items-center justify-between gap-2 px-5 lg:px-8">
             <div className="flex min-w-0 items-center gap-1">
               {back && (
                 <button
@@ -198,12 +198,16 @@ export function AppShell({
             <div className="flex items-center gap-2 md:hidden lg:hidden">{headerRight}</div>
           </header>
 
-          <main id="main-content" className="min-h-0 flex-1 overflow-y-auto pb-6">
-            {children}
+          {/* Padding lives on this inner content wrapper, not the scroll container itself
+              (<main>), so <main>'s own scrollbar renders flush against the true right edge
+              of the viewport instead of inset by px-5/px-8 — a scrollbar with dead space
+              to its right reads as a layout bug, not a deliberate margin. */}
+          <main id="main-content" className="min-h-0 flex-1 overflow-y-auto">
+            <div className="px-5 pb-6 lg:px-8">{children}</div>
           </main>
 
           {stickyBar && (
-            <div className="flex-none pb-[calc(env(safe-area-inset-bottom)+12px)] pt-3 md:pb-4">
+            <div className="flex-none px-5 pb-[calc(env(safe-area-inset-bottom)+12px)] pt-3 lg:px-8 md:pb-4">
               {stickyBar}
             </div>
           )}
