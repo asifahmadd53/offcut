@@ -42,9 +42,7 @@ function SetupNeeded() {
 function LoadingScreen() {
   return (
     <div className="flex min-h-dvh items-center justify-center bg-background">
-      <div className="flex h-14 w-14 items-center justify-center rounded-[14px] bg-accent-bg text-accent-text">
-        <IconScissors size={26} />
-      </div>
+      <img src="/icons/icon-192.png" alt="" width={56} height={56} className="rounded-[14px]" />
     </div>
   )
 }
