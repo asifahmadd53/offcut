@@ -17,7 +17,7 @@ import { useSettings } from '@/store/settings'
 import { useToast } from '@/store/toast'
 import type { Settings as SettingsShape } from '@/lib/types'
 
-interface Draft {
+export interface Draft {
   sheetW: string
   sheetH: string
   kerfOn: boolean
@@ -33,7 +33,7 @@ interface FieldErrors {
   minLeftover?: string
 }
 
-function draftFrom(s: SettingsShape): Draft {
+export function draftFrom(s: SettingsShape): Draft {
   return {
     sheetW: fmt(s.sheetW),
     sheetH: fmt(s.sheetH),
@@ -45,7 +45,7 @@ function draftFrom(s: SettingsShape): Draft {
 }
 
 /** Sheet size, blade width and minimum leftover must be positive; minimum leftover may be 0. */
-function validate(draft: Draft): { errors: FieldErrors; values?: Partial<SettingsShape> } {
+export function validate(draft: Draft): { errors: FieldErrors; values?: Partial<SettingsShape> } {
   const errors: FieldErrors = {}
   const sheetW = parseInches(draft.sheetW)
   const sheetH = parseInches(draft.sheetH)
@@ -64,6 +64,7 @@ function validate(draft: Draft): { errors: FieldErrors; values?: Partial<Setting
     values: {
       sheetW: sheetW!,
       sheetH: sheetH!,
+      kerfOn: draft.kerfOn,
       kerfSize: kerfSize ?? 0,
       minLeftover: minLeftover!,
       paperSize: draft.paperSize,
