@@ -86,65 +86,86 @@ export default function ClientJobs() {
         {jobs.length} {jobs.length === 1 ? 'job' : 'jobs'} for this client.
       </p>
 
-      <Button size="lg" className="mb-4.5 w-full" onClick={startNewJobForClient}>
+      <Button size="lg" className="mb-6 w-full" onClick={startNewJobForClient}>
         + New job for {clientName}
       </Button>
 
-      <div className="mb-4.5">
-        {jobs.map((j) => (
-          <div
-            key={j.cut.id}
-            className="mb-2 flex items-center justify-between rounded-md border-hair border-border p-4 py-2.5"
-          >
-            <button
-              type="button"
-              onClick={() => navigate(`/job/${j.cut.id}`)}
-              className="flex min-w-0 flex-1 items-center gap-1.5 text-left"
-            >
-              <div className="min-w-0">
-                <p className="mb-0 flex items-center gap-1.5 text-[15px] font-semibold">
-                  {pieceSummary(j.cut.pieces)}
-                  {j.status === 'conflict' && (
-                    <span className="h-1.5 w-1.5 flex-none rounded-full bg-warning-border" />
-                  )}
-                </p>
-                <p className="mb-0 text-[13px] text-muted-foreground">
-                  {dayMonth(j.cut.createdAt)} · {sourceSummary(j.cut.sheets)}
-                </p>
-              </div>
-            </button>
-            <button
-              type="button"
-              aria-label="Remove this job from the list"
-              onClick={() => setToDelete(j)}
-              className="flex h-9 w-9 flex-none items-center justify-center text-muted-foreground"
-            >
-              <IconTrash size={18} />
-            </button>
-          </div>
-        ))}
+      <div className="mb-2 flex items-center justify-between">
+        <p className="text-[13px] font-semibold uppercase tracking-wide text-muted-foreground">
+          Jobs
+        </p>
+        {jobs.length > 0 && (
+          <p className="text-[13px] text-muted-foreground">{plural(jobs.length, 'job')}</p>
+        )}
       </div>
 
-      {jobs.length === 0 && (
-        <div className="py-6 text-center">
+      {jobs.length === 0 ? (
+        <div className="mb-6 rounded-xl border-hair border-border bg-muted py-6 text-center">
           <div className="mx-auto mb-3 flex h-13 w-13 items-center justify-center rounded-xl bg-muted text-faint">
             <IconLayoutGrid size={26} />
           </div>
           <p className="text-[15px] text-muted-foreground">No jobs left for this client.</p>
         </div>
+      ) : (
+        <div className="mb-6 overflow-hidden rounded-xl border-hair border-border">
+          {jobs.map((j, i) => (
+            <div
+              key={j.cut.id}
+              className={`flex items-center justify-between bg-card px-4 py-3 ${
+                i > 0 ? 'border-t border-hair border-border' : ''
+              }`}
+            >
+              <button
+                type="button"
+                onClick={() => navigate(`/job/${j.cut.id}`)}
+                className="flex min-w-0 flex-1 items-center gap-1.5 text-left"
+              >
+                <div className="min-w-0">
+                  <p className="mb-0 flex items-center gap-1.5 text-[15px] font-semibold">
+                    {pieceSummary(j.cut.pieces)}
+                    {j.status === 'conflict' && (
+                      <span className="h-1.5 w-1.5 flex-none rounded-full bg-warning-border" />
+                    )}
+                  </p>
+                  <p className="mb-0 text-[13px] text-muted-foreground">
+                    {dayMonth(j.cut.createdAt)} · {sourceSummary(j.cut.sheets)}
+                  </p>
+                </div>
+              </button>
+              <button
+                type="button"
+                aria-label="Remove this job from the list"
+                onClick={() => setToDelete(j)}
+                className="flex h-9 w-9 flex-none items-center justify-center rounded-full text-muted-foreground hover:bg-muted hover:text-danger-text"
+              >
+                <IconTrash size={18} />
+              </button>
+            </div>
+          ))}
+        </div>
       )}
 
-      <p className="mb-1 text-[13px] text-muted-foreground">
-        {plural(leftovers.length, 'saved leftover')} for {clientName}
-      </p>
+      <div className="mb-2 flex items-center justify-between">
+        <p className="text-[13px] font-semibold uppercase tracking-wide text-muted-foreground">
+          Saved leftovers
+        </p>
+        {leftovers.length > 0 && (
+          <p className="text-[13px] text-muted-foreground">{plural(leftovers.length, 'leftover')}</p>
+        )}
+      </div>
+
       {leftovers.length === 0 ? (
-        <p className="mb-4.5 text-[13px] text-muted-foreground">None yet.</p>
+        <div className="mb-4 rounded-xl border-hair border-border bg-muted py-5 text-center text-[13px] text-muted-foreground">
+          None yet.
+        </div>
       ) : (
-        <div className="mb-4.5">
-          {leftovers.map((l) => (
+        <div className="mb-4 overflow-hidden rounded-xl border-hair border-success-border">
+          {leftovers.map((l, i) => (
             <div
               key={l.id}
-              className="mb-2 flex items-center justify-between rounded-md border-hair border-border p-4 py-2.5"
+              className={`flex items-center justify-between bg-success-bg px-4 py-3 ${
+                i > 0 ? 'border-t border-hair border-success-border' : ''
+              }`}
             >
               <button
                 type="button"
@@ -152,7 +173,7 @@ export default function ClientJobs() {
                 className="flex min-w-0 flex-1 items-center gap-1.5 text-left"
               >
                 <div className="min-w-0">
-                  <p className="mb-0 text-[15px] font-semibold">{fmtLeft(l.w, l.h)}</p>
+                  <p className="mb-0 text-[15px] font-semibold text-success-text">{fmtLeft(l.w, l.h)}</p>
                   <p className="mb-0 text-[13px] text-muted-foreground">{originText(l)}</p>
                 </div>
               </button>
@@ -160,7 +181,7 @@ export default function ClientJobs() {
                 type="button"
                 aria-label="Remove this leftover"
                 onClick={() => setLeftoverToDelete(l)}
-                className="flex h-9 w-9 flex-none items-center justify-center text-muted-foreground"
+                className="flex h-9 w-9 flex-none items-center justify-center rounded-full text-muted-foreground hover:bg-muted hover:text-danger-text"
               >
                 <IconTrash size={18} />
               </button>
