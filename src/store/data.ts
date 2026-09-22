@@ -223,7 +223,11 @@ export const useData = create<DataState>((set, get) => {
       set({
         cuts: [],
         resolutions: {},
-        hiddenJobIds: new Set(),
+        // Re-seed from localStorage rather than wiping to an empty Set: stop() runs on
+        // every start() call (it's the first line of start()), not just on logout, so
+        // resetting this to empty left a real window — between stop() and the next
+        // hiddenJobs snapshot arriving — where a hidden job would show as visible again.
+        hiddenJobIds: readLocalHiddenJobs(),
         derived: EMPTY_DERIVED,
         ready: false,
         pendingCount: 0,

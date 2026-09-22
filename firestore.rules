@@ -24,10 +24,13 @@ service cloud.firestore {
       }
 
       // Jobs the carpenter removed from their list. The cut itself is untouched —
-      // this only hides it from view, so it is append-only like everything else.
+      // this only hides it from view. Update is allowed (not just create) because
+      // hiding the same job twice — e.g. a retry, or two phones hiding it around the
+      // same time — must never fail: every write just restates "this job is hidden",
+      // which is already true, so the operation is idempotent either way.
       match /hiddenJobs/{cutId} {
-        allow read, create: if isShopOwner(shopId);
-        allow update, delete: if false;
+        allow read, create, update: if isShopOwner(shopId);
+        allow delete: if false;
       }
 
       match /settings/{docId} {
