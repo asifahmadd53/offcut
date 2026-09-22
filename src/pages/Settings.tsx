@@ -83,6 +83,7 @@ export default function Settings() {
   const [draft, setDraft] = useState<Draft>(() => draftFrom(settings))
   const [errors, setErrors] = useState<FieldErrors>({})
   const [logoutOpen, setLogoutOpen] = useState(false)
+  const [saveOpen, setSaveOpen] = useState(false)
   const [confirmSizeOpen, setConfirmSizeOpen] = useState(false)
   const [pendingValues, setPendingValues] = useState<Partial<SettingsShape> | null>(null)
   const [leaveOpen, setLeaveOpen] = useState(false)
@@ -124,6 +125,7 @@ export default function Settings() {
     setErrors(fieldErrors)
     if (!values) return
 
+    setSaveOpen(false)
     const sizeChanged = values.sheetW !== settings.sheetW || values.sheetH !== settings.sheetH
     if (sizeChanged) {
       setPendingValues(values)
@@ -131,6 +133,11 @@ export default function Settings() {
       return
     }
     commitSave(values)
+  }
+
+  function discardFromPopup() {
+    discard()
+    setSaveOpen(false)
   }
 
   function onNavigate(to: string) {
@@ -173,17 +180,24 @@ export default function Settings() {
       title="Settings"
       tab="settings"
       onNavigate={onNavigate}
+      sidebarAction={
+        <Button
+          type="button"
+          className="flex h-9 items-center justify-center gap-2 rounded-[10px] px-1 text-[13px]"
+          disabled={!dirty}
+          onClick={() => setSaveOpen(true)}
+        >
+          Save changes
+        </Button>
+      }
       stickyBar={
-        <div className="flex flex-none items-center gap-2.5 rounded-2xl border-hair border-border bg-card p-3 shadow-elevated">
+        <div className="flex flex-none items-center rounded-2xl border-hair border-border bg-card p-3 shadow-elevated">
           <Button
-            variant="outline"
-            className="h-[52px] flex-none px-5"
+            size="lg"
+            className="h-[52px] w-full"
             disabled={!dirty}
-            onClick={discard}
+            onClick={() => setSaveOpen(true)}
           >
-            Discard
-          </Button>
-          <Button size="lg" className="h-[52px] flex-1" disabled={!dirty} onClick={onSave}>
             Save changes
           </Button>
         </div>
@@ -270,25 +284,39 @@ export default function Settings() {
 
       <div className="border-b border-border py-3">
         <Label>Paper size</Label>
-        <div className="flex gap-2">
-          <button
-            type="button"
-            onClick={() => patch({ paperSize: 'A4' })}
-            className={`h-10 flex-1 rounded-lg border-hair text-[14px] font-semibold ${
-              draft.paperSize === 'A4' ? 'border-accent-border bg-accent-bg text-accent-text' : 'border-border-strong text-foreground'
-            }`}
-          >
-            A4
-          </button>
-          <button
-            type="button"
-            onClick={() => patch({ paperSize: 'Letter' })}
-            className={`h-10 flex-1 rounded-lg border-hair text-[14px] font-semibold ${
-              draft.paperSize === 'Letter' ? 'border-accent-border bg-accent-bg text-accent-text' : 'border-border-strong text-foreground'
-            }`}
-          >
-            Letter
-          </button>
+        <div className="grid grid-cols-2 gap-3">
+          {(['A4', 'Letter'] as const).map((size) => {
+            const selected = draft.paperSize === size
+            return (
+              <button
+                key={size}
+                type="button"
+                onClick={() => patch({ paperSize: size })}
+                aria-pressed={selected}
+                className={`flex items-center justify-between rounded-xl border px-4 py-3 text-left transition-colors ${
+                  selected
+                    ? 'border-accent-border bg-accent-bg'
+                    : 'border-border-strong bg-background hover:bg-muted'
+                }`}
+              >
+                <div>
+                  <p className={`mb-0 text-[15px] font-semibold ${selected ? 'text-accent-text' : 'text-foreground'}`}>
+                    {size}
+                  </p>
+                  <p className="mb-0 text-[12px] text-muted-foreground">
+                    {size === 'A4' ? '210 × 297 mm' : '8.5 × 11 in'}
+                  </p>
+                </div>
+                <span
+                  className={`flex h-5 w-5 flex-none items-center justify-center rounded-full border-2 ${
+                    selected ? 'border-accent-border bg-accent-border' : 'border-border-strong'
+                  }`}
+                >
+                  {selected && <span className="h-2 w-2 rounded-full bg-white" />}
+                </span>
+              </button>
+            )
+          })}
         </div>
       </div>
 
@@ -297,10 +325,17 @@ export default function Settings() {
         <p className="text-[15px]">{email}</p>
       </div>
 
+      <Button size="lg" className="mb-2.5 h-12 w-full" disabled={!dirty} onClick={() => setSaveOpen(true)}>
+        Save changes
+      </Button>
+
+      {/* lg+ already has Log out in the sidebar (AppShell's sidebarAction fallback) — this
+          is the only way to log out below that width, so it stays here for md and phone. */}
+      <Button variant="outline" className="h-12 w-full lg:hidden" onClick={() => setLogoutOpen(true)}>
+        Log out
+      </Button>
+
       <Dialog open={logoutOpen} onOpenChange={setLogoutOpen}>
-        <Button variant="outline" className="h-12 w-full" onClick={() => setLogoutOpen(true)}>
-          Log out
-        </Button>
         <DialogContent>
           <DialogTitle>Log out?</DialogTitle>
           <DialogDescription>You will need internet to log in again on this phone.</DialogDescription>
@@ -310,6 +345,21 @@ export default function Settings() {
             </Button>
             <Button className="h-11 flex-1" onClick={onLogout}>
               Log out
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={saveOpen} onOpenChange={(open) => !open && setSaveOpen(false)}>
+        <DialogContent>
+          <DialogTitle>Save your changes?</DialogTitle>
+          <DialogDescription>Your new settings will apply to new plans.</DialogDescription>
+          <div className="mt-4 flex flex-col gap-2.5">
+            <Button className="h-11 w-full" onClick={onSave}>
+              Save
+            </Button>
+            <Button variant="outline" className="h-11 w-full" onClick={discardFromPopup}>
+              Discard
             </Button>
           </div>
         </DialogContent>
