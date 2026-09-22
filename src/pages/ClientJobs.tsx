@@ -114,7 +114,11 @@ export default function ClientJobs() {
         </div>
       ) : (
         <div className="mb-6">
-          <div className="mb-2 overflow-hidden rounded-xl border-hair border-border">
+          <div
+            className={`mb-2 overflow-hidden rounded-xl border-hair border-border ${
+              showAllJobs ? 'max-h-[360px] overflow-y-auto thin-scroll' : ''
+            }`}
+          >
             {visibleJobs.map((j, i) => (
               <div
                 key={j.cut.id}
@@ -150,13 +154,13 @@ export default function ClientJobs() {
               </div>
             ))}
           </div>
-          {!showAllJobs && jobs.length > PREVIEW_COUNT && (
+          {jobs.length > PREVIEW_COUNT && (
             <button
               type="button"
-              onClick={() => setShowAllJobs(true)}
+              onClick={() => setShowAllJobs((v) => !v)}
               className="text-[13px] font-semibold text-accent-text underline underline-offset-2"
             >
-              See all ({jobs.length})
+              {showAllJobs ? 'Show less' : `See all (${jobs.length})`}
             </button>
           )}
         </div>
@@ -177,7 +181,11 @@ export default function ClientJobs() {
         </div>
       ) : (
         <div className="mb-4">
-          <div className="mb-2 overflow-hidden rounded-xl border-hair border-success-border">
+          <div
+            className={`mb-2 overflow-hidden rounded-xl border-hair border-success-border ${
+              showAllLeftovers ? 'max-h-[360px] overflow-y-auto thin-scroll' : ''
+            }`}
+          >
             {visibleLeftovers.map((l, i) => (
               <div
                 key={l.id}
@@ -206,21 +214,17 @@ export default function ClientJobs() {
               </div>
             ))}
           </div>
-          {!showAllLeftovers && leftovers.length > PREVIEW_COUNT && (
+          {leftovers.length > PREVIEW_COUNT && (
             <button
               type="button"
-              onClick={() => setShowAllLeftovers(true)}
+              onClick={() => setShowAllLeftovers((v) => !v)}
               className="text-[13px] font-semibold text-accent-text underline underline-offset-2"
             >
-              See all ({leftovers.length})
+              {showAllLeftovers ? 'Show less' : `See all (${leftovers.length})`}
             </button>
           )}
         </div>
       )}
-
-      <Button variant="outline" className="mb-4.5 h-12 w-full" onClick={() => navigate('/stock/add')}>
-        + Add leftover by hand
-      </Button>
 
       <Dialog open={!!toDelete} onOpenChange={(open) => !open && setToDelete(null)}>
         <DialogContent>

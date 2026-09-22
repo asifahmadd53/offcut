@@ -92,13 +92,10 @@ export default function Home() {
           </div>
           <p className="mb-1 text-[17px] font-semibold">No cuts yet</p>
           <p className="mx-auto mb-5 max-w-[34ch] text-[13px] text-muted-foreground">
-            Start your first job, or add the offcuts already standing in the workshop.
+            Start your first cutting job.
           </p>
-          <Button size="hero" className="mb-2.5 w-full rounded-none" onClick={startNewJob}>
+          <Button size="hero" className="w-full rounded-none" onClick={startNewJob}>
             + New cutting job
-          </Button>
-          <Button variant="outline" className="h-12 w-full" onClick={() => navigate('/stock/add')}>
-            Add leftover by hand
           </Button>
         </div>
       ) : (

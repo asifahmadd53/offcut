@@ -32,6 +32,7 @@ export default function JobDetail() {
 
   const { cut, status, conflict } = job
   const bladeText = cut.kerf && cut.kerf > 0 ? `blade ${cut.kerf} in` : 'blade off'
+  const backTo = cut.clientId ? `/client/${cut.clientId}` : '/'
 
   function cutAgain() {
     if (cut.pieces) setPieces(cut.pieces)
@@ -40,7 +41,7 @@ export default function JobDetail() {
   }
 
   return (
-    <AppShell title={pieceSummary(cut.pieces)} back="/">
+    <AppShell title={pieceSummary(cut.pieces)} back={backTo}>
       {cut.clientName && <p className="mb-1 text-[15px] font-semibold">{cut.clientName}</p>}
       <p className="mb-3.5 text-[13px] text-muted-foreground">
         Cut on {dayMonth(cut.createdAt)} · {sourceSummary(cut.sheets)} · {bladeText}
