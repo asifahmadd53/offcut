@@ -1,6 +1,6 @@
 import { create } from 'zustand'
 import { onSnapshot, type Timestamp } from 'firebase/firestore'
-import { cutsCollection, resolutionsCollection, settingsDoc } from '@/lib/db'
+import { cutsCollection, hiddenJobsCollection, resolutionsCollection, settingsDoc } from '@/lib/db'
 import { deriveStock, EMPTY_DERIVED, type Derived } from '@/lib/stock'
 import type { CutDoc, Resolution, Settings } from '@/lib/types'
 import { useSettings } from './settings'
@@ -19,6 +19,7 @@ function readLastSync(): number | null {
 interface DataState {
   cuts: CutDoc[]
   resolutions: Record<string, Resolution>
+  hiddenJobIds: Set<string>
   derived: Derived
   ready: boolean
   online: boolean
@@ -37,13 +38,15 @@ let unsubs: Array<() => void> = []
 const meta = {
   cuts: { pending: false, fromCache: true, count: 0 },
   resolutions: { pending: false, fromCache: true, count: 0 },
+  hiddenJobs: { pending: false, fromCache: true, count: 0 },
   settings: { pending: false, fromCache: true },
 }
 
 export const useData = create<DataState>((set, get) => {
   const refreshSync = () => {
-    const pending = meta.cuts.pending || meta.resolutions.pending || meta.settings.pending
-    const pendingCount = meta.cuts.count + meta.resolutions.count
+    const pending =
+      meta.cuts.pending || meta.resolutions.pending || meta.hiddenJobs.pending || meta.settings.pending
+    const pendingCount = meta.cuts.count + meta.resolutions.count + meta.hiddenJobs.count
     const fromCache = meta.cuts.fromCache
     const online = typeof navigator === 'undefined' ? true : navigator.onLine
     const synced = online && !fromCache && !pending
@@ -64,6 +67,7 @@ export const useData = create<DataState>((set, get) => {
   return {
     cuts: [],
     resolutions: {},
+    hiddenJobIds: new Set(),
     derived: EMPTY_DERIVED,
     ready: false,
     online: typeof navigator === 'undefined' ? true : navigator.onLine,
@@ -96,7 +100,7 @@ export const useData = create<DataState>((set, get) => {
           }
           set({
             cuts,
-            derived: deriveStock(cuts, get().resolutions),
+            derived: deriveStock(cuts, get().resolutions, get().hiddenJobIds),
             ready: true,
           })
           refreshSync()
@@ -118,10 +122,26 @@ export const useData = create<DataState>((set, get) => {
             fromCache: snap.metadata.fromCache,
             count: snap.docs.filter((d) => d.metadata.hasPendingWrites).length,
           }
-          set({ resolutions, derived: deriveStock(get().cuts, resolutions) })
+          set({ resolutions, derived: deriveStock(get().cuts, resolutions, get().hiddenJobIds) })
           refreshSync()
         },
         (err) => console.error('Answers listener', err),
+      )
+
+      const unsubHidden = onSnapshot(
+        hiddenJobsCollection(uid),
+        { includeMetadataChanges: true },
+        (snap) => {
+          const hiddenJobIds = new Set(snap.docs.map((d) => d.id))
+          meta.hiddenJobs = {
+            pending: snap.metadata.hasPendingWrites,
+            fromCache: snap.metadata.fromCache,
+            count: snap.docs.filter((d) => d.metadata.hasPendingWrites).length,
+          }
+          set({ hiddenJobIds, derived: deriveStock(get().cuts, get().resolutions, hiddenJobIds) })
+          refreshSync()
+        },
+        (err) => console.error('Hidden jobs listener', err),
       )
 
       const unsubSettings = onSnapshot(
@@ -147,6 +167,7 @@ export const useData = create<DataState>((set, get) => {
       unsubs = [
         unsubCuts,
         unsubRes,
+        unsubHidden,
         unsubSettings,
         () => window.removeEventListener('online', onOnlineChange),
         () => window.removeEventListener('offline', onOnlineChange),
@@ -159,8 +180,16 @@ export const useData = create<DataState>((set, get) => {
       unsubs = []
       meta.cuts = { pending: false, fromCache: true, count: 0 }
       meta.resolutions = { pending: false, fromCache: true, count: 0 }
+      meta.hiddenJobs = { pending: false, fromCache: true, count: 0 }
       meta.settings = { pending: false, fromCache: true }
-      set({ cuts: [], resolutions: {}, derived: EMPTY_DERIVED, ready: false, pendingCount: 0 })
+      set({
+        cuts: [],
+        resolutions: {},
+        hiddenJobIds: new Set(),
+        derived: EMPTY_DERIVED,
+        ready: false,
+        pendingCount: 0,
+      })
     },
   }
 })

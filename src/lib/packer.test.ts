@@ -204,6 +204,42 @@ describe('deriveStock', () => {
     expect(d.freeLeftovers.map((l) => l.id)).not.toContain(gone)
   })
 
+  it('hiding a job removes it from jobs but keeps its leftovers in stock', () => {
+    const a = base('a', 1)
+    const withoutHide = deriveStock([a])
+    expect(withoutHide.jobs.map((j) => j.cut.id)).toContain('a')
+    expect(withoutHide.freeLeftovers).toHaveLength(2)
+
+    const hidden = deriveStock([a], {}, new Set(['a']))
+    expect(hidden.jobs.map((j) => j.cut.id)).not.toContain('a')
+    // Hiding is a display-only concern: the leftovers this job already saved stay as they are.
+    expect(hidden.freeLeftovers).toHaveLength(2)
+  })
+
+  it('hiding a conflicting job also removes it from the conflicts list', () => {
+    const a = base('a', 1)
+    const leftoverA = a.sheets[0].newLeftovers[0]
+    const useIt = (id: string, t: number): CutDoc => {
+      const r = packJob(
+        [piece(19, 22, 1)],
+        deriveStock([a]).freeLeftovers,
+        opts,
+        new Set(),
+        deriveStock([a]).sheetLetters,
+      )
+      return { id, type: 'cut', createdAt: t, syncedAt: t, deviceId: id, sheets: r.sheets }
+    }
+    const phone1 = useIt('p1', 10)
+    const phone2 = useIt('p2', 20)
+    expect(phone2.sheets[0].usedLeftoverId).toBe(leftoverA.id)
+
+    const withoutHide = deriveStock([a, phone1, phone2])
+    expect(withoutHide.conflicts.map((j) => j.cut.id)).toEqual(['p2'])
+
+    const hidden = deriveStock([a, phone1, phone2], {}, new Set(['p2']))
+    expect(hidden.conflicts).toHaveLength(0)
+  })
+
   it('T-18 same records in different order give identical stock', () => {
     // Stock must never depend on the order records arrive in: two phones syncing in a
     // different sequence must still end up looking at the same workshop inventory.

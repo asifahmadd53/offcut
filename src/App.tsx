@@ -13,6 +13,7 @@ import Stock from '@/pages/Stock'
 import AddLeftover from '@/pages/AddLeftover'
 import LeftoverDetail from '@/pages/LeftoverDetail'
 import JobDetail from '@/pages/JobDetail'
+import ClientJobs from '@/pages/ClientJobs'
 import SyncCheck from '@/pages/SyncCheck'
 import Settings from '@/pages/Settings'
 import Print from '@/pages/Print'
@@ -79,6 +80,7 @@ function AppRoutes() {
       <Route path="/stock/add" element={<RequireAuth><AddLeftover /></RequireAuth>} />
       <Route path="/stock/:id" element={<RequireAuth><LeftoverDetail /></RequireAuth>} />
       <Route path="/job/:id" element={<RequireAuth><JobDetail /></RequireAuth>} />
+      <Route path="/client/:clientId" element={<RequireAuth><ClientJobs /></RequireAuth>} />
       <Route path="/sync-check" element={<RequireAuth><SyncCheck /></RequireAuth>} />
       <Route path="/settings" element={<RequireAuth><Settings /></RequireAuth>} />
       <Route path="/cut-saved" element={<RequireAuth><CutSaved /></RequireAuth>} />

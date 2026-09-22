@@ -23,6 +23,13 @@ service cloud.firestore {
         allow delete: if false;
       }
 
+      // Jobs the carpenter removed from their list. The cut itself is untouched —
+      // this only hides it from view, so it is append-only like everything else.
+      match /hiddenJobs/{cutId} {
+        allow read, create: if isShopOwner(shopId);
+        allow update, delete: if false;
+      }
+
       match /settings/{docId} {
         allow read, write: if isShopOwner(shopId);
       }

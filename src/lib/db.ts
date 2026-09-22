@@ -8,6 +8,8 @@ const clean = <T>(value: T): T => JSON.parse(JSON.stringify(value)) as T
 export const cutsCollection = (uid: string) => collection(requireDb(), 'shops', uid, 'cuts')
 export const resolutionsCollection = (uid: string) =>
   collection(requireDb(), 'shops', uid, 'resolutions')
+export const hiddenJobsCollection = (uid: string) =>
+  collection(requireDb(), 'shops', uid, 'hiddenJobs')
 export const settingsDoc = (uid: string) => doc(requireDb(), 'shops', uid, 'settings', 'main')
 
 /**
@@ -27,6 +29,17 @@ export function saveResolution(uid: string, cutId: string, choice: Resolution): 
     choice,
     at: Date.now(),
   }).catch((err) => console.error('Could not sync answer', err))
+}
+
+/**
+ * Marks a job as removed from the carpenter's job list. The underlying cut record is
+ * never edited or deleted (R8/R9) — this only hides it from view, so its leftovers
+ * (already saved to stock) are completely unaffected.
+ */
+export function saveHiddenJob(uid: string, cutId: string): void {
+  setDoc(doc(requireDb(), 'shops', uid, 'hiddenJobs', cutId), {
+    at: Date.now(),
+  }).catch((err) => console.error('Could not sync hide', err))
 }
 
 export function saveSettings(uid: string, settings: Settings): void {

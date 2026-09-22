@@ -1,11 +1,11 @@
 import { useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { IconLayoutGrid } from '@tabler/icons-react'
+import { IconChevronRight, IconLayoutGrid, IconUser } from '@tabler/icons-react'
 import { AppShell } from '@/components/AppShell'
 import { SyncBadge } from '@/components/SyncBadge'
 import { Button } from '@/components/ui/button'
-import { dayMonth } from '@/lib/format'
-import { pieceSummary, sourceSummary } from '@/lib/summary'
+import { clientFolders } from '@/lib/clients'
+import { dayMonth, plural } from '@/lib/format'
 import { useData } from '@/store/data'
 import { useJob } from '@/store/job'
 
@@ -34,14 +34,14 @@ export default function Home() {
       d.getFullYear() === now.getFullYear()
     )
   }).length
-  const recent = derived.jobs.slice(0, 30)
+  const folders = clientFolders(derived.jobs)
   const conflictCount = derived.conflicts.length
   const firstUse = derived.jobs.length === 0 && derived.freeLeftovers.length === 0
 
   useEffect(() => {
     onListScroll()
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [recent.length])
+  }, [folders.length])
 
   function startNewJob() {
     setOnlyLeftoverId(null)
@@ -109,7 +109,7 @@ export default function Home() {
             Leftover stock
           </Button>
 
-          {recent.length > 0 && (
+          {folders.length > 0 && (
             <>
               <p className="mb-1 flex-none text-[13px] mt-4 text-muted-foreground">Recent jobs</p>
               <div className="relative">
@@ -123,26 +123,25 @@ export default function Home() {
                     scrollbarWidth: 'thin',
                   }}
                 >
-                  {recent.map((j) => (
+                  {folders.map((f) => (
                     <button
-                      key={j.cut.id}
+                      key={f.id}
                       type="button"
-                      onClick={() => navigate(`/job/${j.cut.id}`)}
+                      onClick={() => navigate(`/client/${f.id}`)}
                       className="flex w-full items-center justify-between border-b p-4 rounded-md mb-2 border-hair border-border py-2.5 text-left"
                     >
-                      <div>
-                        <p className="mb-0 flex items-center gap-1.5 text-[15px] font-semibold">
-                          {pieceSummary(j.cut.pieces)}
-                          {j.status === 'conflict' && (
-                            <span className="h-1.5 w-1.5 flex-none rounded-full bg-warning-border" />
-                          )}
-                        </p>
-                        <p className="mb-0 text-[13px] text-muted-foreground">
-                          {j.cut.clientName ? `${j.cut.clientName} · ` : ''}
-                          {dayMonth(j.cut.createdAt)} · {sourceSummary(j.cut.sheets)}
-                        </p>
+                      <div className="flex min-w-0 items-center gap-3">
+                        <div className="flex h-10 w-10 flex-none items-center justify-center rounded-full bg-muted text-muted-foreground">
+                          <IconUser size={18} />
+                        </div>
+                        <div className="min-w-0">
+                          <p className="mb-0 truncate text-[15px] font-semibold">{f.name}</p>
+                          <p className="mb-0 text-[13px] text-muted-foreground">
+                            {plural(f.jobCount, 'job')} · {dayMonth(f.lastActivity)}
+                          </p>
+                        </div>
                       </div>
-                      <span className="text-faint">›</span>
+                      <IconChevronRight size={18} className="flex-none text-faint" />
                     </button>
                   ))}
                 </div>

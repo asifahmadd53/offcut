@@ -86,6 +86,7 @@ function addLeftovers(known: Map<string, Leftover>, cut: CutDoc, sheet: SheetPla
 export function deriveStock(
   cuts: CutDoc[],
   resolutions: Record<string, Resolution> = {},
+  hiddenJobIds: Set<string> = new Set(),
 ): Derived {
   const ordered = [...cuts].sort(compareCuts)
   const known = new Map<string, Leftover>()
@@ -165,11 +166,15 @@ export function deriveStock(
 
   jobs.sort((a, b) => b.cut.createdAt - a.cut.createdAt)
 
+  // Hiding a job only removes it from the job list. The leftovers it created were
+  // already added to `known`/`leftovers` above and stay exactly as they are.
+  const visibleJobs = jobs.filter((j) => !hiddenJobIds.has(j.cut.id))
+
   return {
     leftovers,
     freeLeftovers: leftovers.filter((l) => l.status === 'free'),
-    jobs,
-    conflicts: jobs.filter((j) => j.status === 'conflict'),
+    jobs: visibleJobs,
+    conflicts: visibleJobs.filter((j) => j.status === 'conflict'),
     activeCuts,
     sheetLetters,
   }
