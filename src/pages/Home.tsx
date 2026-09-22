@@ -1,20 +1,28 @@
 import { useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { IconChevronRight, IconLayoutGrid, IconUser } from '@tabler/icons-react'
+import { IconChevronRight, IconLayoutGrid, IconTrash, IconUser } from '@tabler/icons-react'
 import { AppShell } from '@/components/AppShell'
 import { SyncBadge } from '@/components/SyncBadge'
 import { Button } from '@/components/ui/button'
-import { clientFolders } from '@/lib/clients'
+import { Dialog, DialogContent, DialogDescription, DialogTitle } from '@/components/ui/dialog'
+import { clientFolders, type ClientFolder } from '@/lib/clients'
 import { dayMonth, plural } from '@/lib/format'
+import { saveHiddenJob } from '@/lib/db'
+import { UNASSIGNED_CLIENT_ID } from '@/lib/types'
+import { useAuth } from '@/store/auth'
 import { useData } from '@/store/data'
 import { useJob } from '@/store/job'
+import { useToast } from '@/store/toast'
 
 export default function Home() {
   const navigate = useNavigate()
+  const uidAuth = useAuth((s) => s.uid)
   const derived = useData((s) => s.derived)
   const clearJob = useJob((s) => s.clearJob)
+  const toast = useToast((s) => s.show)
   const listRef = useRef<HTMLDivElement>(null)
   const [atBottom, setAtBottom] = useState(false)
+  const [toDelete, setToDelete] = useState<ClientFolder | null>(null)
 
   function onListScroll() {
     const el = listRef.current
@@ -45,6 +53,16 @@ export default function Home() {
   function startNewJob() {
     clearJob()
     navigate('/new')
+  }
+
+  function confirmDeleteClient() {
+    if (!uidAuth || !toDelete) return
+    const clientJobIds = derived.jobs
+      .filter((j) => (j.cut.clientId || UNASSIGNED_CLIENT_ID) === toDelete.id)
+      .map((j) => j.cut.id)
+    for (const id of clientJobIds) saveHiddenJob(uidAuth, id) // fire and forget, per R10
+    toast(`${toDelete.name} removed from the list.`)
+    setToDelete(null)
   }
 
   return (
@@ -115,13 +133,15 @@ export default function Home() {
                   }}
                 >
                   {folders.map((f) => (
-                    <button
+                    <div
                       key={f.id}
-                      type="button"
-                      onClick={() => navigate(`/client/${f.id}`)}
-                      className="flex w-full items-center justify-between border-b p-4 rounded-md mb-2 border-hair border-border py-2.5 text-left"
+                      className="mb-2 flex items-center justify-between rounded-md border-hair border-border py-2.5 pl-4 pr-2"
                     >
-                      <div className="flex min-w-0 items-center gap-3">
+                      <button
+                        type="button"
+                        onClick={() => navigate(`/client/${f.id}`)}
+                        className="flex min-w-0 flex-1 items-center gap-3 text-left"
+                      >
                         <div className="flex h-10 w-10 flex-none items-center justify-center rounded-full bg-muted text-muted-foreground">
                           <IconUser size={18} />
                         </div>
@@ -131,9 +151,17 @@ export default function Home() {
                             {plural(f.jobCount, 'job')} · {dayMonth(f.lastActivity)}
                           </p>
                         </div>
-                      </div>
-                      <IconChevronRight size={18} className="flex-none text-faint" />
-                    </button>
+                      </button>
+                      <button
+                        type="button"
+                        aria-label={`Remove ${f.name} from the list`}
+                        onClick={() => setToDelete(f)}
+                        className="flex h-9 w-9 flex-none items-center justify-center rounded-full text-muted-foreground hover:bg-muted hover:text-danger-text"
+                      >
+                        <IconTrash size={18} />
+                      </button>
+                      <IconChevronRight size={18} className="ml-1 flex-none text-faint" />
+                    </div>
                   ))}
                 </div>
                 {!atBottom && (
@@ -144,6 +172,27 @@ export default function Home() {
           )}
         </>
       )}
+
+      <Dialog open={!!toDelete} onOpenChange={(open) => !open && setToDelete(null)}>
+        <DialogContent>
+          <DialogTitle>Remove {toDelete?.name}?</DialogTitle>
+          <DialogDescription>
+            Their jobs leave this list only. Any leftovers already saved to stock stay exactly as
+            they are.
+          </DialogDescription>
+          <div className="mt-4 flex gap-2.5">
+            <Button variant="outline" className="h-11 flex-1" onClick={() => setToDelete(null)}>
+              Keep
+            </Button>
+            <Button
+              className="h-11 flex-1 bg-danger-text hover:opacity-90"
+              onClick={confirmDeleteClient}
+            >
+              Remove
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </AppShell>
   )
 }

@@ -22,6 +22,8 @@ function originText(l: Leftover): string {
   return `${l.letter} · from ${dayMonth(l.sheetDate)} sheet`
 }
 
+const PREVIEW_COUNT = 3
+
 export default function ClientJobs() {
   const { clientId } = useParams()
   const navigate = useNavigate()
@@ -32,6 +34,8 @@ export default function ClientJobs() {
   const toast = useToast((s) => s.show)
   const [toDelete, setToDelete] = useState<JobView | null>(null)
   const [leftoverToDelete, setLeftoverToDelete] = useState<Leftover | null>(null)
+  const [showAllJobs, setShowAllJobs] = useState(false)
+  const [showAllLeftovers, setShowAllLeftovers] = useState(false)
 
   const jobs = derived.jobs.filter((j) => (j.cut.clientId || UNASSIGNED_CLIENT_ID) === clientId)
   const leftovers = derived.freeLeftovers
@@ -39,6 +43,8 @@ export default function ClientJobs() {
     .sort((a, b) => b.w * b.h - a.w * a.h)
   const clientName =
     jobs[0]?.cut.clientName || leftovers[0]?.clientName || UNASSIGNED_CLIENT_NAME
+  const visibleJobs = showAllJobs ? jobs : jobs.slice(0, PREVIEW_COUNT)
+  const visibleLeftovers = showAllLeftovers ? leftovers : leftovers.slice(0, PREVIEW_COUNT)
 
   if (jobs.length === 0 && leftovers.length === 0) {
     return (
@@ -107,41 +113,52 @@ export default function ClientJobs() {
           <p className="text-[15px] text-muted-foreground">No jobs left for this client.</p>
         </div>
       ) : (
-        <div className="mb-6 overflow-hidden rounded-xl border-hair border-border">
-          {jobs.map((j, i) => (
-            <div
-              key={j.cut.id}
-              className={`flex items-center justify-between bg-card px-4 py-3 ${
-                i > 0 ? 'border-t border-hair border-border' : ''
-              }`}
+        <div className="mb-6">
+          <div className="mb-2 overflow-hidden rounded-xl border-hair border-border">
+            {visibleJobs.map((j, i) => (
+              <div
+                key={j.cut.id}
+                className={`flex items-center justify-between bg-card px-4 py-3 ${
+                  i > 0 ? 'border-t border-hair border-border' : ''
+                }`}
+              >
+                <button
+                  type="button"
+                  onClick={() => navigate(`/job/${j.cut.id}`)}
+                  className="flex min-w-0 flex-1 items-center gap-1.5 text-left"
+                >
+                  <div className="min-w-0">
+                    <p className="mb-0 flex items-center gap-1.5 text-[15px] font-semibold">
+                      {pieceSummary(j.cut.pieces)}
+                      {j.status === 'conflict' && (
+                        <span className="h-1.5 w-1.5 flex-none rounded-full bg-warning-border" />
+                      )}
+                    </p>
+                    <p className="mb-0 text-[13px] text-muted-foreground">
+                      {dayMonth(j.cut.createdAt)} · {sourceSummary(j.cut.sheets)}
+                    </p>
+                  </div>
+                </button>
+                <button
+                  type="button"
+                  aria-label="Remove this job from the list"
+                  onClick={() => setToDelete(j)}
+                  className="flex h-9 w-9 flex-none items-center justify-center rounded-full text-muted-foreground hover:bg-muted hover:text-danger-text"
+                >
+                  <IconTrash size={18} />
+                </button>
+              </div>
+            ))}
+          </div>
+          {!showAllJobs && jobs.length > PREVIEW_COUNT && (
+            <button
+              type="button"
+              onClick={() => setShowAllJobs(true)}
+              className="text-[13px] font-semibold text-accent-text underline underline-offset-2"
             >
-              <button
-                type="button"
-                onClick={() => navigate(`/job/${j.cut.id}`)}
-                className="flex min-w-0 flex-1 items-center gap-1.5 text-left"
-              >
-                <div className="min-w-0">
-                  <p className="mb-0 flex items-center gap-1.5 text-[15px] font-semibold">
-                    {pieceSummary(j.cut.pieces)}
-                    {j.status === 'conflict' && (
-                      <span className="h-1.5 w-1.5 flex-none rounded-full bg-warning-border" />
-                    )}
-                  </p>
-                  <p className="mb-0 text-[13px] text-muted-foreground">
-                    {dayMonth(j.cut.createdAt)} · {sourceSummary(j.cut.sheets)}
-                  </p>
-                </div>
-              </button>
-              <button
-                type="button"
-                aria-label="Remove this job from the list"
-                onClick={() => setToDelete(j)}
-                className="flex h-9 w-9 flex-none items-center justify-center rounded-full text-muted-foreground hover:bg-muted hover:text-danger-text"
-              >
-                <IconTrash size={18} />
-              </button>
-            </div>
-          ))}
+              See all ({jobs.length})
+            </button>
+          )}
         </div>
       )}
 
@@ -159,34 +176,45 @@ export default function ClientJobs() {
           None yet.
         </div>
       ) : (
-        <div className="mb-4 overflow-hidden rounded-xl border-hair border-success-border">
-          {leftovers.map((l, i) => (
-            <div
-              key={l.id}
-              className={`flex items-center justify-between bg-success-bg px-4 py-3 ${
-                i > 0 ? 'border-t border-hair border-success-border' : ''
-              }`}
+        <div className="mb-4">
+          <div className="mb-2 overflow-hidden rounded-xl border-hair border-success-border">
+            {visibleLeftovers.map((l, i) => (
+              <div
+                key={l.id}
+                className={`flex items-center justify-between bg-success-bg px-4 py-3 ${
+                  i > 0 ? 'border-t border-hair border-success-border' : ''
+                }`}
+              >
+                <button
+                  type="button"
+                  onClick={() => navigate(`/stock/${l.id}`)}
+                  className="flex min-w-0 flex-1 items-center gap-1.5 text-left"
+                >
+                  <div className="min-w-0">
+                    <p className="mb-0 text-[15px] font-semibold text-success-text">{fmtLeft(l.w, l.h)}</p>
+                    <p className="mb-0 text-[13px] text-muted-foreground">{originText(l)}</p>
+                  </div>
+                </button>
+                <button
+                  type="button"
+                  aria-label="Remove this leftover"
+                  onClick={() => setLeftoverToDelete(l)}
+                  className="flex h-9 w-9 flex-none items-center justify-center rounded-full text-muted-foreground hover:bg-muted hover:text-danger-text"
+                >
+                  <IconTrash size={18} />
+                </button>
+              </div>
+            ))}
+          </div>
+          {!showAllLeftovers && leftovers.length > PREVIEW_COUNT && (
+            <button
+              type="button"
+              onClick={() => setShowAllLeftovers(true)}
+              className="text-[13px] font-semibold text-accent-text underline underline-offset-2"
             >
-              <button
-                type="button"
-                onClick={() => navigate(`/stock/${l.id}`)}
-                className="flex min-w-0 flex-1 items-center gap-1.5 text-left"
-              >
-                <div className="min-w-0">
-                  <p className="mb-0 text-[15px] font-semibold text-success-text">{fmtLeft(l.w, l.h)}</p>
-                  <p className="mb-0 text-[13px] text-muted-foreground">{originText(l)}</p>
-                </div>
-              </button>
-              <button
-                type="button"
-                aria-label="Remove this leftover"
-                onClick={() => setLeftoverToDelete(l)}
-                className="flex h-9 w-9 flex-none items-center justify-center rounded-full text-muted-foreground hover:bg-muted hover:text-danger-text"
-              >
-                <IconTrash size={18} />
-              </button>
-            </div>
-          ))}
+              See all ({leftovers.length})
+            </button>
+          )}
         </div>
       )}
 
