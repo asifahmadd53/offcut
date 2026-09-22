@@ -80,9 +80,16 @@ export function PrintOrPdfDialog({ open, onOpenChange, cut, onPrint }: PrintOrPd
             {saving && <IconLoader2 size={18} className="animate-spin" />}
             Save as PDF
           </Button>
-          <Button variant="outline" className="h-12 w-full" onClick={onPrint}>
+          <Button variant="outline" className="mb-2.5 h-12 w-full" onClick={onPrint}>
             Print
           </Button>
+          <button
+            type="button"
+            onClick={() => onOpenChange(false)}
+            className="block w-full text-center text-[14px] text-accent-text"
+          >
+            Done
+          </button>
         </DialogPrimitive.Content>
       </DialogPrimitive.Portal>
     </DialogPrimitive.Root>
