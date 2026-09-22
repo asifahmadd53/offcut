@@ -72,7 +72,7 @@ export default function AddLeftover() {
     }
     saveCut(uidAuth, doc) // fire and forget, per R10
     toast(`${plural(qty, 'leftover')} added.`)
-    navigate('/stock')
+    navigate(`/client/${client.id}`)
   }
   function cleanNumber(raw: string): string {
     let v = raw.replace(/,/g, '.').replace(/[^0-9.]/g, '')
@@ -86,7 +86,7 @@ export default function AddLeftover() {
 
 
   return (
-    <AppShell title="Add leftover by hand" back="/stock">
+    <AppShell title="Add leftover by hand" back="/">
       <p className="mb-4 text-[13px] text-muted-foreground">
         For offcuts already standing in your workshop.
       </p>

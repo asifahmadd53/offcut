@@ -3,7 +3,6 @@ import { useNavigate } from 'react-router-dom'
 import {
   IconChevronLeft,
   IconHome,
-  IconLayoutGrid,
   IconLogout,
   IconScissors,
   IconSettings,
@@ -39,7 +38,6 @@ interface AppShellProps {
 
 const tabs = [
   { key: 'home' as const, label: 'Home', icon: IconHome, to: '/' },
-  { key: 'stock' as const, label: 'Leftover stock', icon: IconLayoutGrid, to: '/stock' },
   { key: 'settings' as const, label: 'Settings', icon: IconSettings, to: '/settings' },
 ]
 
@@ -233,7 +231,7 @@ export function AppShell({
                 )}
               >
                 <Icon size={21} />
-                {key === 'home' ? 'Home' : key === 'stock' ? 'Stock' : 'Settings'}
+                {key === 'home' ? 'Home' : 'Settings'}
                 {key === 'home' && conflictCount > 0 && (
                   <span className="absolute right-2 top-0.5 h-2 w-2 rounded-full bg-danger-text" />
                 )}

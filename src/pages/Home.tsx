@@ -86,25 +86,18 @@ export default function Home() {
       ) : (
         <>
           <div className="mb-4 grid grid-cols-2 gap-3">
-            <button
-              type="button"
-              onClick={() => navigate('/stock')}
-              className="rounded-lg bg-muted p-3 text-left"
-            >
+            <div className="rounded-lg bg-muted p-3">
               <p className="mb-0 text-[13px] text-muted-foreground">Saved leftovers</p>
               <p className="mb-0 font-sans text-[24px] font-semibold">{freeCount}</p>
-            </button>
+            </div>
             <div className="rounded-lg bg-muted p-3">
               <p className="mb-0 text-[13px] text-muted-foreground">Jobs this month</p>
               <p className="mb-0 font-sans text-[24px] font-semibold">{jobsThisMonth}</p>
             </div>
           </div>
 
-          <Button size="lg" className="mb-2.5 w-full" onClick={startNewJob}>
+          <Button size="lg" className="mb-4.5 w-full" onClick={startNewJob}>
             + New cutting job
-          </Button>
-          <Button size="lg" variant="outline" className="mb-4.5 w-full " onClick={() => navigate('/stock')}>
-            Leftover stock
           </Button>
 
           {folders.length > 0 && (

@@ -4,15 +4,23 @@ import { IconLayoutGrid, IconTrash } from '@tabler/icons-react'
 import { AppShell } from '@/components/AppShell'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from '@/components/ui/dialog'
-import { UNASSIGNED_CLIENT_ID, UNASSIGNED_CLIENT_NAME } from '@/lib/types'
-import { dayMonth } from '@/lib/format'
+import { UNASSIGNED_CLIENT_ID, UNASSIGNED_CLIENT_NAME, type Leftover } from '@/lib/types'
+import { dayMonth, plural } from '@/lib/format'
+import { fmtLeft } from '@/lib/inches'
 import { pieceSummary, sourceSummary } from '@/lib/summary'
-import { saveHiddenJob } from '@/lib/db'
+import { saveCut, saveHiddenJob } from '@/lib/db'
+import { getDeviceId, uid } from '@/lib/id'
 import { useAuth } from '@/store/auth'
 import { useData } from '@/store/data'
 import { useJob } from '@/store/job'
 import { useToast } from '@/store/toast'
+import type { CutDoc } from '@/lib/types'
 import type { JobView } from '@/lib/stock'
+
+function originText(l: Leftover): string {
+  if (l.manual) return `Added by hand · ${dayMonth(l.createdAt)}`
+  return `${l.letter} · from ${dayMonth(l.sheetDate)} sheet`
+}
 
 export default function ClientJobs() {
   const { clientId } = useParams()
@@ -23,11 +31,16 @@ export default function ClientJobs() {
   const setClient = useJob((s) => s.setClient)
   const toast = useToast((s) => s.show)
   const [toDelete, setToDelete] = useState<JobView | null>(null)
+  const [leftoverToDelete, setLeftoverToDelete] = useState<Leftover | null>(null)
 
   const jobs = derived.jobs.filter((j) => (j.cut.clientId || UNASSIGNED_CLIENT_ID) === clientId)
-  const clientName = jobs[0]?.cut.clientName || UNASSIGNED_CLIENT_NAME
+  const leftovers = derived.freeLeftovers
+    .filter((l) => l.clientId === clientId)
+    .sort((a, b) => b.w * b.h - a.w * a.h)
+  const clientName =
+    jobs[0]?.cut.clientName || leftovers[0]?.clientName || UNASSIGNED_CLIENT_NAME
 
-  if (jobs.length === 0) {
+  if (jobs.length === 0 && leftovers.length === 0) {
     return (
       <AppShell title="Client" back="/">
         <p className="mt-8 text-center text-[15px] text-muted-foreground">
@@ -48,6 +61,23 @@ export default function ClientJobs() {
     saveHiddenJob(uidAuth, toDelete.cut.id) // fire and forget, per R10
     toast('Job removed from the list.')
     setToDelete(null)
+  }
+
+  function confirmDeleteLeftover() {
+    if (!uidAuth || !leftoverToDelete) return
+    const doc: Omit<CutDoc, 'syncedAt'> = {
+      id: uid(),
+      type: 'discard',
+      createdAt: Date.now(),
+      deviceId: getDeviceId(),
+      sheets: [],
+      discardIds: [leftoverToDelete.id],
+      clientId: leftoverToDelete.clientId,
+      clientName: leftoverToDelete.clientName,
+    }
+    saveCut(uidAuth, doc) // fire and forget, per R10
+    toast('Leftover removed.')
+    setLeftoverToDelete(null)
   }
 
   return (
@@ -104,6 +134,45 @@ export default function ClientJobs() {
         </div>
       )}
 
+      <p className="mb-1 text-[13px] text-muted-foreground">
+        {plural(leftovers.length, 'saved leftover')} for {clientName}
+      </p>
+      {leftovers.length === 0 ? (
+        <p className="mb-4.5 text-[13px] text-muted-foreground">None yet.</p>
+      ) : (
+        <div className="mb-4.5">
+          {leftovers.map((l) => (
+            <div
+              key={l.id}
+              className="mb-2 flex items-center justify-between rounded-md border-hair border-border p-4 py-2.5"
+            >
+              <button
+                type="button"
+                onClick={() => navigate(`/stock/${l.id}`)}
+                className="flex min-w-0 flex-1 items-center gap-1.5 text-left"
+              >
+                <div className="min-w-0">
+                  <p className="mb-0 text-[15px] font-semibold">{fmtLeft(l.w, l.h)}</p>
+                  <p className="mb-0 text-[13px] text-muted-foreground">{originText(l)}</p>
+                </div>
+              </button>
+              <button
+                type="button"
+                aria-label="Remove this leftover"
+                onClick={() => setLeftoverToDelete(l)}
+                className="flex h-9 w-9 flex-none items-center justify-center text-muted-foreground"
+              >
+                <IconTrash size={18} />
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+
+      <Button variant="outline" className="mb-4.5 h-12 w-full" onClick={() => navigate('/stock/add')}>
+        + Add leftover by hand
+      </Button>
+
       <Dialog open={!!toDelete} onOpenChange={(open) => !open && setToDelete(null)}>
         <DialogContent>
           <DialogTitle>Remove this job?</DialogTitle>
@@ -116,6 +185,26 @@ export default function ClientJobs() {
               Keep
             </Button>
             <Button className="h-11 flex-1 bg-danger-text hover:opacity-90" onClick={confirmDelete}>
+              Remove
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={!!leftoverToDelete} onOpenChange={(open) => !open && setLeftoverToDelete(null)}>
+        <DialogContent>
+          <DialogTitle>Remove this leftover?</DialogTitle>
+          <DialogDescription>
+            It will leave stock and will not be suggested again. Your job history stays as it is.
+          </DialogDescription>
+          <div className="mt-4 flex gap-2.5">
+            <Button variant="outline" className="h-11 flex-1" onClick={() => setLeftoverToDelete(null)}>
+              Keep
+            </Button>
+            <Button
+              className="h-11 flex-1 bg-danger-text hover:opacity-90"
+              onClick={confirmDeleteLeftover}
+            >
               Remove
             </Button>
           </div>

@@ -9,7 +9,6 @@ import Login from '@/pages/Login'
 import Home from '@/pages/Home'
 import NewJob from '@/pages/NewJob'
 import Plan from '@/pages/Plan'
-import Stock from '@/pages/Stock'
 import AddLeftover from '@/pages/AddLeftover'
 import LeftoverDetail from '@/pages/LeftoverDetail'
 import JobDetail from '@/pages/JobDetail'
@@ -76,7 +75,6 @@ function AppRoutes() {
       <Route path="/" element={<RequireAuth><Home /></RequireAuth>} />
       <Route path="/new" element={<RequireAuth><NewJob /></RequireAuth>} />
       <Route path="/plan" element={<RequireAuth><Plan /></RequireAuth>} />
-      <Route path="/stock" element={<RequireAuth><Stock /></RequireAuth>} />
       <Route path="/stock/add" element={<RequireAuth><AddLeftover /></RequireAuth>} />
       <Route path="/stock/:id" element={<RequireAuth><LeftoverDetail /></RequireAuth>} />
       <Route path="/job/:id" element={<RequireAuth><JobDetail /></RequireAuth>} />

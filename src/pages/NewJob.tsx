@@ -135,7 +135,7 @@ export default function NewJob() {
   function chooseAnotherLeftover() {
     setMisfit(null)
     setOnlyLeftoverId(null)
-    navigate('/stock')
+    navigate(clientId ? `/client/${clientId}` : '/')
   }
 
   function cleanNumber(raw: string): string {

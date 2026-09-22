@@ -31,15 +31,16 @@ export default function LeftoverDetail() {
   const [confirmOpen, setConfirmOpen] = useState(false)
 
   const leftover = derived.leftovers.find((l) => l.id === id && l.status === 'free')
+  const backTo = leftover ? `/client/${leftover.clientId}` : '/'
 
   if (!leftover) {
     return (
-      <AppShell title="Leftover" back="/stock">
+      <AppShell title="Leftover" back="/">
         <p className="mt-8 text-center text-[15px] text-muted-foreground">
           This leftover is no longer in stock.
         </p>
-        <Button variant="outline" className="mt-4 h-12 w-full" onClick={() => navigate('/stock')}>
-          Back to stock
+        <Button variant="outline" className="mt-4 h-12 w-full" onClick={() => navigate('/')}>
+          Back to Home
         </Button>
       </AppShell>
     )
@@ -54,12 +55,12 @@ export default function LeftoverDetail() {
 
   if (!sourceCut || !sheet) {
     return (
-      <AppShell title="Leftover" back="/stock">
+      <AppShell title="Leftover" back={backTo}>
         <p className="mt-8 text-center text-[15px] text-muted-foreground">
           This leftover's sheet could not be found.
         </p>
-        <Button variant="outline" className="mt-4 h-12 w-full" onClick={() => navigate('/stock')}>
-          Back to stock
+        <Button variant="outline" className="mt-4 h-12 w-full" onClick={() => navigate(backTo)}>
+          Back to {leftover.clientName}
         </Button>
       </AppShell>
     )
@@ -96,11 +97,11 @@ export default function LeftoverDetail() {
     saveCut(uidAuth, doc) // fire and forget, per R10
     setConfirmOpen(false)
     toast('Leftover removed.')
-    navigate('/stock')
+    navigate(backTo)
   }
 
   return (
-    <AppShell title={`Leftover ${leftover.letter}`} back="/stock">
+    <AppShell title={`Leftover ${leftover.letter}`} back={backTo}>
       <div className="mb-3.5 rounded-lg bg-muted p-3 text-[13px]">
         <p className="mb-0.5 font-sans text-[24px] font-semibold text-foreground">
           {fmt(Math.min(leftover.w, leftover.h))} × {fmt(Math.max(leftover.w, leftover.h))}
