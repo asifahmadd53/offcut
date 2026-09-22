@@ -6,7 +6,9 @@ import { SyncBadge } from '@/components/SyncBadge'
 import { Button } from '@/components/ui/button'
 import { dayMonth } from '@/lib/format'
 import { fmtLeft } from '@/lib/inches'
+import { knownClients } from '@/lib/clients'
 import { useData } from '@/store/data'
+import { useJob } from '@/store/job'
 import type { Leftover } from '@/lib/types'
 
 function originText(l: Leftover): string {
@@ -17,10 +19,19 @@ function originText(l: Leftover): string {
 export default function Stock() {
   const navigate = useNavigate()
   const derived = useData((s) => s.derived)
+  const cuts = useData((s) => s.cuts)
+  const jobClientId = useJob((s) => s.clientId)
   const listRef = useRef<HTMLDivElement>(null)
   const [atBottom, setAtBottom] = useState(false)
 
-  const sorted = [...derived.freeLeftovers].sort((a, b) => b.w * b.h - a.w * a.h)
+  const clients = knownClients(cuts)
+  const [selectedClientId, setSelectedClientId] = useState<string | null>(null)
+  const activeClientId = selectedClientId ?? jobClientId ?? clients[0]?.id ?? null
+
+  const clientLeftovers = activeClientId
+    ? derived.freeLeftovers.filter((l) => l.clientId === activeClientId)
+    : []
+  const sorted = [...clientLeftovers].sort((a, b) => b.w * b.h - a.w * a.h)
   const totalArea = sorted.reduce((sum, l) => sum + l.w * l.h, 0)
 
   function onListScroll() {
@@ -37,7 +48,26 @@ export default function Stock() {
 
   return (
     <AppShell title="Leftover stock" tab="stock" headerRight={<SyncBadge />}>
-      {sorted.length === 0 ? (
+      {clients.length > 1 && (
+        <div className="thin-scroll mb-3.5 flex gap-2 overflow-x-auto pb-1">
+          {clients.map((c) => (
+            <button
+              key={c.id}
+              type="button"
+              onClick={() => setSelectedClientId(c.id)}
+              className={
+                c.id === activeClientId
+                  ? 'flex-none rounded-full bg-primary px-3 py-1.5 text-[13px] font-semibold text-primary-foreground'
+                  : 'flex-none rounded-full bg-muted px-3 py-1.5 text-[13px] text-muted-foreground'
+              }
+            >
+              {c.name}
+            </button>
+          ))}
+        </div>
+      )}
+
+      {clients.length === 0 ? (
         <div className="py-6 text-center">
           <div className="mx-auto mb-3 flex h-13 w-13 items-center justify-center rounded-xl bg-muted text-faint">
             <IconLayoutGrid size={26} />
@@ -49,6 +79,19 @@ export default function Stock() {
           <Button size="hero" className="mb-2.5 w-full" onClick={() => navigate('/new')}>
             + New cutting job
           </Button>
+          <Button variant="outline" className="h-12 w-full" onClick={() => navigate('/stock/add')}>
+            Add leftover by hand
+          </Button>
+        </div>
+      ) : sorted.length === 0 ? (
+        <div className="py-6 text-center">
+          <div className="mx-auto mb-3 flex h-13 w-13 items-center justify-center rounded-xl bg-muted text-faint">
+            <IconLayoutGrid size={26} />
+          </div>
+          <p className="mb-1 text-[17px] font-semibold">No leftovers for this client</p>
+          <p className="mx-auto mb-5 max-w-[34ch] text-[13px] text-muted-foreground">
+            Leftovers stay with the client they came from.
+          </p>
           <Button variant="outline" className="h-12 w-full" onClick={() => navigate('/stock/add')}>
             Add leftover by hand
           </Button>

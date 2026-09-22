@@ -40,6 +40,8 @@ export default function Plan() {
   const uidAuth = useAuth((s) => s.uid)
   const derived = useData((s) => s.derived)
   const pieces = useJob((s) => s.pieces)
+  const clientId = useJob((s) => s.clientId)
+  const clientName = useJob((s) => s.clientName)
   const plan = useJob((s) => s.plan)
   const buildPlan = useJob((s) => s.buildPlan)
   const clearJob = useJob((s) => s.clearJob)
@@ -159,6 +161,8 @@ export default function Plan() {
       pieces: placedPieces,
       kerf,
       sheets,
+      clientId,
+      clientName,
     }
 
     if (uidAuth) saveCut(uidAuth, doc) // fire and forget, per R10
@@ -186,6 +190,7 @@ export default function Plan() {
 
   return (
     <AppShell title="Cutting plan" back="/new">
+      <p className="mb-1 text-[15px] font-semibold">{clientName}</p>
       <p className="mb-3.5 text-[13px] text-muted-foreground">{subtitleFor(sheets, pieces)}</p>
 
       {forcedNote && (

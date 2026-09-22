@@ -26,6 +26,7 @@ export default function LeftoverDetail() {
   const uidAuth = useAuth((s) => s.uid)
   const derived = useData((s) => s.derived)
   const setOnlyLeftoverId = useJob((s) => s.setOnlyLeftoverId)
+  const setClient = useJob((s) => s.setClient)
   const toast = useToast((s) => s.show)
   const [confirmOpen, setConfirmOpen] = useState(false)
 
@@ -76,6 +77,7 @@ export default function LeftoverDetail() {
 
   function useInNewJob() {
     setOnlyLeftoverId(leftover!.id)
+    setClient(leftover!.clientId, leftover!.clientName)
     navigate('/new')
   }
 
@@ -88,6 +90,8 @@ export default function LeftoverDetail() {
       deviceId: getDeviceId(),
       sheets: [],
       discardIds: [leftover!.id],
+      clientId: leftover!.clientId,
+      clientName: leftover!.clientName,
     }
     saveCut(uidAuth, doc) // fire and forget, per R10
     setConfirmOpen(false)
@@ -104,6 +108,8 @@ export default function LeftoverDetail() {
         <p className="mb-2 text-muted-foreground">
           {Math.round(leftover.w * leftover.h).toLocaleString()} sq in
         </p>
+        <p className="mb-0.5 text-muted-foreground">Client</p>
+        <p className="mb-2 text-foreground">{leftover.clientName}</p>
         {!leftover.manual && (
           <>
             <p className="mb-0.5 text-muted-foreground">From</p>

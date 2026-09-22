@@ -70,6 +70,9 @@ export interface Leftover extends Rect {
   manual: boolean
   status: 'free' | 'used'
   usedByCutId?: string
+  /** Whose stock this leftover belongs to. Never offered to any other client's job. */
+  clientId: string
+  clientName: string
 }
 
 export type CutType = 'cut' | 'manual' | 'discard'
@@ -90,6 +93,9 @@ export interface CutDoc {
   kerf?: number
   sheets: SheetPlan[]
   discardIds?: string[]
+  /** Who this job/leftover-add/discard is for. Missing on older records (see UNASSIGNED_CLIENT_ID). */
+  clientId?: string
+  clientName?: string
 }
 
 export type Resolution = 'voided' | 'kept'
@@ -109,6 +115,10 @@ export interface Settings {
   /** Paper size used for the print pages. */
   paperSize: 'A4' | 'Letter'
 }
+
+/** Bucket for jobs/leftovers recorded before per-client tracking existed. */
+export const UNASSIGNED_CLIENT_ID = 'unassigned'
+export const UNASSIGNED_CLIENT_NAME = 'Unassigned'
 
 export const DEFAULT_SETTINGS: Settings = {
   sheetW: 48,

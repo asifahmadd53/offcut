@@ -19,6 +19,8 @@ const leftover = (w: number, h: number, id = `lo-${w}x${h}`): Leftover => ({
   createdAt: 1,
   manual: false,
   status: 'free',
+  clientId: 'client-1',
+  clientName: 'Test client',
   x: 0,
   y: 0,
   w,

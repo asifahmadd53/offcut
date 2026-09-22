@@ -296,6 +296,8 @@ describe('allRectSizeLabels', () => {
       createdAt: 1,
       manual: false,
       status: 'free' as const,
+      clientId: 'client-1',
+      clientName: 'Test client',
     }))
     const second = packJob([piece(10, 10, 1)], leftoverStock, opts)
     expect(second.sheets).toHaveLength(1)

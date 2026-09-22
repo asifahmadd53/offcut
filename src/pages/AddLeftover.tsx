@@ -7,9 +7,11 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { parseInches } from '@/lib/inches'
 import { plural } from '@/lib/format'
+import { knownClients, resolveClient } from '@/lib/clients'
 import { saveCut } from '@/lib/db'
 import { getDeviceId, uid } from '@/lib/id'
 import { useAuth } from '@/store/auth'
+import { useData } from '@/store/data'
 import { useToast } from '@/store/toast'
 import type { CutDoc, SheetPlan } from '@/lib/types'
 
@@ -17,11 +19,14 @@ export default function AddLeftover() {
   const navigate = useNavigate()
   const uidAuth = useAuth((s) => s.uid)
   const toast = useToast((s) => s.show)
+  const cuts = useData((s) => s.cuts)
+  const clientOptions = knownClients(cuts)
 
   const [width, setWidth] = useState('')
   const [height, setHeight] = useState('')
   const [qty, setQty] = useState(1)
   const [touched, setTouched] = useState(false)
+  const [clientInput, setClientInput] = useState('')
   const widthRef = useRef<HTMLInputElement>(null)
 
   const wVal = parseInches(width)
@@ -40,7 +45,8 @@ export default function AddLeftover() {
 
   function onAdd() {
     setTouched(true)
-    if (!bothValid || !uidAuth) return
+    if (!bothValid || !uidAuth || !clientInput.trim()) return
+    const client = resolveClient(clientInput, clientOptions)
 
     const sheets: SheetPlan[] = Array.from({ length: qty }, () => ({
       sheetId: uid(),
@@ -61,6 +67,8 @@ export default function AddLeftover() {
       createdAt: Date.now(),
       deviceId: getDeviceId(),
       sheets,
+      clientId: client.id,
+      clientName: client.name,
     }
     saveCut(uidAuth, doc) // fire and forget, per R10
     toast(`${plural(qty, 'leftover')} added.`)
@@ -82,6 +90,30 @@ export default function AddLeftover() {
       <p className="mb-4 text-[13px] text-muted-foreground">
         For offcuts already standing in your workshop.
       </p>
+
+      <div className="mb-3.5">
+        <Label htmlFor="al-client">Client name</Label>
+        <Input
+          id="al-client"
+          type="text"
+          inputMode="text"
+          autoComplete="off"
+          list="al-client-options"
+          placeholder="e.g. Ali"
+          className="h-[42px] border border-border-stronger bg-transparent px-3 text-[16px]"
+          value={clientInput}
+          onChange={(e) => setClientInput(e.target.value)}
+          onBlur={() => setTouched(true)}
+        />
+        <datalist id="al-client-options">
+          {clientOptions.map((c) => (
+            <option key={c.id} value={c.name} />
+          ))}
+        </datalist>
+        {touched && !clientInput.trim() && (
+          <p className="mt-1 text-[13px] text-danger-text">Type whose offcut this is.</p>
+        )}
+      </div>
 
       <div className="mb-2.5 grid grid-cols-1 gap-3 p-2 lg:grid-cols-2">
         <div>
@@ -137,7 +169,7 @@ export default function AddLeftover() {
         sheet diagram.
       </div>
 
-      <Button size="lg" className="w-full" disabled={!bothValid} onClick={onAdd}>
+      <Button size="lg" className="w-full" disabled={!bothValid || !clientInput.trim()} onClick={onAdd}>
         Add to stock
       </Button>
     </AppShell>

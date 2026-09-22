@@ -138,6 +138,7 @@ export default function Home() {
                           )}
                         </p>
                         <p className="mb-0 text-[13px] text-muted-foreground">
+                          {j.cut.clientName ? `${j.cut.clientName} · ` : ''}
                           {dayMonth(j.cut.createdAt)} · {sourceSummary(j.cut.sheets)}
                         </p>
                       </div>

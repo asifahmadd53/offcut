@@ -6,6 +6,11 @@ import type { Leftover, Piece, SheetPlan } from '@/lib/types'
 import { useData } from './data'
 import { useSettings } from './settings'
 
+/** Only this client's own leftovers are ever offered as stock for their job (never pooled across clients). */
+function stockForClient(freeLeftovers: Leftover[], clientId: string): Leftover[] {
+  return freeLeftovers.filter((l) => l.clientId === clientId)
+}
+
 export interface PlanState {
   sheets: SheetPlan[]
   unplaced: Item[]
@@ -27,6 +32,9 @@ export interface LeftoverFitCheck {
 interface JobState {
   /** The pieces being entered. Saved on the phone so nothing is lost if the app closes. */
   pieces: Piece[]
+  /** The client this job is for. Their leftovers are the only stock ever offered to them. */
+  clientId: string
+  clientName: string
   plan: PlanState | null
   /** Set from Leftover detail's "Use this in a new job": restrict the next plan to this one leftover. */
   onlyLeftoverId: string | null
@@ -38,6 +46,7 @@ interface JobState {
   addPiece: (w: number, h: number, qty: number) => void
   removePiece: (id: string) => void
   setPieces: (pieces: Piece[]) => void
+  setClient: (clientId: string, clientName: string) => void
   clearJob: () => void
   buildPlan: (excluded?: string[]) => void
   /**
@@ -56,6 +65,8 @@ export const useJob = create<JobState>()(
   persist(
     (set, get) => ({
       pieces: [],
+      clientId: '',
+      clientName: '',
       plan: null,
       onlyLeftoverId: null,
       forceNewSheet: false,
@@ -72,18 +83,21 @@ export const useJob = create<JobState>()(
           forceNewSheet: false,
         })),
       setPieces: (pieces) => set({ pieces, plan: null, forceNewSheet: false }),
-      clearJob: () => set({ pieces: [], plan: null, onlyLeftoverId: null, forceNewSheet: false }),
+      setClient: (clientId, clientName) => set({ clientId, clientName, plan: null, forceNewSheet: false }),
+      clearJob: () =>
+        set({ pieces: [], clientId: '', clientName: '', plan: null, onlyLeftoverId: null, forceNewSheet: false }),
       buildPlan: (excluded = []) => {
         const { derived } = useData.getState()
         const { settings } = useSettings.getState()
         const kerf = settings.kerfOn ? settings.kerfSize : 0
         const only = get().onlyLeftoverId
         const forceNewSheet = get().forceNewSheet
+        const clientStock = stockForClient(derived.freeLeftovers, get().clientId)
         const stock = only
-          ? derived.freeLeftovers.filter((l) => l.id === only)
+          ? clientStock.filter((l) => l.id === only)
           : forceNewSheet
             ? []
-            : derived.freeLeftovers
+            : clientStock
         const result = packJob(
           get().pieces,
           stock,
@@ -107,7 +121,7 @@ export const useJob = create<JobState>()(
         if (!only) return null
         const { derived } = useData.getState()
         const { settings } = useSettings.getState()
-        const lo = derived.freeLeftovers.find((l) => l.id === only)
+        const lo = stockForClient(derived.freeLeftovers, get().clientId).find((l) => l.id === only)
         if (!lo) return null
         const kerf = settings.kerfOn ? settings.kerfSize : 0
         const result = packJob(
@@ -144,7 +158,7 @@ export const useJob = create<JobState>()(
         const { settings } = useSettings.getState()
         const kerf = settings.kerfOn ? settings.kerfSize : 0
         const only = get().onlyLeftoverId
-        const stock = only ? derived.freeLeftovers.filter((l) => l.id === only) : []
+        const stock = only ? stockForClient(derived.freeLeftovers, get().clientId).filter((l) => l.id === only) : []
         const result = packJob(
           get().pieces,
           stock,
@@ -164,6 +178,6 @@ export const useJob = create<JobState>()(
       setOnlyLeftoverId: (id) => set({ onlyLeftoverId: id }),
       setForceNewSheet: (v) => set({ forceNewSheet: v }),
     }),
-    { name: 'sc-job-draft', partialize: (s) => ({ pieces: s.pieces }) },
+    { name: 'sc-job-draft', partialize: (s) => ({ pieces: s.pieces, clientId: s.clientId, clientName: s.clientName }) },
   ),
 )

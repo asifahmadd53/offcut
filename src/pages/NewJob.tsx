@@ -8,6 +8,7 @@ import { Label } from '@/components/ui/label'
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from '@/components/ui/dialog'
 import { parseInches, fmtDims, fmtLeft } from '@/lib/inches'
 import { plural } from '@/lib/format'
+import { knownClients, resolveClient } from '@/lib/clients'
 import { useJob, type LeftoverFitCheck } from '@/store/job'
 import { useSettings } from '@/store/settings'
 import { useData } from '@/store/data'
@@ -24,6 +25,9 @@ function fieldMessage(which: 'Width' | 'Height', err: FieldError): string | null
 export default function NewJob() {
   const navigate = useNavigate()
   const pieces = useJob((s) => s.pieces)
+  const clientId = useJob((s) => s.clientId)
+  const clientName = useJob((s) => s.clientName)
+  const setClient = useJob((s) => s.setClient)
   const addPiece = useJob((s) => s.addPiece)
   const removePiece = useJob((s) => s.removePiece)
   const buildPlan = useJob((s) => s.buildPlan)
@@ -35,6 +39,19 @@ export default function NewJob() {
   const updateSettings = useSettings((s) => s.update)
   const toast = useToast((s) => s.show)
   const freeLeftovers = useData((s) => s.derived.freeLeftovers)
+  const cuts = useData((s) => s.cuts)
+  const clientOptions = knownClients(cuts)
+
+  const [clientInput, setClientInput] = useState(clientName)
+  const [clientTouched, setClientTouched] = useState(false)
+
+  function commitClient(name: string) {
+    const trimmed = name.trim()
+    if (!trimmed) return
+    const resolved = resolveClient(trimmed, clientOptions)
+    setClient(resolved.id, resolved.name)
+    setClientInput(resolved.name)
+  }
 
   const [misfit, setMisfit] = useState<LeftoverFitCheck | null>(null)
   const onlyLeftover = onlyLeftoverId ? freeLeftovers.find((l) => l.id === onlyLeftoverId) : undefined
@@ -80,6 +97,12 @@ export default function NewJob() {
   }
 
   function onMakePlan() {
+    setClientTouched(true)
+    if (!clientId) {
+      commitClient(clientInput)
+      if (!clientInput.trim()) return
+    }
+
     // If a valid piece is typed but not added yet, add it first.
     if (bothValid && !tooBig) {
       addPiece(wVal!, hVal!, qty)
@@ -126,7 +149,8 @@ export default function NewJob() {
   }
 
   const hasTypedValid = bothValid && !tooBig
-  const canMakePlan = pieces.length > 0 || hasTypedValid
+  const canMakePlan = (pieces.length > 0 || hasTypedValid) && clientInput.trim() !== ''
+  const showClientErr = clientTouched && clientInput.trim() === ''
 
   return (
     <AppShell title="New job" back="/">
@@ -136,6 +160,38 @@ export default function NewJob() {
           {onlyLeftover ? ` (${fmtLeft(onlyLeftover.w, onlyLeftover.h)})` : ''} only.
         </div>
       )}
+
+      <div className="mb-3.5">
+        <Label htmlFor="client">Client name</Label>
+        <Input
+          id="client"
+          type="text"
+          inputMode="text"
+          autoComplete="off"
+          list="client-options"
+          placeholder="e.g. Ali"
+          enterKeyHint="next"
+          className="h-[42px] border border-border-stronger bg-transparent px-3 text-[16px]"
+          value={clientInput}
+          onChange={(e) => setClientInput(e.target.value)}
+          onBlur={() => {
+            setClientTouched(true)
+            commitClient(clientInput)
+          }}
+        />
+        <datalist id="client-options">
+          {clientOptions.map((c) => (
+            <option key={c.id} value={c.name} />
+          ))}
+        </datalist>
+        {showClientErr ? (
+          <p className="mt-1 text-[13px] text-danger-text">Type who this job is for.</p>
+        ) : (
+          <p className="mt-1 text-[12px] text-faint">
+            Their leftovers stay separate from every other client's.
+          </p>
+        )}
+      </div>
 
       {tooBig && (
         <div className="mb-3 rounded-lg bg-warning-bg p-3 text-[14px] text-warning-text">

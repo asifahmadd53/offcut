@@ -15,6 +15,7 @@ export default function JobDetail() {
   const navigate = useNavigate()
   const derived = useData((s) => s.derived)
   const setPieces = useJob((s) => s.setPieces)
+  const setClient = useJob((s) => s.setClient)
   const [printOpen, setPrintOpen] = useState(false)
 
   const job = derived.jobs.find((j) => j.cut.id === id)
@@ -34,11 +35,13 @@ export default function JobDetail() {
 
   function cutAgain() {
     if (cut.pieces) setPieces(cut.pieces)
+    if (cut.clientId) setClient(cut.clientId, cut.clientName ?? '')
     navigate('/new')
   }
 
   return (
     <AppShell title={pieceSummary(cut.pieces)} back="/">
+      {cut.clientName && <p className="mb-1 text-[15px] font-semibold">{cut.clientName}</p>}
       <p className="mb-3.5 text-[13px] text-muted-foreground">
         Cut on {dayMonth(cut.createdAt)} · {sourceSummary(cut.sheets)} · {bladeText}
       </p>

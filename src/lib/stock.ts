@@ -1,4 +1,4 @@
-import type { CutDoc, Leftover, Resolution, SheetPlan } from './types'
+import { UNASSIGNED_CLIENT_ID, UNASSIGNED_CLIENT_NAME, type CutDoc, type Leftover, type Resolution, type SheetPlan } from './types'
 
 /**
  * Stock is never stored as a list that phones edit. Every phone only ADDS records
@@ -77,6 +77,8 @@ function addLeftovers(known: Map<string, Leftover>, cut: CutDoc, sheet: SheetPla
       createdAt: cut.createdAt,
       manual: Boolean(sheet.manual),
       status: 'free',
+      clientId: cut.clientId || UNASSIGNED_CLIENT_ID,
+      clientName: cut.clientName || UNASSIGNED_CLIENT_NAME,
     })
   }
 }
