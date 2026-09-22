@@ -209,7 +209,13 @@ export default function Plan() {
       )}
 
       {sheets.length > 1 && (
-        <div className="mb-3 flex gap-2.5">
+        <p className="mb-3 text-[13px] font-semibold text-foreground md:hidden">
+          {plural(sheets.length, 'sheet')} in this job
+        </p>
+      )}
+
+      {sheets.length > 1 && (
+        <div className="mb-3 flex gap-2.5 md:hidden">
           {sheets.map((_, i) => (
             <button
               key={i}
@@ -227,7 +233,27 @@ export default function Plan() {
         </div>
       )}
 
-      {sheet && <PlanSheet sheet={sheet} blocks={buildBlocks(sheet, derived)} />}
+      {/* Mobile: one sheet at a time via the pills above. md+: every sheet stacked on one page. */}
+      <div className="md:hidden">
+        {sheet && <PlanSheet sheet={sheet} blocks={buildBlocks(sheet, derived)} />}
+      </div>
+      <div className="hidden md:block">
+        {sheets.length > 1 && (
+          <p className="mb-4 text-[13px] font-semibold text-foreground">
+            {plural(sheets.length, 'sheet')} in this job
+          </p>
+        )}
+        {sheets.map((s, i) => (
+          <div key={s.sheetId + i} className="mb-8">
+            {sheets.length > 1 && (
+              <p className="mb-2 text-[13px] text-muted-foreground">
+                Sheet {i + 1} of {sheets.length}
+              </p>
+            )}
+            <PlanSheet sheet={s} blocks={buildBlocks(s, derived)} />
+          </div>
+        ))}
+      </div>
 
       {unplaced.length > 0 && (
         <div className="mb-3.5 rounded-lg bg-warning-bg px-3 py-2.5 text-[13.5px] text-warning-text">
