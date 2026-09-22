@@ -8,7 +8,7 @@ import { UNASSIGNED_CLIENT_ID, UNASSIGNED_CLIENT_NAME, type Leftover } from '@/l
 import { dayMonth, plural } from '@/lib/format'
 import { fmtLeft } from '@/lib/inches'
 import { pieceSummary, sourceSummary } from '@/lib/summary'
-import { saveCut, saveHiddenJob } from '@/lib/db'
+import { saveCut } from '@/lib/db'
 import { getDeviceId, uid } from '@/lib/id'
 import { useAuth } from '@/store/auth'
 import { useData } from '@/store/data'
@@ -29,6 +29,7 @@ export default function ClientJobs() {
   const navigate = useNavigate()
   const uidAuth = useAuth((s) => s.uid)
   const derived = useData((s) => s.derived)
+  const hideJobs = useData((s) => s.hideJobs)
   const clearJob = useJob((s) => s.clearJob)
   const setClient = useJob((s) => s.setClient)
   const toast = useToast((s) => s.show)
@@ -64,7 +65,7 @@ export default function ClientJobs() {
 
   function confirmDelete() {
     if (!uidAuth || !toDelete) return
-    saveHiddenJob(uidAuth, toDelete.cut.id) // fire and forget, per R10
+    hideJobs(uidAuth, [toDelete.cut.id])
     toast('Job removed from the list.')
     setToDelete(null)
   }

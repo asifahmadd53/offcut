@@ -7,7 +7,6 @@ import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from '@/components/ui/dialog'
 import { clientFolders, type ClientFolder } from '@/lib/clients'
 import { dayMonth, plural } from '@/lib/format'
-import { saveHiddenJob } from '@/lib/db'
 import { UNASSIGNED_CLIENT_ID } from '@/lib/types'
 import { useAuth } from '@/store/auth'
 import { useData } from '@/store/data'
@@ -18,6 +17,7 @@ export default function Home() {
   const navigate = useNavigate()
   const uidAuth = useAuth((s) => s.uid)
   const derived = useData((s) => s.derived)
+  const hideJobs = useData((s) => s.hideJobs)
   const clearJob = useJob((s) => s.clearJob)
   const toast = useToast((s) => s.show)
   const listRef = useRef<HTMLDivElement>(null)
@@ -31,7 +31,6 @@ export default function Home() {
     setAtBottom(!overflowing || el.scrollHeight - el.scrollTop - el.clientHeight < 4)
   }
 
-  const freeCount = derived.freeLeftovers.length
   const now = new Date()
   const jobsThisMonth = derived.jobs.filter((j) => {
     const d = new Date(j.cut.createdAt)
@@ -42,6 +41,12 @@ export default function Home() {
     )
   }).length
   const folders = clientFolders(derived.jobs)
+  // Only count leftovers for a client still shown in the list — a deleted client's
+  // leftovers stay saved (untouched), but this total should match what's reachable.
+  const visibleClientIds = new Set(folders.map((f) => f.id))
+  const freeCount = derived.freeLeftovers.filter((l) =>
+    visibleClientIds.has(l.clientId || UNASSIGNED_CLIENT_ID),
+  ).length
   const conflictCount = derived.conflicts.length
   const firstUse = derived.jobs.length === 0 && derived.freeLeftovers.length === 0
 
@@ -60,7 +65,7 @@ export default function Home() {
     const clientJobIds = derived.jobs
       .filter((j) => (j.cut.clientId || UNASSIGNED_CLIENT_ID) === toDelete.id)
       .map((j) => j.cut.id)
-    for (const id of clientJobIds) saveHiddenJob(uidAuth, id) // fire and forget, per R10
+    hideJobs(uidAuth, clientJobIds)
     toast(`${toDelete.name} removed from the list.`)
     setToDelete(null)
   }

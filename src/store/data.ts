@@ -1,11 +1,12 @@
 import { create } from 'zustand'
 import { onSnapshot, type Timestamp } from 'firebase/firestore'
-import { cutsCollection, hiddenJobsCollection, resolutionsCollection, settingsDoc } from '@/lib/db'
+import { cutsCollection, hiddenJobsCollection, resolutionsCollection, saveHiddenJob, settingsDoc } from '@/lib/db'
 import { deriveStock, EMPTY_DERIVED, type Derived } from '@/lib/stock'
 import type { CutDoc, Resolution, Settings } from '@/lib/types'
 import { useSettings } from './settings'
 
 const LAST_SYNC_KEY = 'sc-last-sync'
+const HIDDEN_JOBS_KEY = 'sc-hidden-jobs'
 
 function readLastSync(): number | null {
   try {
@@ -13,6 +14,32 @@ function readLastSync(): number | null {
     return v ? Number(v) : null
   } catch {
     return null
+  }
+}
+
+/**
+ * A job hide is remembered on this phone the instant it happens, independent of whether
+ * the Firestore write has synced yet. This is a backup, not the source of truth: every
+ * hide is still written to Firestore (so other phones learn about it too), but a phone
+ * never "forgets" a hide it already knows about just because a server snapshot it reads
+ * later happens to not include that id yet (a slow/offline write, a stale cached read).
+ */
+function readLocalHiddenJobs(): Set<string> {
+  try {
+    const v = localStorage.getItem(HIDDEN_JOBS_KEY)
+    return v ? new Set(JSON.parse(v) as string[]) : new Set()
+  } catch {
+    return new Set()
+  }
+}
+
+function addLocalHiddenJobs(ids: Iterable<string>) {
+  try {
+    const current = readLocalHiddenJobs()
+    for (const id of ids) current.add(id)
+    localStorage.setItem(HIDDEN_JOBS_KEY, JSON.stringify([...current]))
+  } catch {
+    /* storage blocked, ignore — Firestore sync is still the source of truth */
   }
 }
 
@@ -32,6 +59,12 @@ interface DataState {
   lastSyncedAt: number | null
   start: (uid: string) => void
   stop: () => void
+  /**
+   * Hides a job (or several) from the job lists. Records the hide on this phone
+   * immediately (so it can never be lost/delayed by the network) and fires the
+   * Firestore write so other phones learn about it too — never awaited, per R10.
+   */
+  hideJobs: (uid: string, cutIds: string[]) => void
 }
 
 let unsubs: Array<() => void> = []
@@ -67,7 +100,7 @@ export const useData = create<DataState>((set, get) => {
   return {
     cuts: [],
     resolutions: {},
-    hiddenJobIds: new Set(),
+    hiddenJobIds: readLocalHiddenJobs(),
     derived: EMPTY_DERIVED,
     ready: false,
     online: typeof navigator === 'undefined' ? true : navigator.onLine,
@@ -132,7 +165,12 @@ export const useData = create<DataState>((set, get) => {
         hiddenJobsCollection(uid),
         { includeMetadataChanges: true },
         (snap) => {
-          const hiddenJobIds = new Set(snap.docs.map((d) => d.id))
+          // Merge with this phone's own locally-remembered hides (readLocalHiddenJobs) so a
+          // hide never "un-happens" just because this particular snapshot doesn't include it
+          // yet — e.g. a slow/offline write, or a stale cached read arriving after a fresher
+          // local write. Firestore stays the source of truth for syncing to OTHER phones;
+          // this only protects the phone that actually did the hiding.
+          const hiddenJobIds = new Set([...snap.docs.map((d) => d.id), ...readLocalHiddenJobs()])
           meta.hiddenJobs = {
             pending: snap.metadata.hasPendingWrites,
             fromCache: snap.metadata.fromCache,
@@ -190,6 +228,14 @@ export const useData = create<DataState>((set, get) => {
         ready: false,
         pendingCount: 0,
       })
+    },
+
+    hideJobs: (uid, cutIds) => {
+      if (cutIds.length === 0) return
+      addLocalHiddenJobs(cutIds)
+      const hiddenJobIds = new Set([...get().hiddenJobIds, ...cutIds])
+      set({ hiddenJobIds, derived: deriveStock(get().cuts, get().resolutions, hiddenJobIds) })
+      for (const id of cutIds) saveHiddenJob(uid, id) // fire and forget, per R10
     },
   }
 })
