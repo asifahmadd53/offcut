@@ -42,7 +42,9 @@ describe('pdfFileName', () => {
       sheets: [],
     }
     const name = pdfFileName(cut)
-    expect(name).not.toMatch(/[\\/:*?"<>|]/)
+    // "/" is deliberately kept (see pdfFileName's own comment) for a sheet number like
+    // "34/56" — every other unsafe character is still stripped.
+    expect(name).not.toMatch(/[\\:*?"<>|]/)
     expect(name.endsWith('.pdf')).toBe(true)
   })
 
@@ -74,7 +76,7 @@ describe('pdfFileName', () => {
       clientName: 'Asif',
       sheetNumber: '34/66',
     }
-    expect(pdfFileName(cut)).toBe('Asif - 34-66.pdf')
+    expect(pdfFileName(cut)).toBe('Asif - 34/66.pdf')
   })
 
   it('falls back to the piece/date name when sheetNumber is missing, even with a client', () => {

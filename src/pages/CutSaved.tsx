@@ -36,7 +36,10 @@ export default function CutSaved() {
     <PrintOrPdfDialog
       open
       onOpenChange={(open) => {
-        if (!open) navigate('/', { replace: true })
+        // Closing the popup (X, backdrop, a successful PDF save) no longer jumps to
+        // Home — it lands on this job's own Job detail page instead, so there is
+        // always something behind the popup rather than a blank transient screen.
+        if (!open) navigate(`/job/${cutDoc.id}`, { replace: true })
       }}
       cut={cutDoc}
       onPrint={() => navigate(`/print/${cutDoc.id}`, { replace: true })}

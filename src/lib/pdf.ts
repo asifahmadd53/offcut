@@ -13,16 +13,18 @@ import type { CutDoc, Settings } from './types'
 
 /**
  * Turns a job's client/sheet reference (or its pieces/date, when either is missing) into
- * a safe file name — e.g. "Asif - 34-66.pdf" when both were typed on New job, else falling
- * back to "Offcut - 23x77 2pcs - 2026-09-21". Pure and DOM-free so it can be unit-tested
- * without touching jsPDF or the browser at all.
+ * a file name — e.g. "Asif - 34/56.pdf" when both were typed on New job, else falling back
+ * to "Offcut - 23x77 2pcs - 2026-09-21". The "/" in a sheet number like "34/56" is kept as
+ * typed rather than swapped out (an explicit choice — browsers save it fine as visible file
+ * name text even though it is a path separator at the OS level). Pure and DOM-free so it
+ * can be unit-tested without touching jsPDF or the browser at all.
  */
 export function pdfFileName(cut: CutDoc): string {
   const clientName = cut.clientName?.trim()
   const sheetNumber = cut.sheetNumber?.trim()
   const raw =
     clientName && sheetNumber
-      ? `${clientName} - ${sheetNumber.replace(/\//g, '-')}`
+      ? `${clientName} - ${sheetNumber}`
       : (() => {
           const first = cut.pieces?.[0]
           const pieceText = first ? `${fmt(first.w)}x${fmt(first.h)} ${first.qty}pcs` : 'sheet'
@@ -30,8 +32,8 @@ export function pdfFileName(cut: CutDoc): string {
           const dateText = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`
           return `Offcut - ${pieceText} - ${dateText}`
         })()
-  // Strip characters most filesystems reject; collapse the whitespace that leaves behind.
-  return raw.replace(/[\\/:*?"<>|]/g, '').replace(/\s+/g, ' ').trim() + '.pdf'
+  // Strip characters most filesystems reject, but keep "/" (see comment above).
+  return raw.replace(/[\\:*?"<>|]/g, '').replace(/\s+/g, ' ').trim() + '.pdf'
 }
 
 const PAGE_MM: Record<'A4' | 'Letter', { w: number; h: number }> = {
