@@ -180,28 +180,6 @@ export default function Settings() {
       title="Settings"
       tab="settings"
       onNavigate={onNavigate}
-      sidebarAction={
-        <Button
-          type="button"
-          className="flex h-9 items-center justify-center gap-2 rounded-[10px] px-1 text-[13px]"
-          disabled={!dirty}
-          onClick={() => setSaveOpen(true)}
-        >
-          Save changes
-        </Button>
-      }
-      stickyBar={
-        <div className="flex flex-none items-center rounded-2xl border-hair border-border bg-card p-3 shadow-elevated">
-          <Button
-            size="lg"
-            className="h-[52px] w-full"
-            disabled={!dirty}
-            onClick={() => setSaveOpen(true)}
-          >
-            Save changes
-          </Button>
-        </div>
-      }
     >
       <div className='border border-border rounded-md p-2'>
 
@@ -329,8 +307,8 @@ export default function Settings() {
         Save changes
       </Button>
 
-      {/* lg+ already has Log out in the sidebar (AppShell's sidebarAction fallback) — this
-          is the only way to log out below that width, so it stays here for md and phone. */}
+      {/* lg+ already has Log out in AppShell's own sidebar — this is the only way to log
+          out below that width, so it stays here for md and phone. */}
       <Button variant="outline" className="h-12 w-full lg:hidden" onClick={() => setLogoutOpen(true)}>
         Log out
       </Button>

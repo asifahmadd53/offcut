@@ -34,13 +34,6 @@ interface AppShellProps {
   onNavigate?: (to: string) => boolean
   /** Rendered as a sticky bar above the tab bar, e.g. Settings' "Save changes" bar. */
   stickyBar?: ReactNode
-  /**
-   * Replaces the lg+ sidebar's own "Log out" button with this instead, for this page only —
-   * every other page keeps Log out in the sidebar exactly as before. Used by Settings so the
-   * lg+ sidebar's bottom slot shows "Save changes" (there is no room for a second Discard
-   * button there — Settings' own Save changes flow opens a Save/Discard popup instead).
-   */
-  sidebarAction?: ReactNode
 }
 
 const tabs = [
@@ -57,7 +50,6 @@ export function AppShell({
   headerRight,
   onNavigate,
   stickyBar,
-  sidebarAction,
 }: AppShellProps) {
   const navigate = useNavigate()
   const emailVerified = useAuth((s) => s.emailVerified)
@@ -140,16 +132,14 @@ export function AppShell({
         <div className="mt-4 flex flex-col gap-2  border-border pt-4">
           <SyncBadge />
           {email && <p className="truncate px-1 text-[12px] text-muted-foreground">{email}</p>}
-          {sidebarAction ?? (
-            <Button
-              type="button"
-              onClick={() => logout()}
-              className="flex h-9 bg-red-800 items-center gap-2 rounded-[10px] px-1 text-[13px] text-foreground hover:text-foreground"
-            >
-              <IconLogout size={16} />
-              Log out
-            </Button>
-          )}
+          <Button
+            type="button"
+            onClick={() => logout()}
+            className="flex h-9 bg-red-800 items-center gap-2 rounded-[10px] px-1 text-[13px] text-foreground hover:text-foreground"
+          >
+            <IconLogout size={16} />
+            Log out
+          </Button>
         </div>
       </aside>
 
