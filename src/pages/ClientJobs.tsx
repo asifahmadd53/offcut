@@ -19,8 +19,7 @@ export default function ClientJobs() {
   const navigate = useNavigate()
   const uidAuth = useAuth((s) => s.uid)
   const derived = useData((s) => s.derived)
-  const setOnlyLeftoverId = useJob((s) => s.setOnlyLeftoverId)
-  const setForceNewSheet = useJob((s) => s.setForceNewSheet)
+  const clearJob = useJob((s) => s.clearJob)
   const setClient = useJob((s) => s.setClient)
   const toast = useToast((s) => s.show)
   const [toDelete, setToDelete] = useState<JobView | null>(null)
@@ -39,8 +38,7 @@ export default function ClientJobs() {
   }
 
   function startNewJobForClient() {
-    setOnlyLeftoverId(null)
-    setForceNewSheet(false)
+    clearJob()
     setClient(clientId!, clientName)
     navigate('/new')
   }

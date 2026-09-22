@@ -12,8 +12,7 @@ import { useJob } from '@/store/job'
 export default function Home() {
   const navigate = useNavigate()
   const derived = useData((s) => s.derived)
-  const setOnlyLeftoverId = useJob((s) => s.setOnlyLeftoverId)
-  const setForceNewSheet = useJob((s) => s.setForceNewSheet)
+  const clearJob = useJob((s) => s.clearJob)
   const listRef = useRef<HTMLDivElement>(null)
   const [atBottom, setAtBottom] = useState(false)
 
@@ -44,8 +43,7 @@ export default function Home() {
   }, [folders.length])
 
   function startNewJob() {
-    setOnlyLeftoverId(null)
-    setForceNewSheet(false)
+    clearJob()
     navigate('/new')
   }
 

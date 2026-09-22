@@ -21,6 +21,7 @@ export default function Stock() {
   const derived = useData((s) => s.derived)
   const cuts = useData((s) => s.cuts)
   const jobClientId = useJob((s) => s.clientId)
+  const clearJob = useJob((s) => s.clearJob)
   const listRef = useRef<HTMLDivElement>(null)
   const [atBottom, setAtBottom] = useState(false)
 
@@ -76,7 +77,14 @@ export default function Stock() {
           <p className="mx-auto mb-5 max-w-[34ch] text-[13px] text-muted-foreground">
             Leftovers from your cuts are saved here.
           </p>
-          <Button size="hero" className="mb-2.5 w-full" onClick={() => navigate('/new')}>
+          <Button
+            size="hero"
+            className="mb-2.5 w-full"
+            onClick={() => {
+              clearJob()
+              navigate('/new')
+            }}
+          >
             + New cutting job
           </Button>
           <Button variant="outline" className="h-12 w-full" onClick={() => navigate('/stock/add')}>
