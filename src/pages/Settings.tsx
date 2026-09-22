@@ -33,12 +33,17 @@ interface FieldErrors {
   minLeftover?: string
 }
 
+const DEFAULT_KERF_SIZE_TEXT = '1/8'
+
 export function draftFrom(s: SettingsShape): Draft {
   return {
     sheetW: fmt(s.sheetW),
     sheetH: fmt(s.sheetH),
     kerfOn: s.kerfOn,
-    kerfSize: fmt(s.kerfSize),
+    // A saved kerfSize of 0 means "not set" (the toggle was off when it was saved) —
+    // show a sensible blade width instead of 0 so the disabled field always displays
+    // something the carpenter would recognize, not a value that means "no blade".
+    kerfSize: s.kerfSize > 0 ? fmt(s.kerfSize) : DEFAULT_KERF_SIZE_TEXT,
     minLeftover: fmt(s.minLeftover),
     paperSize: s.paperSize,
   }
@@ -193,212 +198,210 @@ export default function Settings() {
     >
       <div className='border border-border rounded-md p-2'>
 
-      
-      <div className="border-b border-border  py-1 px-2">
-        <Label>Sheet size (in)</Label>
-        <div className="grid grid-cols-2 gap-3">
-          <div>
-            <Label htmlFor="sheet-width" className="mb-1 text-[12.5px] font-normal text-muted-foreground">
-              Width
-            </Label>
-            <Input
-              id="sheet-width"
-              inputMode="text"
-              autoComplete="off"
-              value={draft.sheetW}
-              className="h-[42px] border border-border-stronger bg-transparent px-3 text-[18px]"
-              onChange={(e) => patch({ sheetW: e.target.value })}
-            />
-            {errors.sheetW && <p className="mt-1 text-[12.5px] text-danger-text">{errors.sheetW}</p>}
-          </div>
-          <div>
-            <Label htmlFor="sheet-height" className="mb-1 text-[12.5px] font-normal text-muted-foreground">
-              Height
-            </Label>
-            <Input
-              id="sheet-height"
-              inputMode="text"
-              autoComplete="off"
-              value={draft.sheetH}
-              className="h-[42px] border border-border-stronger bg-transparent px-3 text-[18px]"
-              onChange={(e) => patch({ sheetH: e.target.value })}
-            />
-            {errors.sheetH && <p className="mt-1 text-[12.5px] text-danger-text">{errors.sheetH}</p>}
-          </div>
-        </div>
-        <p className="mt-1.5 text-[12.5px] text-faint">Width across, then height. Default 48 × 96.</p>
-      </div>
 
-      <div className="border-b border-border py-3">
-        <div className="flex items-center justify-between">
-          <span className="text-[15px]">Include blade thickness</span>
-          <Switch checked={draft.kerfOn} onCheckedChange={(v) => patch({ kerfOn: v })} />
+        <div className="border-b border-border  py-1 px-2">
+          <Label>Sheet size (in)</Label>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <Label htmlFor="sheet-width" className="mb-1 text-[12.5px] font-normal text-muted-foreground">
+                Width
+              </Label>
+              <Input
+                id="sheet-width"
+                inputMode="text"
+                autoComplete="off"
+                value={draft.sheetW}
+                className="h-[42px] border border-border-stronger bg-transparent px-3 text-[18px]"
+                onChange={(e) => patch({ sheetW: e.target.value })}
+              />
+              {errors.sheetW && <p className="mt-1 text-[12.5px] text-danger-text">{errors.sheetW}</p>}
+            </div>
+            <div>
+              <Label htmlFor="sheet-height" className="mb-1 text-[12.5px] font-normal text-muted-foreground">
+                Height
+              </Label>
+              <Input
+                id="sheet-height"
+                inputMode="text"
+                autoComplete="off"
+                value={draft.sheetH}
+                className="h-[42px] border border-border-stronger bg-transparent px-3 text-[18px]"
+                onChange={(e) => patch({ sheetH: e.target.value })}
+              />
+              {errors.sheetH && <p className="mt-1 text-[12.5px] text-danger-text">{errors.sheetH}</p>}
+            </div>
+          </div>
+          <p className="mt-1.5 text-[12.5px] text-faint">Width across, then height. Default 48 × 96.</p>
         </div>
-        <p className="mt-1.5 text-[12.5px] text-faint">
-          Blade width: {draft.kerfSize} in. Used when the toggle is on.
-        </p>
-        {draft.kerfOn && (
+
+        <div className="border-b border-border py-3">
+          <div className="flex items-center justify-between">
+            <span className="text-[15px]">Include blade thickness</span>
+            <Switch checked={draft.kerfOn} onCheckedChange={(v) => patch({ kerfOn: v })} />
+          </div>
+          <p className="mt-1.5 text-[12.5px] text-faint">
+            Blade width: {draft.kerfSize} in. Used when the toggle is on.
+          </p>
           <div className="mt-2.5">
             <Label>Blade width (in)</Label>
             <Input
               inputMode="text"
               autoComplete="off"
+              disabled={!draft.kerfOn}
               className=" border border-border-stronger bg-transparent px-3 text-[18px]"
               value={draft.kerfSize}
               onChange={(e) => patch({ kerfSize: e.target.value })}
             />
             {errors.kerfSize && <p className="mt-1 text-[12.5px] text-danger-text">{errors.kerfSize}</p>}
           </div>
-        )}
-      </div>
+        </div>
 
-      <div className="border-b border-border py-3">
-        <Label>Save leftovers bigger than (in)</Label>
-        <Input
-          inputMode="text"
-          autoComplete="off"
-          value={draft.minLeftover}
-          className=" border border-border-stronger bg-transparent px-3 text-[18px]"
-          onChange={(e) => patch({ minLeftover: e.target.value })}
-        />
-        {errors.minLeftover && <p className="mt-1 text-[12.5px] text-danger-text">{errors.minLeftover}</p>}
-        <p className="mt-1.5 text-[12.5px] text-faint">Anything smaller is treated as waste.</p>
-      </div>
+        <div className="border-b border-border py-3">
+          <Label>Save leftovers bigger than (in)</Label>
+          <Input
+            inputMode="text"
+            autoComplete="off"
+            value={draft.minLeftover}
+            className=" border border-border-stronger bg-transparent px-3 text-[18px]"
+            onChange={(e) => patch({ minLeftover: e.target.value })}
+          />
+          {errors.minLeftover && <p className="mt-1 text-[12.5px] text-danger-text">{errors.minLeftover}</p>}
+          <p className="mt-1.5 text-[12.5px] text-faint">Anything smaller is treated as waste.</p>
+        </div>
 
-      <div className="flex items-center justify-between border-b border-border py-3">
-        <span className="text-[15px]">Rotate pieces</span>
-        <span className="text-[14px] text-muted-foreground">Only if needed</span>
-      </div>
+        <div className="flex items-center justify-between border-b border-border py-3">
+          <span className="text-[15px]">Rotate pieces</span>
+          <span className="text-[14px] text-muted-foreground">Only if needed</span>
+        </div>
 
-      <div className="border-b border-border py-3">
-        <Label>Paper size</Label>
-        <div className="grid grid-cols-2 gap-3">
-          {(['A4', 'Letter'] as const).map((size) => {
-            const selected = draft.paperSize === size
-            return (
-              <button
-                key={size}
-                type="button"
-                onClick={() => patch({ paperSize: size })}
-                aria-pressed={selected}
-                className={`flex items-center justify-between rounded-md border px-4 py-1 text-left transition-colors ${
-                  selected
-                    ? 'border-accent-border bg-accent-bg'
-                    : 'border-border-strong bg-background hover:bg-muted'
-                }`}
-              >
-                <div className='flex justify-between w-full items-center'>
-                  <p className={`mb-0 text-[15px] font-semibold ${selected ? 'text-accent-text' : 'text-foreground'}`}>
-                    {size}
-                  </p>
-                  <p className="mb-0 text-[12px] text-muted-foreground">
-                    {size === 'A4' ? '210 × 297 mm' : '8.5 × 11 in'}
-                  </p>
-                </div>
-                <span
+        <div className="border-b border-border py-3">
+          <Label>Paper size</Label>
+          <div className="grid grid-cols-2 gap-3">
+            {(['A4', 'Letter'] as const).map((size) => {
+              const selected = draft.paperSize === size
+              return (
+                <button
+                  key={size}
+                  type="button"
+                  onClick={() => patch({ paperSize: size })}
+                  aria-pressed={selected}
+                  className={`flex items-center justify-between rounded-md border px-4 py-2 text-left transition-colors ${selected
+                      ? 'border-accent-border bg-accent-bg'
+                      : 'border-border-strong bg-background hover:bg-muted'
+                    }`}
+                >
+                  <div className='flex justify-between w-full items-center'>
+                    <p className={`mb-0 text-[15px] font-semibold ${selected ? 'text-accent-text' : 'text-foreground'}`}>
+                      {size}
+                    </p>
+                    <p className="mb-0 text-[12px] text-muted-foreground">
+                      {size === 'A4' ? '210 × 297 mm' : '8.5 × 11 in'}
+                    </p>
+                  </div>
+                  {/* <span
                   className={`flex h-5 w-5 flex-none items-center justify-center rounded-full border-2 ${
                     selected ? 'border-accent-border bg-accent-border' : 'border-border-strong'
                   }`}
                 >
                   {selected && <span className="h-2 w-2 rounded-full bg-white" />}
-                </span>
-              </button>
-            )
-          })}
+                </span> */}
+                </button>
+              )
+            })}
+          </div>
         </div>
-      </div>
 
-      <div className="py-4">
-        <p className="mb-0.5 text-[13px] text-muted-foreground">Signed in as</p>
-        <p className="text-[15px]">{email}</p>
-      </div>
+        <div className="py-4">
+          <p className="mb-0.5 text-[13px] text-muted-foreground">Signed in as</p>
+          <p className="text-[15px]">{email}</p>
+        </div>
 
-      <Button size="lg" className="mb-2.5 h-12 w-full" disabled={!dirty} onClick={() => setSaveOpen(true)}>
-        Save changes
-      </Button>
+        <Button size="lg" className="mb-2.5 h-12 w-full" disabled={!dirty} onClick={() => setSaveOpen(true)}>
+          Save changes
+        </Button>
 
-      {/* lg+ already has Log out in AppShell's own sidebar — this is the only way to log
+        {/* lg+ already has Log out in AppShell's own sidebar — this is the only way to log
           out below that width, so it stays here for md and phone. */}
-      <Button variant="outline" className="h-12 w-full lg:hidden" onClick={() => setLogoutOpen(true)}>
-        Log out
-      </Button>
+        <Button variant="outline" className="h-12 w-full lg:hidden" onClick={() => setLogoutOpen(true)}>
+          Log out
+        </Button>
 
-      <Dialog open={logoutOpen} onOpenChange={setLogoutOpen}>
-        <DialogContent>
-          <DialogTitle>Log out?</DialogTitle>
-          <DialogDescription>You will need internet to log in again on this phone.</DialogDescription>
-          <div className="mt-4 flex gap-2.5">
-            <Button variant="outline" className="h-11 flex-1" onClick={() => setLogoutOpen(false)}>
-              Stay
-            </Button>
-            <Button className="h-11 flex-1" onClick={onLogout}>
-              Log out
-            </Button>
-          </div>
-        </DialogContent>
-      </Dialog>
-
-      <Dialog open={saveOpen} onOpenChange={(open) => !open && setSaveOpen(false)}>
-        <DialogContent>
-          <DialogTitle>Save your changes?</DialogTitle>
-          <DialogDescription>Your new settings will apply to new plans.</DialogDescription>
-          <div className="mt-4 flex flex-col gap-2.5">
-            <Button className="h-11 w-full" onClick={onSave}>
-              Save
-            </Button>
-            <Button variant="outline" className="h-11 w-full" onClick={discardFromPopup}>
-              Discard
-            </Button>
-          </div>
-        </DialogContent>
-      </Dialog>
-
-      <Dialog open={confirmSizeOpen} onOpenChange={setConfirmSizeOpen}>
-        <DialogContent>
-          <DialogTitle>
-            Change sheet size to {pendingValues ? fmt(pendingValues.sheetW!) : ''} ×{' '}
-            {pendingValues ? fmt(pendingValues.sheetH!) : ''}?
-          </DialogTitle>
-          <DialogDescription>
-            This applies to new plans only. Saved leftovers and past jobs keep their own sizes.
-          </DialogDescription>
-          <div className="mt-4 flex gap-2.5">
-            <Button
-              variant="outline"
-              className="h-11 flex-1"
-              onClick={() => {
-                setConfirmSizeOpen(false)
-                setPendingValues(null)
-              }}
-            >
-              Cancel
-            </Button>
-            <Button className="h-11 flex-1" onClick={() => pendingValues && commitSave(pendingValues)}>
-              Save
-            </Button>
-          </div>
-        </DialogContent>
-      </Dialog>
-
-      <Dialog open={leaveOpen} onOpenChange={(open) => !open && stay()}>
-        <DialogContent>
-          <DialogTitle>Save your changes?</DialogTitle>
-          <DialogDescription>You have changed settings that have not been saved yet.</DialogDescription>
-          <div className="mt-4 flex flex-col gap-2.5">
-            <Button className="h-11 w-full" onClick={leaveAndSave}>
-              Save
-            </Button>
-            <div className="flex gap-2.5">
-              <Button variant="outline" className="h-11 flex-1" onClick={leaveAndDiscard}>
-                Discard
-              </Button>
-              <Button variant="outline" className="h-11 flex-1" onClick={stay}>
+        <Dialog open={logoutOpen} onOpenChange={setLogoutOpen}>
+          <DialogContent>
+            <DialogTitle>Log out?</DialogTitle>
+            <DialogDescription>You will need internet to log in again on this phone.</DialogDescription>
+            <div className="mt-4 flex gap-2.5">
+              <Button variant="outline" className="h-11 flex-1" onClick={() => setLogoutOpen(false)}>
                 Stay
               </Button>
+              <Button className="h-11 flex-1" onClick={onLogout}>
+                Log out
+              </Button>
             </div>
-          </div>
-        </DialogContent>
-      </Dialog>
+          </DialogContent>
+        </Dialog>
+
+        <Dialog open={saveOpen} onOpenChange={(open) => !open && setSaveOpen(false)}>
+          <DialogContent>
+            <DialogTitle>Save your changes?</DialogTitle>
+            <DialogDescription>Your new settings will apply to new plans.</DialogDescription>
+            <div className="mt-4 flex flex-col gap-2.5">
+              <Button className="h-11 w-full" onClick={onSave}>
+                Save
+              </Button>
+              <Button variant="outline" className="h-11 w-full" onClick={discardFromPopup}>
+                Discard
+              </Button>
+            </div>
+          </DialogContent>
+        </Dialog>
+
+        <Dialog open={confirmSizeOpen} onOpenChange={setConfirmSizeOpen}>
+          <DialogContent>
+            <DialogTitle>
+              Change sheet size to {pendingValues ? fmt(pendingValues.sheetW!) : ''} ×{' '}
+              {pendingValues ? fmt(pendingValues.sheetH!) : ''}?
+            </DialogTitle>
+            <DialogDescription>
+              This applies to new plans only. Saved leftovers and past jobs keep their own sizes.
+            </DialogDescription>
+            <div className="mt-4 flex gap-2.5">
+              <Button
+                variant="outline"
+                className="h-11 flex-1"
+                onClick={() => {
+                  setConfirmSizeOpen(false)
+                  setPendingValues(null)
+                }}
+              >
+                Cancel
+              </Button>
+              <Button className="h-11 flex-1" onClick={() => pendingValues && commitSave(pendingValues)}>
+                Save
+              </Button>
+            </div>
+          </DialogContent>
+        </Dialog>
+
+        <Dialog open={leaveOpen} onOpenChange={(open) => !open && stay()}>
+          <DialogContent>
+            <DialogTitle>Save your changes?</DialogTitle>
+            <DialogDescription>You have changed settings that have not been saved yet.</DialogDescription>
+            <div className="mt-4 flex flex-col gap-2.5">
+              <Button className="h-11 w-full" onClick={leaveAndSave}>
+                Save
+              </Button>
+              <div className="flex gap-2.5">
+                <Button variant="outline" className="h-11 flex-1" onClick={leaveAndDiscard}>
+                  Discard
+                </Button>
+                <Button variant="outline" className="h-11 flex-1" onClick={stay}>
+                  Stay
+                </Button>
+              </div>
+            </div>
+          </DialogContent>
+        </Dialog>
       </div>
     </AppShell>
   )

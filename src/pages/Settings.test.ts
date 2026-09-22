@@ -35,3 +35,21 @@ describe('Settings validate()', () => {
     })
   })
 })
+
+/**
+ * A saved kerfSize of 0 (written whenever the toggle was off, per validate()'s own
+ * kerfOn-gated zeroing) means "not set", not "blade width is zero" — the Blade width
+ * field must never show 0 to the carpenter, since a 0 in dimension fields elsewhere in
+ * this app means an invalid/rejected size, not a real value.
+ */
+describe('Settings draftFrom()', () => {
+  it('a saved kerfSize of 0 (toggle was off) shows a sensible default, not 0', () => {
+    const draft = draftFrom({ ...DEFAULT_SETTINGS, kerfOn: false, kerfSize: 0 })
+    expect(draft.kerfSize).toBe('1/8')
+  })
+
+  it('a real saved kerfSize (toggle was on) shows that exact value', () => {
+    const draft = draftFrom({ ...DEFAULT_SETTINGS, kerfOn: true, kerfSize: 0.25 })
+    expect(draft.kerfSize).toBe('1/4')
+  })
+})
