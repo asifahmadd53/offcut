@@ -110,8 +110,6 @@ export interface Settings {
   kerfSize: number
   /** Leftovers with a side shorter than this are treated as waste. */
   minLeftover: number
-  /** Whether the "Cut saved" screen offers Print/Save as PDF after every confirmed cut. */
-  showPrintAfterConfirm: boolean
   /** Paper size used for the print pages. */
   paperSize: 'A4' | 'Letter'
 }
@@ -126,6 +124,5 @@ export const DEFAULT_SETTINGS: Settings = {
   kerfOn: false,
   kerfSize: 0.125,
   minLeftover: 1,
-  showPrintAfterConfirm: true,
   paperSize: 'A4',
 }

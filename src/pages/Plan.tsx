@@ -167,22 +167,8 @@ export default function Plan() {
 
     if (uidAuth) saveCut(uidAuth, doc) // fire and forget, per R10
 
-    const newLeftoverCount = sheets.reduce((sum, s) => sum + s.newLeftovers.length, 0)
-    const usedLetters = sheets.filter((s) => !s.isNew).map((s) => s.usedLetter).filter(Boolean) as string[]
     clearJob()
-    if (settings.showPrintAfterConfirm) {
-      navigate('/cut-saved', { state: { cut: doc } })
-      return
-    }
-
-    const confirmToast =
-      usedLetters.length > 0
-        ? `Cut saved using ${plural(usedLetters.length, 'leftover')} ${usedLetters.join(', ')}. ${
-            newLeftoverCount === 0 ? 'No leftover added.' : `${plural(newLeftoverCount, 'leftover')} added.`
-          }`
-        : `Cut saved. ${plural(newLeftoverCount, 'leftover')} added.`
-    toast(confirmToast)
-    navigate('/')
+    navigate('/cut-saved', { state: { cut: doc } })
   }
 
   const usesLeftover = sheets.some((s) => !s.isNew)

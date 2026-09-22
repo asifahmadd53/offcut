@@ -10,8 +10,8 @@ interface CutSavedState {
 }
 
 /**
- * Reached via navigate('/cut-saved', { state }) right after Confirm cut, when
- * settings.showPrintAfterConfirm is true. There is no separate "Cut saved" screen behind
+ * Reached via navigate('/cut-saved', { state }) right after every Confirm cut.
+ * There is no separate "Cut saved" screen behind
  * the dialog any more — this route's only job is to open the shared Print-or-PDF popup
  * immediately, on a transparent page, and go Home the moment it closes (X, backdrop, a
  * successful PDF save, or choosing Print). Uses router location state rather than a store
