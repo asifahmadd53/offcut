@@ -12,15 +12,24 @@ import type { PrintPage } from './print'
 import type { CutDoc, Settings } from './types'
 
 /**
- * Turns a job's pieces/date into a safe file name, e.g. "Offcut - 23x77 2pcs - 2026-09-21".
- * Pure and DOM-free so it can be unit-tested without touching jsPDF or the browser at all.
+ * Turns a job's client/sheet reference (or its pieces/date, when either is missing) into
+ * a safe file name — e.g. "Asif - 34-66.pdf" when both were typed on New job, else falling
+ * back to "Offcut - 23x77 2pcs - 2026-09-21". Pure and DOM-free so it can be unit-tested
+ * without touching jsPDF or the browser at all.
  */
 export function pdfFileName(cut: CutDoc): string {
-  const first = cut.pieces?.[0]
-  const pieceText = first ? `${fmt(first.w)}x${fmt(first.h)} ${first.qty}pcs` : 'sheet'
-  const date = new Date(cut.createdAt)
-  const dateText = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`
-  const raw = `Offcut - ${pieceText} - ${dateText}`
+  const clientName = cut.clientName?.trim()
+  const sheetNumber = cut.sheetNumber?.trim()
+  const raw =
+    clientName && sheetNumber
+      ? `${clientName} - ${sheetNumber.replace(/\//g, '-')}`
+      : (() => {
+          const first = cut.pieces?.[0]
+          const pieceText = first ? `${fmt(first.w)}x${fmt(first.h)} ${first.qty}pcs` : 'sheet'
+          const date = new Date(cut.createdAt)
+          const dateText = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`
+          return `Offcut - ${pieceText} - ${dateText}`
+        })()
   // Strip characters most filesystems reject; collapse the whitespace that leaves behind.
   return raw.replace(/[\\/:*?"<>|]/g, '').replace(/\s+/g, ' ').trim() + '.pdf'
 }

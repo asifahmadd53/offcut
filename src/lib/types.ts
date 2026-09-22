@@ -96,6 +96,10 @@ export interface CutDoc {
   /** Who this job/leftover-add/discard is for. Missing on older records (see UNASSIGNED_CLIENT_ID). */
   clientId?: string
   clientName?: string
+  /** Optional contact number for this client, typed on New job. */
+  clientPhone?: string
+  /** Optional free-text reference note, e.g. "34/66". Never parsed or validated. */
+  sheetNumber?: string
 }
 
 export type Resolution = 'voided' | 'kept'

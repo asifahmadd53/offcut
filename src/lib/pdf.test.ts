@@ -59,6 +59,39 @@ describe('pdfFileName', () => {
     }
     expect(pdfFileName(cut)).toMatch(/^Offcut - sheet - \d{4}-\d{2}-\d{2}\.pdf$/)
   })
+
+  it('uses "{client} - {sheet number}.pdf" when both were typed on New job', () => {
+    const cut: CutDoc = {
+      id: 'x',
+      type: 'cut',
+      createdAt: Date.now(),
+      syncedAt: null,
+      deviceId: 'd1',
+      pieces: [{ id: 'p', w: 40, h: 30, qty: 1 }],
+      kerf: 0,
+      sheets: [],
+      clientId: 'c1',
+      clientName: 'Asif',
+      sheetNumber: '34/66',
+    }
+    expect(pdfFileName(cut)).toBe('Asif - 34-66.pdf')
+  })
+
+  it('falls back to the piece/date name when sheetNumber is missing, even with a client', () => {
+    const cut: CutDoc = {
+      id: 'x',
+      type: 'cut',
+      createdAt: new Date('2026-09-21T10:00:00').getTime(),
+      syncedAt: null,
+      deviceId: 'd1',
+      pieces: [{ id: 'p', w: 23, h: 77, qty: 2 }],
+      kerf: 0,
+      sheets: [],
+      clientId: 'c1',
+      clientName: 'Asif',
+    }
+    expect(pdfFileName(cut)).toBe('Offcut - 23x77 2pcs - 2026-09-21.pdf')
+  })
 })
 
 describe('buildPrintPdf', () => {

@@ -42,6 +42,8 @@ export default function Plan() {
   const pieces = useJob((s) => s.pieces)
   const clientId = useJob((s) => s.clientId)
   const clientName = useJob((s) => s.clientName)
+  const clientPhone = useJob((s) => s.clientPhone)
+  const sheetNumber = useJob((s) => s.sheetNumber)
   const plan = useJob((s) => s.plan)
   const buildPlan = useJob((s) => s.buildPlan)
   const clearJob = useJob((s) => s.clearJob)
@@ -163,6 +165,8 @@ export default function Plan() {
       sheets,
       clientId,
       clientName,
+      clientPhone: clientPhone.trim() || undefined,
+      sheetNumber: sheetNumber.trim() || undefined,
     }
 
     if (uidAuth) saveCut(uidAuth, doc) // fire and forget, per R10
@@ -176,7 +180,9 @@ export default function Plan() {
 
   return (
     <AppShell title="Cutting plan" back="/new">
-      <p className="mb-1 text-[15px] font-semibold">{clientName}</p>
+      <p className="mb-1 text-[15px] font-semibold text-foreground">
+        Client name: <span className="font-normal text-muted-foreground">{clientName}</span>
+      </p>
       <p className="mb-3.5 text-[13px] text-muted-foreground">{subtitleFor(sheets, pieces)}</p>
 
       {forcedNote && (
@@ -209,7 +215,7 @@ export default function Plan() {
       )}
 
       {sheets.length > 1 && (
-        <p className="mb-3 text-[13px] font-semibold text-foreground md:hidden">
+        <p className="mb-3 text-[13px] font-bold text-foreground md:hidden">
           {plural(sheets.length, 'sheet')} in this job
         </p>
       )}
@@ -239,8 +245,8 @@ export default function Plan() {
       </div>
       <div className="hidden md:block">
         {sheets.length > 1 && (
-          <p className="mb-4 text-[13px] font-semibold text-foreground">
-            {plural(sheets.length, 'sheet')} in this job
+          <p className="mb-4 text-xl md:text-2xl lg:text-3xl font-bold text-foreground tracking-tight">
+            <span className="text-primary">{sheets.length}</span> {plural(sheets.length, 'sheet').replace(/^\d+\s*/, '')} in this job
           </p>
         )}
         {sheets.map((s, i) => (
@@ -269,13 +275,13 @@ export default function Plan() {
         </div>
       )}
 
-      <Button size="lg" className="mb-2.5 h-14 w-full" disabled={confirming} onClick={onConfirm}>
+      <Button size="lg" className="mb-2.5 w-full" disabled={confirming} onClick={onConfirm}>
         ✓ Confirm cut and save leftovers
       </Button>
 
       {usesLeftover ? (
         <>
-          <Button variant="outline" className="mb-1 h-12 w-full" onClick={pickDifferentLeftover}>
+          <Button variant="outline" className="mb-1 w-full" onClick={pickDifferentLeftover}>
             Pick a different leftover
           </Button>
           <button
@@ -287,7 +293,7 @@ export default function Plan() {
           </button>
         </>
       ) : (
-        <Button variant="outline" className="h-12 w-full" onClick={() => navigate('/new')}>
+        <Button size="lg" variant="outline" className="w-full" onClick={() => navigate('/new')}>
           Change pieces
         </Button>
       )}

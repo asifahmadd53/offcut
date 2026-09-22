@@ -28,6 +28,10 @@ export default function NewJob() {
   const clientId = useJob((s) => s.clientId)
   const clientName = useJob((s) => s.clientName)
   const setClient = useJob((s) => s.setClient)
+  const clientPhone = useJob((s) => s.clientPhone)
+  const setClientPhone = useJob((s) => s.setClientPhone)
+  const sheetNumber = useJob((s) => s.sheetNumber)
+  const setSheetNumber = useJob((s) => s.setSheetNumber)
   const addPiece = useJob((s) => s.addPiece)
   const removePiece = useJob((s) => s.removePiece)
   const buildPlan = useJob((s) => s.buildPlan)
@@ -191,6 +195,37 @@ export default function NewJob() {
             Their leftovers stay separate from every other client's.
           </p>
         )}
+      </div>
+
+      <div className="mb-3.5 grid grid-cols-1 gap-3 lg:grid-cols-2">
+        <div>
+          <Label htmlFor="client-phone">Phone number</Label>
+          <Input
+            id="client-phone"
+            type="tel"
+            inputMode="tel"
+            autoComplete="off"
+            placeholder="e.g. 0300 1234567"
+            enterKeyHint="next"
+            className="h-[42px] border border-border-stronger bg-transparent px-3 text-[16px]"
+            value={clientPhone}
+            onChange={(e) => setClientPhone(e.target.value)}
+          />
+        </div>
+        <div>
+          <Label htmlFor="sheet-number">Sheet number</Label>
+          <Input
+            id="sheet-number"
+            type="text"
+            inputMode="text"
+            autoComplete="off"
+            placeholder="e.g. 34/66"
+            enterKeyHint="next"
+            className="h-[42px] border border-border-stronger bg-transparent px-3 text-[16px]"
+            value={sheetNumber}
+            onChange={(e) => setSheetNumber(e.target.value)}
+          />
+        </div>
       </div>
 
       {tooBig && (

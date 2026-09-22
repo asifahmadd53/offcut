@@ -35,6 +35,10 @@ interface JobState {
   /** The client this job is for. Their leftovers are the only stock ever offered to them. */
   clientId: string
   clientName: string
+  /** Optional contact number, saved with the job. Never used for planning/matching. */
+  clientPhone: string
+  /** Optional free-text reference note, e.g. "34/66". Never parsed or validated. */
+  sheetNumber: string
   plan: PlanState | null
   /** Set from Leftover detail's "Use this in a new job": restrict the next plan to this one leftover. */
   onlyLeftoverId: string | null
@@ -47,6 +51,8 @@ interface JobState {
   removePiece: (id: string) => void
   setPieces: (pieces: Piece[]) => void
   setClient: (clientId: string, clientName: string) => void
+  setClientPhone: (phone: string) => void
+  setSheetNumber: (note: string) => void
   clearJob: () => void
   buildPlan: (excluded?: string[]) => void
   /**
@@ -67,6 +73,8 @@ export const useJob = create<JobState>()(
       pieces: [],
       clientId: '',
       clientName: '',
+      clientPhone: '',
+      sheetNumber: '',
       plan: null,
       onlyLeftoverId: null,
       forceNewSheet: false,
@@ -84,8 +92,19 @@ export const useJob = create<JobState>()(
         })),
       setPieces: (pieces) => set({ pieces, plan: null, forceNewSheet: false }),
       setClient: (clientId, clientName) => set({ clientId, clientName, plan: null, forceNewSheet: false }),
+      setClientPhone: (clientPhone) => set({ clientPhone }),
+      setSheetNumber: (sheetNumber) => set({ sheetNumber }),
       clearJob: () =>
-        set({ pieces: [], clientId: '', clientName: '', plan: null, onlyLeftoverId: null, forceNewSheet: false }),
+        set({
+          pieces: [],
+          clientId: '',
+          clientName: '',
+          clientPhone: '',
+          sheetNumber: '',
+          plan: null,
+          onlyLeftoverId: null,
+          forceNewSheet: false,
+        }),
       buildPlan: (excluded = []) => {
         const { derived } = useData.getState()
         const { settings } = useSettings.getState()
@@ -178,6 +197,15 @@ export const useJob = create<JobState>()(
       setOnlyLeftoverId: (id) => set({ onlyLeftoverId: id }),
       setForceNewSheet: (v) => set({ forceNewSheet: v }),
     }),
-    { name: 'sc-job-draft', partialize: (s) => ({ pieces: s.pieces, clientId: s.clientId, clientName: s.clientName }) },
+    {
+      name: 'sc-job-draft',
+      partialize: (s) => ({
+        pieces: s.pieces,
+        clientId: s.clientId,
+        clientName: s.clientName,
+        clientPhone: s.clientPhone,
+        sheetNumber: s.sheetNumber,
+      }),
+    },
   ),
 )
