@@ -89,26 +89,36 @@ export default function Settings() {
   const [leaveOpen, setLeaveOpen] = useState(false)
   const [pendingRoute, setPendingRoute] = useState<string | null>(null)
 
+  // The last draft a save actually completed with. Compared alongside `settings` (not
+  // instead of it) so "no unsaved changes" is correct the instant a save finishes, even
+  // if this component hasn't yet re-rendered with the freshly updated settings from the
+  // store — closes any timing gap between a successful save and the next navigation.
+  const [lastSaved, setLastSaved] = useState<Draft | null>(null)
+
   const saved = draftFrom(settings)
-  const dirty =
-    draft.sheetW !== saved.sheetW ||
-    draft.sheetH !== saved.sheetH ||
-    draft.kerfOn !== saved.kerfOn ||
-    draft.kerfSize !== saved.kerfSize ||
-    draft.minLeftover !== saved.minLeftover ||
-    draft.paperSize !== saved.paperSize
+  const sameAsDraft = (a: Draft) =>
+    draft.sheetW === a.sheetW &&
+    draft.sheetH === a.sheetH &&
+    draft.kerfOn === a.kerfOn &&
+    draft.kerfSize === a.kerfSize &&
+    draft.minLeftover === a.minLeftover &&
+    draft.paperSize === a.paperSize
+  const dirty = !sameAsDraft(saved) && !(lastSaved && sameAsDraft(lastSaved))
 
   function patch(p: Partial<Draft>) {
     setDraft((d) => ({ ...d, ...p }))
+    setLastSaved(null)
   }
 
   function discard() {
     setDraft(draftFrom(settings))
+    setLastSaved(null)
     setErrors({})
   }
 
   function commitSave(values: Partial<SettingsShape>) {
     update(values)
+    setLastSaved(draft)
     setConfirmSizeOpen(false)
     setPendingValues(null)
     setErrors({})
@@ -271,13 +281,13 @@ export default function Settings() {
                 type="button"
                 onClick={() => patch({ paperSize: size })}
                 aria-pressed={selected}
-                className={`flex items-center justify-between rounded-xl border px-4 py-3 text-left transition-colors ${
+                className={`flex items-center justify-between rounded-md border px-4 py-1 text-left transition-colors ${
                   selected
                     ? 'border-accent-border bg-accent-bg'
                     : 'border-border-strong bg-background hover:bg-muted'
                 }`}
               >
-                <div>
+                <div className='flex justify-between w-full items-center'>
                   <p className={`mb-0 text-[15px] font-semibold ${selected ? 'text-accent-text' : 'text-foreground'}`}>
                     {size}
                   </p>
