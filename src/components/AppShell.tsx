@@ -214,7 +214,7 @@ export function AppShell({
         {/* Under 768px: floating inset bottom tab bar (structural sibling, not fixed) */}
         {tab && (
           <nav
-            className="mx-4 mb-[calc(env(safe-area-inset-bottom)+12px)] flex flex-none justify-around rounded-[24px] border-hair border-border bg-card px-2 py-2 shadow-elevated md:hidden"
+            className="mx-4 mb-[calc(env(safe-area-inset-bottom)+12px)] flex flex-none justify-around rounded-lg border-hair border-border bg-card px-2 py-1 shadow-elevated md:hidden"
             aria-label="Primary"
           >
             {tabs.map(({ key, label, icon: Icon, to }) => (
@@ -224,7 +224,7 @@ export function AppShell({
                 onClick={() => go(to)}
                 aria-label={label}
                 className={cn(
-                  'relative flex flex-col items-center gap-0.5 rounded-[18px] px-4 py-1.5 text-[11.5px] transition-colors',
+                  'relative flex flex-col items-center gap-0.5 rounded-2xl px-8 py-1.5 text-[10px] transition-colors',
                   tab === key
                     ? 'bg-brand-tint font-semibold text-brand-ink'
                     : 'text-muted-foreground',
