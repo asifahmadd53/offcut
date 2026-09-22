@@ -211,7 +211,7 @@ export default function Settings() {
                 inputMode="text"
                 autoComplete="off"
                 value={draft.sheetW}
-                className="h-[42px] border border-border-stronger bg-transparent px-3 text-[18px]"
+                className=" border border-border-stronger bg-transparent px-3 text-[18px]"
                 onChange={(e) => patch({ sheetW: e.target.value })}
               />
               {errors.sheetW && <p className="mt-1 text-[12.5px] text-danger-text">{errors.sheetW}</p>}
@@ -225,7 +225,7 @@ export default function Settings() {
                 inputMode="text"
                 autoComplete="off"
                 value={draft.sheetH}
-                className="h-[42px] border border-border-stronger bg-transparent px-3 text-[18px]"
+                className="border border-border-stronger bg-transparent px-3 text-[18px]"
                 onChange={(e) => patch({ sheetH: e.target.value })}
               />
               {errors.sheetH && <p className="mt-1 text-[12.5px] text-danger-text">{errors.sheetH}</p>}
@@ -316,7 +316,7 @@ export default function Settings() {
           <p className="text-[15px]">{email}</p>
         </div>
 
-        <Button size="lg" className="mb-2.5 h-12 w-full" disabled={!dirty} onClick={() => setSaveOpen(true)}>
+        <Button size="lg" className="mb-2.5 w-full" disabled={!dirty} onClick={() => setSaveOpen(true)}>
           Save changes
         </Button>
 
