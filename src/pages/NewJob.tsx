@@ -238,7 +238,7 @@ export default function NewJob() {
         </div>
       )}
 
-      <div className="mb-2.5 grid grid-cols-1 gap-3 p-2 lg:grid-cols-2">
+      <div className="mb-2.5 grid grid-cols-1 gap-3 lg:grid-cols-2">
         <div>
           <Label htmlFor="w">Width (in)</Label>
           <Input
