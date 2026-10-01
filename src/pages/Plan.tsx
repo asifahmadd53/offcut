@@ -55,9 +55,10 @@ export default function Plan() {
   const [activeSheet, setActiveSheet] = useState(0)
   const [confirming, setConfirming] = useState(false)
   const announcedRef = useRef(false)
-  // Set once Confirm cut has saved the cut: the plan stays on screen with the Print/PDF
-  // popup over it, and the job draft is only cleared when the user leaves this page.
-  const [savedCut, setSavedCut] = useState<CutDoc | null>(null)
+  // Confirm cut only opens the Print/PDF popup over the plan. The cut is written when the
+  // user taps Save as PDF, Print or Done (commitCut); X cancels and writes nothing. Once
+  // written, `confirming` disables Confirm and the job draft clears when Plan is left.
+  const [pendingDoc, setPendingDoc] = useState<Omit<CutDoc, 'syncedAt'> | null>(null)
   const [printOpen, setPrintOpen] = useState(false)
   const savedRef = useRef(false)
 
@@ -121,27 +122,27 @@ export default function Plan() {
   const forcedNote = !onlyLeftoverId && forceNewSheet ? forcedNewSheetNote(defaultWouldUse) : null
 
   function pickDifferentLeftover() {
-    if (savedCut) return
+    if (confirming) return
     if (!sheet || sheet.isNew || !sheet.usedLeftoverId) return
     buildPlan([...excluded, sheet.usedLeftoverId])
     setActiveSheet(0)
   }
 
   function undoExclusions() {
-    if (savedCut) return
+    if (confirming) return
     buildPlan([])
     setActiveSheet(0)
   }
 
   function useNewSheetInstead() {
-    if (savedCut) return
+    if (confirming) return
     setForceNewSheet(true)
     buildPlan([])
     setActiveSheet(0)
   }
 
   function useLeftoverAfterAll() {
-    if (savedCut) return
+    if (confirming) return
     setForceNewSheet(false)
     buildPlan([])
     setActiveSheet(0)
@@ -149,7 +150,6 @@ export default function Plan() {
 
   async function onConfirm() {
     if (confirming) return
-    setConfirming(true)
 
     // Re-check every used leftover is still free: another phone may have claimed it since planning.
     const freeIds = new Set(derived.freeLeftovers.map((l) => l.id))
@@ -157,7 +157,6 @@ export default function Plan() {
     if (!stillFree) {
       buildPlan(excluded)
       toast('A saved leftover changed. The plan was updated.')
-      setConfirming(false)
       return
     }
 
@@ -186,11 +185,16 @@ export default function Plan() {
       sheetNumber: sheetNumber.trim() || undefined,
     }
 
-    if (uidAuth) saveCut(uidAuth, doc) // fire and forget, per R10
-
-    savedRef.current = true
-    setSavedCut({ ...doc, syncedAt: null })
+    setPendingDoc(doc)
     setPrintOpen(true)
+  }
+
+  // Writes the cut once, from whichever of Save as PDF / Print / Done the user taps first.
+  function commitCut() {
+    if (savedRef.current || !pendingDoc) return
+    savedRef.current = true
+    setConfirming(true)
+    if (uidAuth) saveCut(uidAuth, pendingDoc) // fire and forget, per R10
   }
 
   const usesLeftover = sheets.some((s) => !s.isNew)
@@ -246,7 +250,7 @@ export default function Plan() {
                 Sheet {i + 1} of {sheets.length}
               </p>
             )}
-            <PlanSheet sheet={s} blocks={buildBlocks(s, derived, savedCut?.id)} />
+            <PlanSheet sheet={s} blocks={buildBlocks(s, derived, pendingDoc?.id)} />
           </div>
         ))}
       </div>
@@ -297,13 +301,20 @@ export default function Plan() {
         </p>
       )}
 
-      {savedCut && (
+      {pendingDoc && (
         <PrintOrPdfDialog
           open={printOpen}
           onOpenChange={setPrintOpen}
-          cut={savedCut}
-          onPrint={() => navigate(`/print/${savedCut.id}`, { replace: true })}
-          onDone={() => navigate('/', { replace: true })}
+          cut={{ ...pendingDoc, syncedAt: null }}
+          onBeforeSave={commitCut}
+          onPrint={() => {
+            commitCut()
+            navigate(`/print/${pendingDoc.id}`, { replace: true })
+          }}
+          onDone={() => {
+            commitCut()
+            navigate('/', { replace: true })
+          }}
         />
       )}
     </AppShell>

@@ -19,6 +19,8 @@ interface PrintOrPdfDialogProps {
   /** What the Done link does. Defaults to just closing the popup (Job detail); Cut saved
    *  passes its own so Done can leave for Home while X still keeps the user in place. */
   onDone?: () => void
+  /** Called when Save as PDF is tapped, before the PDF is built (Plan saves the cut here). */
+  onBeforeSave?: () => void
 }
 
 /**
@@ -28,13 +30,14 @@ interface PrintOrPdfDialogProps {
  * in-place with jsPDF (dynamically imported here, only on tap) and downloads it directly —
  * it never opens the print view or the browser print dialog.
  */
-export function PrintOrPdfDialog({ open, onOpenChange, cut, onPrint, onDone }: PrintOrPdfDialogProps) {
+export function PrintOrPdfDialog({ open, onOpenChange, cut, onPrint, onDone, onBeforeSave }: PrintOrPdfDialogProps) {
   const derived = useData((s) => s.derived)
   const settings = useSettings((s) => s.settings)
   const [saving, setSaving] = useState(false)
 
   async function saveAsPdf() {
     if (saving) return
+    onBeforeSave?.()
     setSaving(true)
     try {
       const pages = buildPrintPages(cut, derived, settings)
