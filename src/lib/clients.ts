@@ -45,10 +45,12 @@ export function clientFolders(jobs: JobView[]): ClientFolder[] {
   return [...byClient.values()].sort((a, b) => b.lastActivity - a.lastActivity)
 }
 
-/** Typing a name that matches a previous client (case-insensitive) reuses their stock; a new name starts an isolated pool. */
-export function resolveClient(name: string, known: ClientOption[]): ClientOption {
-  const trimmed = name.trim()
-  const match = known.find((c) => c.name.toLowerCase() === trimmed.toLowerCase())
-  if (match) return match
-  return { id: uid(), name: trimmed }
+/**
+ * Typing a client name always starts a NEW client, even when the same name was used on an
+ * earlier job: a returning "Asif" is treated as a different person, so an earlier job's
+ * leftovers are never offered to this one. (Re-using a client on purpose goes by id — from
+ * that client's own page, Cut these pieces again, or Use this in a new job — never by name.)
+ */
+export function newClient(name: string): ClientOption {
+  return { id: uid(), name: name.trim() }
 }

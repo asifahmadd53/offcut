@@ -213,36 +213,8 @@ export default function Plan() {
         )
       )}
 
-      {sheets.length > 1 && (
-        <p className="mb-3 text-[13px] font-bold text-foreground md:hidden">
-          {plural(sheets.length, 'sheet')} in this job
-        </p>
-      )}
-
-      {sheets.length > 1 && (
-        <div className="mb-3 flex gap-2.5 md:hidden">
-          {sheets.map((_, i) => (
-            <button
-              key={i}
-              type="button"
-              onClick={() => setActiveSheet(i)}
-              className={
-                i === activeSheet
-                  ? 'rounded-full bg-primary px-2.5 py-1 text-[12px] font-semibold text-primary-foreground'
-                  : 'rounded-full bg-muted px-2.5 py-1 text-[12px] text-muted-foreground'
-              }
-            >
-              Sheet {i + 1}
-            </button>
-          ))}
-        </div>
-      )}
-
-      {/* Mobile: one sheet at a time via the pills above. md+: every sheet stacked on one page. */}
-      <div className="md:hidden">
-        {sheet && <PlanSheet sheet={sheet} blocks={buildBlocks(sheet, derived)} />}
-      </div>
-      <div className="hidden md:block">
+      {/* Every sheet is stacked on one page at every width — no per-sheet tabs. */}
+      <div>
         {sheets.length > 1 && (
           <p className="mb-4 text-xl md:text-2xl lg:text-3xl font-bold text-foreground tracking-tight">
             <span className="text-primary">{sheets.length}</span> {plural(sheets.length, 'sheet').replace(/^\d+\s*/, '')} in this job

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { clientFolders, knownClients, resolveClient } from './clients'
+import { clientFolders, knownClients, newClient } from './clients'
 import type { CutDoc } from './types'
 import type { JobView } from './stock'
 
@@ -16,17 +16,16 @@ const cut = (id: string, clientId: string, clientName: string, createdAt: number
 
 const jobView = (cutDoc: CutDoc): JobView => ({ cut: cutDoc, status: 'active' })
 
-describe('resolveClient', () => {
-  it('reuses an existing client by case-insensitive name match', () => {
-    const known = [{ id: 'c1', name: 'Ali' }]
-    expect(resolveClient('ali', known)).toEqual({ id: 'c1', name: 'Ali' })
-    expect(resolveClient('  ALI  ', known)).toEqual({ id: 'c1', name: 'Ali' })
+describe('newClient', () => {
+  it('mints a fresh id even when the same name was used before', () => {
+    const first = newClient('Ali')
+    const again = newClient('ali')
+    expect(first.id).not.toBe(again.id)
+    expect(newClient('Ali').id).not.toBe(first.id)
   })
 
-  it('mints a new id for an unseen name', () => {
-    const result = resolveClient('Bilal', [{ id: 'c1', name: 'Ali' }])
-    expect(result.name).toBe('Bilal')
-    expect(result.id).not.toBe('c1')
+  it('keeps the typed name, trimmed', () => {
+    expect(newClient('  Bilal  ').name).toBe('Bilal')
   })
 })
 

@@ -8,7 +8,7 @@ import { Label } from '@/components/ui/label'
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from '@/components/ui/dialog'
 import { parseInches, fmtDims, fmtLeft } from '@/lib/inches'
 import { plural } from '@/lib/format'
-import { knownClients, resolveClient } from '@/lib/clients'
+import { knownClients, newClient } from '@/lib/clients'
 import { useJob, type LeftoverFitCheck } from '@/store/job'
 import { useSettings } from '@/store/settings'
 import { useData } from '@/store/data'
@@ -51,9 +51,15 @@ export default function NewJob() {
   function commitClient(name: string) {
     const trimmed = name.trim()
     if (!trimmed) return
-    const resolved = resolveClient(trimmed, clientOptions)
-    setClient(resolved.id, resolved.name)
-    setClientInput(resolved.name)
+    // The client already on this job (pre-filled from their own page, a leftover, or an
+    // earlier blur) keeps its id while the name is unchanged; any other typed name is a new client.
+    if (clientId && trimmed === clientName) {
+      setClientInput(clientName)
+      return
+    }
+    const created = newClient(trimmed)
+    setClient(created.id, created.name)
+    setClientInput(created.name)
   }
 
   const [misfit, setMisfit] = useState<LeftoverFitCheck | null>(null)
