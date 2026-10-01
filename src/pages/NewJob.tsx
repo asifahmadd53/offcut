@@ -312,7 +312,7 @@ export default function NewJob() {
 
       <p className="my-1 mt-2 text-[13px] text-muted-foreground">Pieces in this job</p>
       {pieces.length === 0 ? (
-        <div className="mb-4.5 rounded-lg bg-muted p-4.5 text-center text-[13px] text-muted-foreground">
+        <div className="mb-4.5 rounded-md bg-muted py-1 p-4.5 text-center text-[13px] text-muted-foreground">
           Add a piece above to begin.
         </div>
       ) : (

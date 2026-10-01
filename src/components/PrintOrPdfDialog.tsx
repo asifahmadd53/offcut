@@ -78,11 +78,11 @@ export function PrintOrPdfDialog({ open, onOpenChange, cut, onPrint, onDone }: P
             </DialogPrimitive.Close>
           </div>
 
-          <Button size="lg" className="mb-2.5 h-[52px] w-full" disabled={saving} onClick={saveAsPdf}>
+          <Button size="lg" className="mb-2.5 w-full" disabled={saving} onClick={saveAsPdf}>
             {saving && <IconLoader2 size={18} className="animate-spin" />}
             Save as PDF
           </Button>
-          <Button variant="outline" className="mb-2.5 h-12 w-full" onClick={onPrint}>
+          <Button variant="outline" size="lg" className="mb-2.5  w-full" onClick={onPrint}>
             Print
           </Button>
           <button

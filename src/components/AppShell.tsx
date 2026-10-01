@@ -99,6 +99,7 @@ export function AppShell({
 
         <Button
           type="button"
+          size="lg"
           onClick={() => go('/new')}
           className="mb-5 flex items-center justify-center rounded-lg bg-brand text-[15px] font-semibold text-brand-fg  active:scale-[0.98]"
         >
