@@ -125,7 +125,7 @@ body {
   -webkit-text-size-adjust: 100%;
 }
 
-/* NOT a global overflow:hidden here — Print.tsx, Login.tsx and CutSaved.tsx are
+/* NOT a global overflow:hidden here — Print.tsx and Login.tsx are
    deliberately standalone routes (no AppShell) that scroll the document itself, and a
    global lock on html/body/#root broke Print's multi-page preview entirely (page 2+
    became unreachable). AppShell-based routes contain their own scroll instead: the

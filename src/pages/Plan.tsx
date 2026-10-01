@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { AppShell } from '@/components/AppShell'
 import { PlanSheet } from '@/components/PlanSheet'
+import { PrintOrPdfDialog } from '@/components/PrintOrPdfDialog'
 import { Button } from '@/components/ui/button'
 import { buildBlocks } from '@/lib/sheetView'
 import { plural } from '@/lib/format'
@@ -54,6 +55,19 @@ export default function Plan() {
   const [activeSheet, setActiveSheet] = useState(0)
   const [confirming, setConfirming] = useState(false)
   const announcedRef = useRef(false)
+  // Set once Confirm cut has saved the cut: the plan stays on screen with the Print/PDF
+  // popup over it, and the job draft is only cleared when the user leaves this page.
+  const [savedCut, setSavedCut] = useState<CutDoc | null>(null)
+  const [printOpen, setPrintOpen] = useState(false)
+  const savedRef = useRef(false)
+
+  useEffect(
+    () => () => {
+      if (savedRef.current) clearJob()
+    },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [],
+  )
 
   useEffect(() => {
     if (!plan && pieces.length > 0) buildPlan([])
@@ -107,23 +121,27 @@ export default function Plan() {
   const forcedNote = !onlyLeftoverId && forceNewSheet ? forcedNewSheetNote(defaultWouldUse) : null
 
   function pickDifferentLeftover() {
+    if (savedCut) return
     if (!sheet || sheet.isNew || !sheet.usedLeftoverId) return
     buildPlan([...excluded, sheet.usedLeftoverId])
     setActiveSheet(0)
   }
 
   function undoExclusions() {
+    if (savedCut) return
     buildPlan([])
     setActiveSheet(0)
   }
 
   function useNewSheetInstead() {
+    if (savedCut) return
     setForceNewSheet(true)
     buildPlan([])
     setActiveSheet(0)
   }
 
   function useLeftoverAfterAll() {
+    if (savedCut) return
     setForceNewSheet(false)
     buildPlan([])
     setActiveSheet(0)
@@ -170,10 +188,9 @@ export default function Plan() {
 
     if (uidAuth) saveCut(uidAuth, doc) // fire and forget, per R10
 
-    clearJob()
-    // replace: the plan was just confirmed and its draft cleared, so Plan must not stay in the
-    // history for Back to land on.
-    navigate('/cut-saved', { replace: true, state: { cut: doc } })
+    savedRef.current = true
+    setSavedCut({ ...doc, syncedAt: null })
+    setPrintOpen(true)
   }
 
   const usesLeftover = sheets.some((s) => !s.isNew)
@@ -229,7 +246,7 @@ export default function Plan() {
                 Sheet {i + 1} of {sheets.length}
               </p>
             )}
-            <PlanSheet sheet={s} blocks={buildBlocks(s, derived)} />
+            <PlanSheet sheet={s} blocks={buildBlocks(s, derived, savedCut?.id)} />
           </div>
         ))}
       </div>
@@ -278,6 +295,16 @@ export default function Plan() {
             Undo
           </button>
         </p>
+      )}
+
+      {savedCut && (
+        <PrintOrPdfDialog
+          open={printOpen}
+          onOpenChange={setPrintOpen}
+          cut={savedCut}
+          onPrint={() => navigate(`/print/${savedCut.id}`, { replace: true })}
+          onDone={() => navigate('/', { replace: true })}
+        />
       )}
     </AppShell>
   )
