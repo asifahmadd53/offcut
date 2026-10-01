@@ -339,14 +339,18 @@ export default function NewJob() {
         <label htmlFor="blade" className="flex-1 cursor-pointer text-[15px]">
           Include blade thickness
         </label>
-        <Switch
-          id="blade"
-          checked={settings.kerfOn}
-          onCheckedChange={(next) => {
-            updateSettings({ kerfOn: next })
-            toast(next ? 'Blade thickness on' : 'Blade thickness off')
-          }}
-        />
+       <Switch
+  id="blade"
+  checked={settings.kerfOn}
+  onCheckedChange={(next) => {
+    updateSettings({ kerfOn: next })
+    if (next) {
+      toast.success('Blade thickness on', { id: 'blade-toggle' })
+    } else {
+      toast.info('Blade thickness off', { id: 'blade-toggle' })
+    }
+  }}
+/>
       </div>
 
       <Button size="lg" className="w-full" disabled={!canMakePlan} onClick={onMakePlan}>

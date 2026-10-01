@@ -49,11 +49,11 @@ export function PrintOrPdfDialog({ open, onOpenChange, cut, onPrint, onDone, onB
       a.download = pdfFileName(cut)
       a.click()
       URL.revokeObjectURL(url)
-      toast('PDF saved.')
+      toast.success('PDF saved.')
       onOpenChange(false)
     } catch (err) {
       console.error(err)
-      toast('Could not make the PDF. Try Print instead.')
+      toast.error('Could not make the PDF. Try Print instead.')
     } finally {
       setSaving(false)
     }

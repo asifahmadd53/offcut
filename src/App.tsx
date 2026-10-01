@@ -15,7 +15,7 @@ import ClientJobs from '@/pages/ClientJobs'
 import SyncCheck from '@/pages/SyncCheck'
 import Settings from '@/pages/Settings'
 import Print from '@/pages/Print'
-
+import { IconCheck, IconX, IconAlertTriangle, IconInfoCircle } from '@tabler/icons-react'
 function SetupNeeded() {
   return (
     <div className="mx-auto flex min-h-dvh w-full max-w-[480px] flex-col items-center justify-center px-6 text-center">
@@ -98,7 +98,37 @@ export default function App() {
   return (
     <BrowserRouter>
       <AppRoutes />
-      <Toaster position="top-center" theme="system" />
+      <Toaster
+        position="top-center"
+        theme="system"
+        offset={16}
+        duration={3000}
+        visibleToasts={3}
+        icons={{
+          success: <IconCheck size={18} />,
+          error: <IconX size={18} />,
+          warning: <IconAlertTriangle size={18} />,
+          info: <IconInfoCircle size={18} />,
+        }}
+        toastOptions={{
+          unstyled: true,
+          classNames: {
+            toast:
+              'flex w-full items-center gap-3 rounded-xl border-hair border-border bg-card px-4 py-3 text-foreground shadow-lg',
+            icon: 'flex h-8 w-8 flex-none items-center justify-center rounded-full bg-muted text-muted-foreground',
+            content: 'min-w-0 flex-1',
+            title: 'text-[15px] font-semibold leading-tight',
+            description: 'mt-0.5 text-[13px] text-muted-foreground',
+            actionButton:
+              'rounded-lg bg-accent-text px-3 py-1.5 text-[13px] font-semibold text-background',
+            cancelButton:
+              'rounded-lg border-hair border-border px-3 py-1.5 text-[13px] font-semibold',
+            success: '[&_[data-icon]]:bg-success-bg [&_[data-icon]]:text-success-text',
+            error: '[&_[data-icon]]:text-danger-text',
+            warning: '[&_[data-icon]]:text-warning-border',
+          },
+        }}
+      />
     </BrowserRouter>
   )
 }

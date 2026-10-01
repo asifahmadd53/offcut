@@ -95,7 +95,7 @@ export default function Plan() {
         sheetDate: s.sheetDate,
       })),
     )
-    if (message) toast(message)
+    if (message) toast.info(message)
     announcedRef.current = true
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [plan])
@@ -156,7 +156,7 @@ export default function Plan() {
     const stillFree = usedLeftoverIds.every((id) => freeIds.has(id))
     if (!stillFree) {
       buildPlan(excluded)
-      toast('A saved leftover changed. The plan was updated.')
+      toast.warning('A saved leftover changed. The plan was updated.')
       return
     }
 

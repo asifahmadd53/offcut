@@ -126,7 +126,7 @@ export default function Settings() {
     setConfirmSizeOpen(false)
     setPendingValues(null)
     setErrors({})
-    toast('Settings saved.')
+    toast.success('Settings saved.')
     if (pendingRoute) {
       const to = pendingRoute
       setPendingRoute(null)

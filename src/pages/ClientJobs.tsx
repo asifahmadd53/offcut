@@ -65,7 +65,7 @@ export default function ClientJobs() {
   function confirmDelete() {
     if (!uidAuth || !toDelete) return
     hideJobs(uidAuth, [toDelete.cut.id])
-    toast('Job removed from the list.')
+    toast.success('Job removed from the list.')
     setToDelete(null)
   }
 
@@ -82,7 +82,7 @@ export default function ClientJobs() {
       clientName: leftoverToDelete.clientName,
     }
     saveCut(uidAuth, doc) // fire and forget, per R10
-    toast('Leftover removed.')
+    toast.success('Leftover removed.')
     setLeftoverToDelete(null)
   }
 
@@ -100,9 +100,21 @@ export default function ClientJobs() {
         <p className="text-[13px] font-semibold uppercase tracking-wide text-muted-foreground">
           Jobs
         </p>
+        <div className="flex items-center gap-2">
+        {jobs.length > PREVIEW_COUNT && (
+          
+          <button
+            type="button"
+            onClick={() => setShowAllJobs((v) => !v)}
+            className="text-[13px] font-semibold text-accent-text underline underline-offset-2"
+          >
+            {showAllJobs ? 'Show less' : `See all (${jobs.length})`}
+          </button>
+        )}
         {jobs.length > 0 && (
           <p className="text-[13px] text-muted-foreground">{plural(jobs.length, 'job')}</p>
         )}
+      </div>
       </div>
 
       {jobs.length === 0 ? (
@@ -115,14 +127,14 @@ export default function ClientJobs() {
       ) : (
         <div className="mb-6">
           <div
-            className={`mb-2 overflow-hidden rounded-xl border-hair border-border ${
+              className={`mb-2 overflow-hidden rounded-md ${
               showAllJobs ? 'max-h-[360px] overflow-y-auto thin-scroll' : ''
             }`}
           >
             {visibleJobs.map((j, i) => (
               <div
                 key={j.cut.id}
-                className={`flex items-center justify-between bg-card px-4 py-3 ${
+                className={`flex items-center rounded-md border-hair border-border justify-between bg-card mb-2 px-4 py-2 ${
                   i > 0 ? 'border-t border-hair border-border' : ''
                 }`}
               >
@@ -131,7 +143,9 @@ export default function ClientJobs() {
                   onClick={() => navigate(`/job/${j.cut.id}`)}
                   className="flex min-w-0 flex-1 items-center gap-1.5 text-left"
                 >
+                  <span aria-hidden className="h-8 w-[.20rem] mr-1 ml-[-.10rem] flex-none rounded-full bg-border" />
                   <div className="min-w-0">
+                    
                     <p className="mb-0 flex items-center gap-1.5 text-[15px] font-semibold">
                       {pieceSummary(j.cut.pieces)}
                       {j.status === 'conflict' && (
@@ -154,15 +168,7 @@ export default function ClientJobs() {
               </div>
             ))}
           </div>
-          {jobs.length > PREVIEW_COUNT && (
-            <button
-              type="button"
-              onClick={() => setShowAllJobs((v) => !v)}
-              className="text-[13px] font-semibold text-accent-text underline underline-offset-2"
-            >
-              {showAllJobs ? 'Show less' : `See all (${jobs.length})`}
-            </button>
-          )}
+          
         </div>
       )}
 
@@ -170,9 +176,20 @@ export default function ClientJobs() {
         <p className="text-[13px] font-semibold uppercase tracking-wide text-muted-foreground">
           Saved leftovers
         </p>
-        {leftovers.length > 0 && (
-          <p className="text-[13px] text-muted-foreground">{plural(leftovers.length, 'leftover')}</p>
-        )}
+        <div className="flex items-center gap-2">
+          {leftovers.length > PREVIEW_COUNT && (
+            <button
+              type="button"
+              onClick={() => setShowAllLeftovers((v) => !v)}
+              className="text-[13px] font-semibold text-accent-text underline underline-offset-2"
+            >
+              {showAllLeftovers ? 'Show less' : `See all (${leftovers.length})`}
+            </button>
+          )}
+          {leftovers.length > 0 && (
+            <p className="text-[13px] text-muted-foreground">{plural(leftovers.length, 'leftover')}</p>
+          )}
+        </div>
       </div>
 
       {leftovers.length === 0 ? (
@@ -182,22 +199,28 @@ export default function ClientJobs() {
       ) : (
         <div className="mb-4">
           <div
-            className={`mb-2 overflow-hidden rounded-xl border-hair border-success-border ${
+            className={`mb-2 overflow-hidden rounded-md ${
               showAllLeftovers ? 'max-h-[360px] overflow-y-auto thin-scroll' : ''
             }`}
           >
             {visibleLeftovers.map((l, i) => (
               <div
                 key={l.id}
-                className={`flex items-center justify-between bg-success-bg px-4 py-3 ${
-                  i > 0 ? 'border-t border-hair border-success-border' : ''
+                className={`flex items-center rounded-md border-hair border-border justify-between bg-card mb-2 px-4 py-2 ${
+                  i > 0 ? 'border-hair' : ''
                 }`}
               >
+                
                 <button
                   type="button"
                   onClick={() => navigate(`/stock/${l.id}`)}
                   className="flex min-w-0 flex-1 items-center gap-1.5 text-left"
                 >
+                  <span
+                    aria-hidden
+                    className="h-8 w-[.20rem] mr-1 ml-[-.10rem] flex-none rounded-full bg-success-border"
+                  />
+                  
                   <div className="min-w-0">
                     <p className="mb-0 text-[15px] font-semibold text-success-text">{fmtLeft(l.w, l.h)}</p>
                     <p className="mb-0 text-[13px] text-muted-foreground">{originText(l)}</p>
@@ -214,15 +237,7 @@ export default function ClientJobs() {
               </div>
             ))}
           </div>
-          {leftovers.length > PREVIEW_COUNT && (
-            <button
-              type="button"
-              onClick={() => setShowAllLeftovers((v) => !v)}
-              className="text-[13px] font-semibold text-accent-text underline underline-offset-2"
-            >
-              {showAllLeftovers ? 'Show less' : `See all (${leftovers.length})`}
-            </button>
-          )}
+          
         </div>
       )}
 

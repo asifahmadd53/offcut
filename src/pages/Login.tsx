@@ -73,7 +73,7 @@ export default function Login() {
     }
     try {
       await resetPassword(email)
-      toast('Password reset email sent.')
+     toast.success('Password reset email sent.')
     } catch (err) {
       setError(friendlyAuthError(err))
     }
