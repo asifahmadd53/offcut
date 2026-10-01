@@ -17,7 +17,7 @@ import { buildBlocks } from '@/lib/sheetView'
 import { useAuth } from '@/store/auth'
 import { useData } from '@/store/data'
 import { useJob } from '@/store/job'
-import { useToast } from '@/store/toast'
+import { toast } from 'sonner'
 import type { CutDoc } from '@/lib/types'
 
 export default function LeftoverDetail() {
@@ -27,7 +27,6 @@ export default function LeftoverDetail() {
   const derived = useData((s) => s.derived)
   const setOnlyLeftoverId = useJob((s) => s.setOnlyLeftoverId)
   const setClient = useJob((s) => s.setClient)
-  const toast = useToast((s) => s.show)
   const [confirmOpen, setConfirmOpen] = useState(false)
 
   const leftover = derived.leftovers.find((l) => l.id === id && l.status === 'free')

@@ -4,7 +4,7 @@ import { IconScissors } from '@tabler/icons-react'
 import { useAuth } from '@/store/auth'
 import { useData } from '@/store/data'
 import { isFirebaseConfigured } from '@/lib/firebase'
-import { Toast } from '@/components/Toast'
+import { Toaster } from 'sonner'
 import Login from '@/pages/Login'
 import Home from '@/pages/Home'
 import NewJob from '@/pages/NewJob'
@@ -100,7 +100,7 @@ export default function App() {
   return (
     <BrowserRouter>
       <AppRoutes />
-      <Toast />
+      <Toaster position="top-center" theme="system" />
     </BrowserRouter>
   )
 }

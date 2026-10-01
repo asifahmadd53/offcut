@@ -6,7 +6,7 @@ import { buildPrintPages } from '@/lib/print'
 import { buildPrintPdf, pdfFileName } from '@/lib/pdf'
 import { useData } from '@/store/data'
 import { useSettings } from '@/store/settings'
-import { useToast } from '@/store/toast'
+import { toast } from 'sonner'
 import type { CutDoc } from '@/lib/types'
 
 interface PrintOrPdfDialogProps {
@@ -28,7 +28,6 @@ interface PrintOrPdfDialogProps {
 export function PrintOrPdfDialog({ open, onOpenChange, cut, onPrint }: PrintOrPdfDialogProps) {
   const derived = useData((s) => s.derived)
   const settings = useSettings((s) => s.settings)
-  const toast = useToast((s) => s.show)
   const [saving, setSaving] = useState(false)
 
   async function saveAsPdf() {

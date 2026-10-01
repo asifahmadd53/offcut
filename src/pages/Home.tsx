@@ -11,7 +11,7 @@ import { UNASSIGNED_CLIENT_ID } from '@/lib/types'
 import { useAuth } from '@/store/auth'
 import { useData } from '@/store/data'
 import { useJob } from '@/store/job'
-import { useToast } from '@/store/toast'
+import { toast } from 'sonner'
 
 export default function Home() {
   const navigate = useNavigate()
@@ -19,7 +19,6 @@ export default function Home() {
   const derived = useData((s) => s.derived)
   const hideJobs = useData((s) => s.hideJobs)
   const clearJob = useJob((s) => s.clearJob)
-  const toast = useToast((s) => s.show)
   const listRef = useRef<HTMLDivElement>(null)
   const [atBottom, setAtBottom] = useState(false)
   const [toDelete, setToDelete] = useState<ClientFolder | null>(null)
@@ -92,7 +91,7 @@ export default function Home() {
 
       {firstUse ? (
         <div className="py-6 text-center">
-          <div className="mx-auto mb-3 flex h-13 w-13 items-center justify-center rounded-xl bg-muted text-faint">
+          <div className="mx-auto mb-3 flex h-14 w-13 items-center justify-center rounded-md bg-muted text-faint">
             <IconLayoutGrid size={26} />
           </div>
           <p className="mb-1 text-[17px] font-semibold">No cuts yet</p>

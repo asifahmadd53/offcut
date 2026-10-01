@@ -13,7 +13,7 @@ import { useAuth } from '@/store/auth'
 import { useData } from '@/store/data'
 import { useJob } from '@/store/job'
 import { useSettings } from '@/store/settings'
-import { useToast } from '@/store/toast'
+import { toast } from 'sonner'
 import type { CutDoc, Piece, SheetPlan } from '@/lib/types'
 
 function subtitleFor(sheets: SheetPlan[], pieces: Piece[]): string {
@@ -51,7 +51,6 @@ export default function Plan() {
   const forceNewSheet = useJob((s) => s.forceNewSheet)
   const setForceNewSheet = useJob((s) => s.setForceNewSheet)
   const settings = useSettings((s) => s.settings)
-  const toast = useToast((s) => s.show)
   const [activeSheet, setActiveSheet] = useState(0)
   const [confirming, setConfirming] = useState(false)
   const announcedRef = useRef(false)

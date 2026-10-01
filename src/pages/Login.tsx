@@ -7,7 +7,7 @@ import {
   isValidEmail,
   useAuth,
 } from '@/store/auth'
-import { useToast } from '@/store/toast'
+import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -24,7 +24,6 @@ export default function Login() {
   const login = useAuth((s) => s.login)
   const register = useAuth((s) => s.register)
   const resetPassword = useAuth((s) => s.resetPassword)
-  const toast = useToast((s) => s.show)
 
   const canSubmit = email.trim().length > 0 && password.length > 0 && !busy
 

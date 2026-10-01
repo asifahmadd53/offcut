@@ -13,7 +13,7 @@ import { getDeviceId, uid } from '@/lib/id'
 import { useAuth } from '@/store/auth'
 import { useData } from '@/store/data'
 import { useJob } from '@/store/job'
-import { useToast } from '@/store/toast'
+import { toast } from 'sonner'
 import type { CutDoc } from '@/lib/types'
 import type { JobView } from '@/lib/stock'
 
@@ -32,7 +32,6 @@ export default function ClientJobs() {
   const hideJobs = useData((s) => s.hideJobs)
   const clearJob = useJob((s) => s.clearJob)
   const setClient = useJob((s) => s.setClient)
-  const toast = useToast((s) => s.show)
   const [toDelete, setToDelete] = useState<JobView | null>(null)
   const [leftoverToDelete, setLeftoverToDelete] = useState<Leftover | null>(null)
   const [showAllJobs, setShowAllJobs] = useState(false)

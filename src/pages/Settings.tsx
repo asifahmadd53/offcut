@@ -14,7 +14,7 @@ import { Switch } from '@/components/ui/switch'
 import { fmt, parseInches } from '@/lib/inches'
 import { useAuth } from '@/store/auth'
 import { useSettings } from '@/store/settings'
-import { useToast } from '@/store/toast'
+import { toast } from 'sonner'
 import type { Settings as SettingsShape } from '@/lib/types'
 
 export interface Draft {
@@ -83,7 +83,6 @@ export default function Settings() {
   const logout = useAuth((s) => s.logout)
   const settings = useSettings((s) => s.settings)
   const update = useSettings((s) => s.update)
-  const toast = useToast((s) => s.show)
 
   const [draft, setDraft] = useState<Draft>(() => draftFrom(settings))
   const [errors, setErrors] = useState<FieldErrors>({})

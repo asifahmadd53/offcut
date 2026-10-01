@@ -12,7 +12,7 @@ import { knownClients, resolveClient } from '@/lib/clients'
 import { useJob, type LeftoverFitCheck } from '@/store/job'
 import { useSettings } from '@/store/settings'
 import { useData } from '@/store/data'
-import { useToast } from '@/store/toast'
+import { toast } from 'sonner'
 import { Switch } from '@/components/ui/switch'
 type FieldError = 'zero' | 'nan' | null
 
@@ -41,7 +41,6 @@ export default function NewJob() {
   const setOnlyLeftoverId = useJob((s) => s.setOnlyLeftoverId)
   const settings = useSettings((s) => s.settings)
   const updateSettings = useSettings((s) => s.update)
-  const toast = useToast((s) => s.show)
   const freeLeftovers = useData((s) => s.derived.freeLeftovers)
   const cuts = useData((s) => s.cuts)
   const clientOptions = knownClients(cuts)

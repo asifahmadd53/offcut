@@ -62,7 +62,7 @@ describe('pdfFileName', () => {
     expect(pdfFileName(cut)).toMatch(/^Offcut - sheet - \d{4}-\d{2}-\d{2}\.pdf$/)
   })
 
-  it('uses "{client} - {sheet number}.pdf" when both were typed on New job', () => {
+  it('uses "{client} {sheet number}.pdf", writing "/" or "-" in the number as "by"', () => {
     const cut: CutDoc = {
       id: 'x',
       type: 'cut',
@@ -76,7 +76,10 @@ describe('pdfFileName', () => {
       clientName: 'Asif',
       sheetNumber: '34/66',
     }
-    expect(pdfFileName(cut)).toBe('Asif - 34/66.pdf')
+    expect(pdfFileName(cut)).toBe('Asif 34 by 66.pdf')
+    expect(pdfFileName({ ...cut, sheetNumber: '34 - 56' })).toBe('Asif 34 by 56.pdf')
+    expect(pdfFileName({ ...cut, sheetNumber: '34' })).toBe('Asif 34.pdf')
+    expect(pdfFileName({ ...cut, sheetNumber: '34/66' })).not.toMatch(/[/-]/)
   })
 
   it('falls back to the piece/date name when sheetNumber is missing, even with a client', () => {
