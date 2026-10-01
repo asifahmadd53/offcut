@@ -16,8 +16,8 @@ interface CutSavedState {
  * already saved by then (Plan saves first, per R10); this route only offers the shared
  * Print-or-PDF popup. The job's own Job detail page is drawn behind the popup so the
  * backdrop sits over real content, and closing the popup (X, backdrop, a successful PDF
- * save) just dismisses it — it never navigates, so the user stays on this page. Choosing
- * Print still goes to the print view. Router location state (not a store field) carries the
+ * save) just dismisses it — it never navigates, so the user stays on this page. Done goes
+ * Home and Print goes to the print view (both replace this entry in the history). Router location state (not a store field) carries the
  * one-shot cut, since nothing about it needs to outlive this hand-off.
  */
 export default function CutSaved() {
@@ -42,6 +42,7 @@ export default function CutSaved() {
         onOpenChange={setOpen}
         cut={cutDoc}
         onPrint={() => navigate(`/print/${cutDoc.id}`, { replace: true })}
+        onDone={() => navigate('/', { replace: true })}
       />
     </>
   )

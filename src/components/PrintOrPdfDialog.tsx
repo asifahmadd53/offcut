@@ -16,6 +16,9 @@ interface PrintOrPdfDialogProps {
   /** Called instead of navigating internally, so each caller keeps its own current flow
    *  (Job detail navigates in place; Cut saved's Print button behaves exactly as before). */
   onPrint: () => void
+  /** What the Done link does. Defaults to just closing the popup (Job detail); Cut saved
+   *  passes its own so Done can leave for Home while X still keeps the user in place. */
+  onDone?: () => void
 }
 
 /**
@@ -25,7 +28,7 @@ interface PrintOrPdfDialogProps {
  * in-place with jsPDF (dynamically imported here, only on tap) and downloads it directly —
  * it never opens the print view or the browser print dialog.
  */
-export function PrintOrPdfDialog({ open, onOpenChange, cut, onPrint }: PrintOrPdfDialogProps) {
+export function PrintOrPdfDialog({ open, onOpenChange, cut, onPrint, onDone }: PrintOrPdfDialogProps) {
   const derived = useData((s) => s.derived)
   const settings = useSettings((s) => s.settings)
   const [saving, setSaving] = useState(false)
@@ -84,7 +87,7 @@ export function PrintOrPdfDialog({ open, onOpenChange, cut, onPrint }: PrintOrPd
           </Button>
           <button
             type="button"
-            onClick={() => onOpenChange(false)}
+            onClick={onDone ?? (() => onOpenChange(false))}
             className="block w-full text-center text-[14px] text-accent-text"
           >
             Done

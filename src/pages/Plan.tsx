@@ -171,7 +171,9 @@ export default function Plan() {
     if (uidAuth) saveCut(uidAuth, doc) // fire and forget, per R10
 
     clearJob()
-    navigate('/cut-saved', { state: { cut: doc } })
+    // replace: the plan was just confirmed and its draft cleared, so Plan must not stay in the
+    // history for Back to land on.
+    navigate('/cut-saved', { replace: true, state: { cut: doc } })
   }
 
   const usesLeftover = sheets.some((s) => !s.isNew)
