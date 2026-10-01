@@ -91,7 +91,7 @@ export default function Home() {
 
       {firstUse ? (
         <div className="py-6 text-center">
-          <div className="mx-auto mb-3 flex h-14 w-13 items-center justify-center rounded-md bg-muted text-faint">
+          <div className="mx-auto mb-3 flex w-13 items-center justify-center rounded-md bg-muted text-faint">
             <IconLayoutGrid size={26} />
           </div>
           <p className="mb-1 text-[17px] font-semibold">No cuts yet</p>
