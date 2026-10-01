@@ -9,16 +9,28 @@ import { pieceSummary, sourceSummary } from '@/lib/summary'
 import { buildBlocks } from '@/lib/sheetView'
 import { useData } from '@/store/data'
 import { useJob } from '@/store/job'
+import type { JobView } from '@/lib/stock'
+import type { CutDoc } from '@/lib/types'
 
-export default function JobDetail() {
-  const { id } = useParams()
+interface JobDetailProps {
+  /** Used instead of the URL's :id when this page is rendered inside another route. */
+  id?: string
+  /** Shown until the just-saved cut reaches `derived` (the local snapshot lags a render). */
+  fallbackCut?: CutDoc
+}
+
+export default function JobDetail({ id: idProp, fallbackCut }: JobDetailProps = {}) {
+  const params = useParams()
+  const id = idProp ?? params.id
   const navigate = useNavigate()
   const derived = useData((s) => s.derived)
   const setPieces = useJob((s) => s.setPieces)
   const setClient = useJob((s) => s.setClient)
   const [printOpen, setPrintOpen] = useState(false)
 
-  const job = derived.jobs.find((j) => j.cut.id === id)
+  const job: JobView | undefined =
+    derived.jobs.find((j) => j.cut.id === id) ??
+    (fallbackCut && fallbackCut.id === id ? { cut: fallbackCut, status: 'active' } : undefined)
 
   if (!job) {
     return (
