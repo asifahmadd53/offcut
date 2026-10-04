@@ -43,7 +43,7 @@ export function PrintOrPdfDialog({ open, onOpenChange, cut, onPrint, onDone, onB
     try {
       const pages = buildPrintPages(cut, derived, settings)
       const { jsPDF } = await import('jspdf')
-      const blob = await buildPrintPdf(pages, settings.paperSize, jsPDF)
+      const blob = await buildPrintPdf(pages, settings.paperSize, jsPDF, cut)
       const url = URL.createObjectURL(blob)
       const a = document.createElement('a')
       a.href = url
@@ -69,7 +69,7 @@ export function PrintOrPdfDialog({ open, onOpenChange, cut, onPrint, onDone, onB
     try {
       const pages = buildPrintPages(cut, derived, settings)
       const { jsPDF } = await import('jspdf')
-      const blob = await buildPrintPdf(pages, settings.paperSize, jsPDF)
+      const blob = await buildPrintPdf(pages, settings.paperSize, jsPDF, cut)
       const name = pdfFileName(cut)
       const file = new File([blob], name, { type: 'application/pdf' })
       if (navigator.canShare?.({ files: [file] })) {
