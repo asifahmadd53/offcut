@@ -321,7 +321,7 @@ export default function Settings() {
 
         {/* lg+ already has Log out in AppShell's own sidebar — this is the only way to log
           out below that width, so it stays here for md and phone. */}
-        <Button variant="outline" className="h-12 w-full lg:hidden" onClick={() => setLogoutOpen(true)}>
+        <Button size="lg" variant="outline" className="w-full lg:hidden" onClick={() => setLogoutOpen(true)}>
           Log out
         </Button>
 

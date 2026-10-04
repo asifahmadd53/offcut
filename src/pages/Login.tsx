@@ -89,7 +89,7 @@ export default function Login() {
     <div className="flex min-h-dvh w-full items-center justify-center bg-background px-0 py-0 sm:px-6 sm:py-10">
       <div className="page-enter flex w-full max-w-[420px] flex-col justify-center rounded-none bg-transparent px-5 py-10 sm:rounded-card sm:border-hair sm:border-border sm:bg-card sm:px-8 sm:py-10 sm:shadow-elevated">
         <div className="mb-6 text-center">
-          <div className="mx-auto mb-3 flex h-14 w-14 items-center justify-center rounded-[14px] bg-brand text-brand-fg">
+          <div className="mx-auto mb-3 flex h-14 w-14 items-center justify-center rounded-[14px] bg-primary text-brand-fg">
             <IconScissors size={26} />
           </div>
           <p className="mb-1 text-[15px] font-semibold tracking-wide text-brand-ink">Offcut</p>
@@ -140,7 +140,18 @@ export default function Login() {
         )}
 
         <div>
-          <Label htmlFor="password">Password</Label>
+          <div className="flex items-center justify-between ">
+              <Label htmlFor="password">Password</Label>
+              {mode === 'login' && (
+                <button
+                  type="button"
+                  onClick={onForgotPassword}
+                  className="text-center text-primary hover:underline text-[12px]"
+                >
+                  Forgot password?
+                </button>
+              )}
+          </div>
           <Input
             id="password"
             type="password"
@@ -150,7 +161,7 @@ export default function Login() {
             value={password}
             onChange={(e) => setPassword(e.target.value)}
           />
-          {error && <p className="mt-1.5 text-[13px] text-danger-text">{error}</p>}
+          {error && <p className="mt-1.5 text-[12px] lg:text-[13px] text-danger-text">{error}</p>}
         </div>
 
           <Button
@@ -177,15 +188,7 @@ export default function Login() {
             )}
           </Button>
 
-        {mode === 'login' && (
-          <button
-            type="button"
-            onClick={onForgotPassword}
-            className="text-center hover:underline text-[13px] text-accent-text"
-          >
-            Forgot password
-          </button>
-        )}
+        
 
         <button
           type="button"

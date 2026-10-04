@@ -35,6 +35,7 @@ export function PrintPage({ page, isLast }: PrintPageProps) {
         <header className="print-block mb-3">
           <p className="mb-0 text-[15px] font-semibold">Offcut</p>
           <p className="mb-0 text-[13px]">{page.jobTitle}</p>
+          <p className="mb-0 text-[13px]">{page.jobTitle}</p>
           <p className="mb-0 mt-1.5 text-muted-foreground">{page.dateTimeText}</p>
           <p className="mb-0 text-muted-foreground">
             Sheet {page.sheetIndex + 1} of {page.sheetTotal}

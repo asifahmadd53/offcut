@@ -98,7 +98,7 @@ export default function Home() {
           <p className="mx-auto mb-5 max-w-[34ch] text-[13px] text-muted-foreground">
             Start your first cutting job.
           </p>
-          <Button size="hero" className="w-full rounded-none" onClick={startNewJob}>
+          <Button size="lg" className="mb-4.5 w-full" onClick={startNewJob}>
             + New cutting job
           </Button>
         </div>
