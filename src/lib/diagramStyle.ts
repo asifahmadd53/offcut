@@ -38,11 +38,14 @@ export const dgLightDeclarations = () =>
     .map(([k, v]) => `${k}: ${v};`)
     .join(' ')
 
+/** Shortest medium block (px) that can hold its chip/number tag above its size text. */
+export const CHIP_MIN_H = 58
+
 export type BlockTier = 'full' | 'medium' | 'small' | 'tiny'
 
 /** How much text a block of this on-screen size (px) can honestly carry. */
 export function blockTier(pw: number, ph: number): BlockTier {
-  if (pw >= 120 && ph >= 110) return 'full'
+  if (pw >= 120 && ph >= 128) return 'full'
   if (pw >= 56 && ph >= 44) return 'medium'
   if (pw >= 20 && ph >= 18) return 'small'
   return 'tiny'
@@ -57,7 +60,9 @@ export function blockTierFor(b: Block, pxPerInch: number): BlockTier {
   const pw = b.w * pxPerInch
   const tier = blockTier(pw, b.h * pxPerInch)
   if (tier !== 'full' && tier !== 'medium') return tier
-  const text = b.kind === 'cut' ? (b.label ?? fmtDims(b.w, b.h)) : b.kind === 'earlier' ? fmtDims(b.w, b.h) : fmtLeft(b.w, b.h)
+  let text = b.kind === 'cut' ? (b.label ?? fmtDims(b.w, b.h)) : b.kind === 'earlier' ? fmtDims(b.w, b.h) : fmtLeft(b.w, b.h)
+  // A short medium block has no room for its chip, so the letter/number joins the size text.
+  if (tier === 'medium' && b.h * pxPerInch < CHIP_MIN_H && b.kind !== 'earlier') text = `${b.kind === 'cut' ? `#${b.n ?? ''}` : (b.letter ?? '')} · ${text}`
   const fits = text.length * 0.58 * 9 <= pw - 14
   return fits ? tier : 'small'
 }

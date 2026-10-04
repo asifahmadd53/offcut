@@ -2,6 +2,7 @@ import { useEffect, useId, useMemo, useRef, useState, type KeyboardEvent } from 
 import { diagramAriaLabel } from '@/lib/diagramLayout'
 import {
   blockTierFor,
+  CHIP_MIN_H,
   horizontalTicks,
   placeBadges,
   rulerLabel,
@@ -167,7 +168,11 @@ export function SheetDiagram({
     let body: JSX.Element
     if (b.kind === 'cut') {
       const sizeText = b.label ?? `${fmt(b.w)} × ${fmt(b.h)}`
-      const fs = fitFont(sizeText, bw - 14, tier === 'full' ? 22 : 15)
+      // Medium blocks keep the "#n" tag above the size when tall enough, else it joins the size.
+      const tagged = tier === 'medium' && bh >= CHIP_MIN_H
+      const shown = tier === 'medium' && !tagged ? `#${b.n} · ${sizeText}` : sizeText
+      const fs = fitFont(shown, bw - 14, tier === 'full' ? 22 : 15)
+      const textY = tier === 'full' ? cy + 2 : tagged ? by + 22 + (bh - 22) / 2 + 5 : cy + 5
       body = (
         <>
           <rect x={bx} y={by} width={bw} height={bh} fill="var(--dg-blue)" />
@@ -188,15 +193,15 @@ export function SheetDiagram({
               </text>
             </>
           )}
-          {tier === 'medium' && (
+          {tagged && (
             <text x={bx + 8} y={by + 18} fontSize="11.5" fontWeight="700" fill="var(--dg-on-blue)">
               #{b.n}
             </text>
           )}
           {(tier === 'full' || tier === 'medium') && (
             <>
-              <text x={cx} y={cy + (tier === 'full' ? 2 : 5)} textAnchor="middle" fontSize={fs} fontWeight="800" fill="var(--dg-on-blue)">
-                {sizeText}
+              <text x={cx} y={textY} textAnchor="middle" fontSize={fs} fontWeight="800" fill="var(--dg-on-blue)">
+                {shown}
               </text>
               {tier === 'full' && (
                 <text x={cx} y={cy + 22} textAnchor="middle" fontSize="10" fontWeight="600" letterSpacing="1.4" fill="var(--dg-on-blue)" opacity={0.85}>
@@ -214,7 +219,11 @@ export function SheetDiagram({
       )
     } else if (isLeftover) {
       const sizeText = fmtLeft(b.w, b.h)
-      const fs = fitFont(`${sizeText}${tier === 'full' ? ' free' : ''}`, bw - 14, tier === 'full' ? 20 : 15)
+      // Same for leftovers: the letter chip needs room above the size, else the letter joins it.
+      const chipped = tier === 'full' || (tier === 'medium' && bh >= CHIP_MIN_H)
+      const shown = tier === 'medium' && !chipped ? `${b.letter} · ${sizeText}` : sizeText
+      const fs = fitFont(`${shown}${tier === 'full' ? ' free' : ''}`, bw - 14, tier === 'full' ? 20 : 15)
+      const textY = tier === 'full' ? cy + 2 : chipped ? by + 30 + (bh - 30) / 2 + 5 : cy + 5
       const caption = b.kind === 'free' ? 'Saved' : 'Offcut'
       body = (
         <>
@@ -230,7 +239,7 @@ export function SheetDiagram({
             strokeWidth="1.5"
             strokeDasharray="5 3"
           />
-          {(tier === 'full' || tier === 'medium') && (
+          {chipped && (
             <>
               <rect x={bx + 8} y={by + 8} width={tier === 'full' ? 44 : 30} height={22} rx={6} fill="var(--dg-card)" stroke="var(--dg-green-edge)" />
               <text x={bx + 8 + (tier === 'full' ? 22 : 15)} y={by + 23} textAnchor="middle" fontSize="12" fontWeight="700" fill="var(--dg-green)">
@@ -264,12 +273,12 @@ export function SheetDiagram({
           )}
           {(tier === 'full' || tier === 'medium') && (
             <>
-              <text x={cx} y={cy + (tier === 'full' ? 2 : 5)} textAnchor="middle" fontSize={fs} fontWeight="800" fill="var(--dg-green)">
-                {sizeText}
+              <text x={cx} y={textY} textAnchor="middle" fontSize={fs} fontWeight="800" fill="var(--dg-green)">
+                {shown}
                 {tier === 'full' ? ' free' : ''}
               </text>
-              {bh >= 70 && (
-                <text x={cx} y={cy + (tier === 'full' ? 22 : 24)} textAnchor="middle" fontSize="10" fontWeight="600" letterSpacing="1.2" fill="var(--dg-green)" opacity={0.85}>
+              {(tier === 'full' ? bh >= 70 : chipped && bh >= 86) && (
+                <text x={cx} y={tier === 'full' ? cy + 22 : textY + 19} textAnchor="middle" fontSize="10" fontWeight="600" letterSpacing="1.2" fill="var(--dg-green)" opacity={0.85}>
                   {tier === 'full' ? 'Reusable Clean Stock' : 'STOCK'}
                 </text>
               )}
@@ -340,9 +349,9 @@ export function SheetDiagram({
         </defs>
 
         {/* Grid-paper card */}
-        <rect x="0.5" y="0.5" width={svgW - 1} height={svgH - 1} rx="24" fill="var(--dg-card)" />
-        <rect x="0.5" y="0.5" width={svgW - 1} height={svgH - 1} rx="24" fill={`url(#${gridId})`} />
-        <rect x="0.5" y="0.5" width={svgW - 1} height={svgH - 1} rx="24" fill="none" stroke="var(--dg-border)" />
+        <rect x="0.5" y="0.5" width={svgW - 1} height={svgH - 1} rx="6" fill="var(--dg-card)" />
+        <rect x="0.5" y="0.5" width={svgW - 1} height={svgH - 1} rx="6" fill={`url(#${gridId})`} />
+        <rect x="0.5" y="0.5" width={svgW - 1} height={svgH - 1} rx="6" fill="none" stroke="var(--dg-border)" />
 
         {/* Sheet width callout */}
         <line x1={sheetLeft} y1={TOP - 28} x2={sheetLeft + sheetPxW} y2={TOP - 28} stroke="var(--dg-border)" strokeWidth="1" />
