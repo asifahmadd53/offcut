@@ -49,7 +49,7 @@ const RIGHT = 22
 /** Distance from the sheet to its width callout above and its height callout beside it. */
 const SIDE_DIM = 28
 /** The on-page drawing is drawn a touch smaller than the space it could fill (print/full screen still fill it). */
-const PAGE_SCALE = 0.92
+const PAGE_SCALE = 0.8
 const TOP = 60
 const RULER = 48
 const NOTE_LINE = 16
