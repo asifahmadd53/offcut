@@ -1,6 +1,7 @@
 import { useNavigate, useParams, useLocation } from 'react-router-dom'
 import { IconChevronLeft } from '@tabler/icons-react'
 import { PrintPage } from '@/components/PrintPage'
+import { dgLightDeclarations } from '@/lib/diagramStyle'
 import { buildPrintPages } from '@/lib/print'
 import { useData } from '@/store/data'
 import { useSettings } from '@/store/settings'
@@ -64,6 +65,7 @@ export default function Print() {
           --success-bg: #dcfce7;
           --success-border: #16a34a;
           --success-text: #14532d;
+          ${dgLightDeclarations()}
           color-scheme: light;
         }
         @media print {

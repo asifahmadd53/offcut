@@ -175,3 +175,45 @@ button {
 .page-enter {
   animation: page-enter 180ms ease-out;
 }
+
+/* Sheet-diagram colours (components/SheetDiagram.tsx): blue pieces, green hatched leftovers,
+   orange cut path, on a grid-paper card. Light here, dark under the system dark theme.
+   The print page and Save image pin the light values (lib/diagramStyle.ts DG_LIGHT). */
+:root {
+  --dg-card: #ffffff;
+  --dg-border: #e1e6ee;
+  --dg-grid: #e8ecf3;
+  --dg-text: #0f172a;
+  --dg-muted: #64748b;
+  --dg-faint: #94a3b8;
+  --dg-blue: #2563eb;
+  --dg-on-blue: #ffffff;
+  --dg-green: #047857;
+  --dg-green-fill: #e4f6ec;
+  --dg-green-hatch: #b6e5cc;
+  --dg-green-edge: #5fc795;
+  --dg-orange: #f59e0b;
+  --dg-on-orange: #2a1500;
+  --dg-sheet: #eef1f6;
+  --dg-sheet-edge: #c3cbd8;
+  --dg-earlier: #d5dbe5;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --dg-card: #181a1e;
+    --dg-border: #2a2d33;
+    --dg-grid: #23262b;
+    --dg-text: #f1f5f9;
+    --dg-muted: #94a3b8;
+    --dg-faint: #64748b;
+    --dg-green: #34d399;
+    --dg-green-fill: #0e3a2a;
+    --dg-green-hatch: #14614a;
+    --dg-green-edge: #1f9d6e;
+    --dg-orange: #f97316;
+    --dg-sheet: #1f2227;
+    --dg-sheet-edge: #3a3f47;
+    --dg-earlier: #2c3038;
+  }
+}

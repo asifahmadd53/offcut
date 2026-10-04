@@ -1,17 +1,14 @@
-import { useEffect, useId, useMemo, useRef, useState } from 'react'
+import { useEffect, useId, useMemo, useRef, useState, type KeyboardEvent } from 'react'
+import { diagramAriaLabel } from '@/lib/diagramLayout'
 import {
-  blockCallouts,
-  chooseLabel,
-  computeWasteCells,
-  diagramAriaLabel,
-  edgesToSegments,
-  estimateTextWidth,
-  extractEdges,
-  nudgeLabels,
-  wasteLabelFits,
-  type CutLineLayout,
-} from '@/lib/diagramLayout'
-import { fmt } from '@/lib/inches'
+  blockTier,
+  horizontalTicks,
+  placeBadges,
+  rulerLabel,
+  smallBlockNotes,
+  verticalTicks,
+} from '@/lib/diagramStyle'
+import { fmt, fmtLeft } from '@/lib/inches'
 import type { Block } from '@/lib/sheetView'
 import type { SheetPlan } from '@/lib/types'
 
@@ -33,25 +30,36 @@ interface SheetDiagramProps {
    */
   highlightIndex?: number
   /**
-   * When true, the diagram measures and fills its container's actual width AND height
-   * (up to maxW/maxH as an outer ceiling) instead of staying a small fixed-size picture.
-   * The caller must give the container a real CSS height for this to have any effect —
-   * used by Plan/Job detail's main (non-fullscreen, non-compact) drawing on wide screens.
-   * Leftover detail's intentionally compact preview leaves this off.
+   * When true, the diagram measures its container's actual width AND height and fits the
+   * whole drawing inside both (print pages, full screen). The caller must give the
+   * container a real CSS height for this to have any effect.
    */
   fill?: boolean
+  /**
+   * Sizes the drawing by the container's width, so the sheet fills the card like a phone
+   * screenshot, and lets its height follow (capped to the viewport so a wide laptop column
+   * does not make a giant sheet). Used by Plan / Job detail / Leftover detail's main drawing.
+   */
+  autoHeight?: boolean
 }
 
-const LEFT_MARGIN = 90
-const TOP_MARGIN = 64
-const RIGHT_MARGIN = 80
-const BOTTOM_MARGIN = 32
+const LEFT = 72
+const RIGHT = 22
+const TOP = 60
+const RULER = 48
+const LEGEND = 46
+const NOTE_LINE = 16
+
+/** Largest font (up to `base`) that keeps `text` inside `maxPx`, using a rough glyph width. */
+const fitFont = (text: string, maxPx: number, base: number) =>
+  Math.max(9, Math.min(base, maxPx / (Math.max(text.length, 1) * 0.58)))
 
 /**
- * Draws a sheet as a technical/engineering-style cutting drawing: outline, pieces,
- * hatched leftovers and waste, numbered dashed cut lines, and dimension lines with
- * tick marks. Colour is never the only signal (R15): every block carries text or a
- * letter, and hatching patterns independently distinguish leftover / waste / earlier.
+ * Draws a sheet as a to-scale cutting drawing on a grid-paper card: blue pieces, green
+ * hatched leftovers, a dashed orange cut path with numbered badges (the engine's own cut
+ * numbers), rulers numbered from the bottom, and a legend. Colour is never the only signal
+ * (R15): every block carries text, and any block too small for its own text is listed under
+ * the sheet. One SVG, so print and Save image keep working.
  */
 export function SheetDiagram({
   sheetW,
@@ -64,11 +72,13 @@ export function SheetDiagram({
   onCutToggle,
   highlightIndex,
   fill = false,
+  autoHeight = false,
 }: SheetDiagramProps) {
   const containerRef = useRef<HTMLDivElement>(null)
-  const [containerW, setContainerW] = useState(maxW + LEFT_MARGIN + RIGHT_MARGIN)
-  const [containerH, setContainerH] = useState(maxH + TOP_MARGIN + BOTTOM_MARGIN + 28)
-  const uidBase = useId()
+  const [containerW, setContainerW] = useState(maxW + LEFT + RIGHT)
+  const [containerH, setContainerH] = useState(maxH + TOP + RULER + LEGEND)
+  const [vh, setVh] = useState(() => (typeof window === 'undefined' ? 800 : window.innerHeight))
+  const uid = useId().replace(/:/g, '')
 
   useEffect(() => {
     const el = containerRef.current
@@ -83,94 +93,231 @@ export function SheetDiagram({
     return () => ro.disconnect()
   }, [fill])
 
-  const layout = useMemo(() => {
-    const availW = Math.max(containerW - LEFT_MARGIN - RIGHT_MARGIN, 20)
-    // Filling a laptop-height column: the container's own measured height becomes the
-    // real budget, instead of the small fixed maxH default that kept the drawing a
-    // small picture regardless of how much space was actually available.
-    const effectiveMaxH = fill ? Math.max(containerH - TOP_MARGIN - BOTTOM_MARGIN - 28, 100) : maxH
-    const pxPerInch = Math.min(availW / sheetW, effectiveMaxH / sheetH)
-    const sheetPxW = sheetW * pxPerInch
-    const sheetPxH = sheetH * pxPerInch
-    const svgW = LEFT_MARGIN + sheetPxW + RIGHT_MARGIN
-    const baseSvgH = TOP_MARGIN + sheetPxH + BOTTOM_MARGIN + 28 // + ruler strip
+  useEffect(() => {
+    const onResize = () => setVh(window.innerHeight)
+    window.addEventListener('resize', onResize)
+    return () => window.removeEventListener('resize', onResize)
+  }, [])
 
-    const region = { x: 0, y: 0, w: sheetW, h: sheetH }
-    const wasteCells = computeWasteCells(blocks, region)
-    const cutLines: CutLineLayout[] = cuts ?? []
+  const g = useMemo(() => {
+    const innerW = Math.max(containerW - LEFT - RIGHT, 20)
+    const fixedV = TOP + RULER + LEGEND
+    const budgetH = fill ? containerH - fixedV : autoHeight ? Math.max(vh * 0.9, 420) - fixedV : maxH
+    const s = Math.min(innerW / sheetW, Math.max(budgetH, 60) / sheetH)
+    const sheetPxW = sheetW * s
+    const sheetPxH = sheetH * s
+    const sheetLeft = LEFT + (innerW - sheetPxW) / 2
+    const notes = smallBlockNotes(blocks, s)
+    const notesH = notes.length ? notes.length * NOTE_LINE + 10 : 0
+    const svgW = containerW
+    const svgH = TOP + sheetPxH + RULER + notesH + LEGEND
+    return { s, sheetPxW, sheetPxH, sheetLeft, notes, svgW, svgH }
+  }, [autoHeight, blocks, containerH, containerW, fill, maxH, sheetH, sheetW, vh])
 
-    // Dimension edges from pieces + leftovers only (not waste/earlier), per spec.
-    const dimBlocks = blocks.filter((b) => b.kind === 'cut' || b.kind === 'free' || b.kind === 'freeNew' || b.kind === 'focus')
-    const xEdges = extractEdges(dimBlocks, 'x', 0, sheetW)
-    const yEdges = extractEdges(dimBlocks, 'y', 0, sheetH)
-    const xSegs = edgesToSegments(xEdges)
-    const ySegs = edgesToSegments(yEdges)
+  const { s, sheetPxW, sheetPxH, sheetLeft, notes, svgW, svgH } = g
+  const X = (x: number) => sheetLeft + x * s
+  const Y = (y: number) => TOP + y * s
 
-    const xLabels = xSegs.map((s) => ({
-      center: LEFT_MARGIN + ((s.from + s.to) / 2) * pxPerInch,
-      text: s.label,
-      halfWidth: estimateTextWidth(s.label) / 2,
-    }))
-    const xNudge = nudgeLabels(xLabels)
+  const cutLines = cuts ?? []
+  const badges = placeBadges(
+    cutLines.map((c) =>
+      c.kind === 'across'
+        ? { n: c.n, x: X(c.to) + 5, y: Y(c.pos), axis: 'y' as const }
+        : { n: c.n, x: X(c.pos), y: Y(c.from) - 2, axis: 'x' as const },
+    ),
+  )
 
-    const yLabels = ySegs.map((s) => ({
-      center: TOP_MARGIN + ((s.from + s.to) / 2) * pxPerInch,
-      text: s.label,
-      halfWidth: 6, // vertical stack: height doesn't crowd horizontally
-    }))
-    const yNudge = nudgeLabels(yLabels, 4)
-
-    // Every piece, already-cut piece and leftover whose label is too small to draw
-    // inline (a 'legend' or 'badge' choice) gets a dotted callout outside the sheet
-    // instead, never rotated text. Stacked via nudgeLabels so callouts on one sheet
-    // never touch. Waste keeps its own simple "Waste" text (no size), unrelated to this.
-    // Text is fit to RIGHT_MARGIN minus the leader-line offset (22px) and a 4px right
-    // padding, so a callout can never run past the SVG's own right edge into whatever
-    // sits beside the diagram (e.g. print's info column) — the fix for callout text
-    // overlapping neighbouring content.
-    const calloutMaxTextWidth = Math.max(RIGHT_MARGIN - 22 - 4, 20)
-    const callouts = blockCallouts(blocks, pxPerInch, calloutMaxTextWidth)
-    // Callouts are never dropped (nudgeLabels' Infinity factor above), so the SVG's own
-    // height must grow to actually fit them when a sheet is crowded enough to nudge one
-    // past the sheet's own bottom edge — otherwise a callout could be pushed past the
-    // viewBox and clipped by an ancestor's overflow:hidden even though it was "placed".
-    const maxCalloutY = callouts.reduce((max, c) => Math.max(max, TOP_MARGIN + c.y), 0)
-    const svgH = Math.max(baseSvgH, maxCalloutY + 12)
-
-    return {
-      pxPerInch,
-      sheetPxW,
-      sheetPxH,
-      svgW,
-      svgH,
-      wasteCells,
-      cutLines,
-      xSegs,
-      ySegs,
-      xNudge,
-      yNudge,
-      callouts,
-    }
-  }, [blocks, containerW, cuts, maxH, sheetH, sheetW])
-
-  const { pxPerInch, sheetPxW, sheetPxH, svgW, svgH, wasteCells, cutLines, xNudge, yNudge, callouts } = layout
+  const yTicks = verticalTicks(blocks, sheetH, s)
+  const xTicks = horizontalTicks(sheetW)
+  const hatchId = `hatch-${uid}`
+  const gridId = `grid-${uid}`
 
   const pieceCount = blocks.filter((b) => b.kind === 'cut').length
   const leftoverCount = blocks.filter((b) => b.kind === 'free' || b.kind === 'freeNew' || b.kind === 'focus').length
   const ariaLabel = diagramAriaLabel(sheetW, sheetH, pieceCount, leftoverCount, cuts ? cuts.length : undefined)
 
-  const X = (inX: number) => LEFT_MARGIN + inX * pxPerInch
-  const Y = (inY: number) => TOP_MARGIN + inY * pxPerInch
+  const calloutText = `${fmt(sheetW)}" Sheet Width`
+  const calloutW = calloutText.length * 7.2 + 50
+  const calloutCx = sheetLeft + sheetPxW / 2
+  const axisX = sheetLeft - 14
 
-  function toggleCut(n: number) {
-    onCutToggle?.(n)
+  const legend = [
+    { key: 'blue', text: 'Cut pieces' },
+    { key: 'green', text: 'Saved leftover' },
+    { key: 'orange', text: 'Cut path' },
+  ]
+  const itemW = (t: string) => 16 + 8 + t.length * 6.9
+  const legendGap = 18
+  const legendTotal = legend.reduce((sum, l) => sum + itemW(l.text), 0) + legendGap * (legend.length - 1)
+  let legendX = Math.max(12, (svgW - legendTotal) / 2)
+  const legendY = svgH - LEGEND / 2 + 2
+
+  const renderBlock = (b: Block, i: number) => {
+    const bx = X(b.x)
+    const by = Y(b.y)
+    const bw = b.w * s
+    const bh = b.h * s
+    const tier = blockTier(bw, bh)
+    const cx = bx + bw / 2
+    const cy = by + bh / 2
+    const highlighted = highlightIndex === i
+    const isLeftover = b.kind === 'free' || b.kind === 'freeNew' || b.kind === 'focus'
+
+    let body: JSX.Element
+    if (b.kind === 'cut') {
+      const sizeText = b.label ?? `${fmt(b.w)} × ${fmt(b.h)}`
+      const fs = fitFont(sizeText, bw - 14, tier === 'full' ? 22 : 15)
+      body = (
+        <>
+          <rect x={bx} y={by} width={bw} height={bh} fill="var(--dg-blue)" />
+          {tier === 'full' && (
+            <>
+              <rect x={bx + 8} y={by + 8} width={52} height={22} rx={6} fill="black" fillOpacity={0.3} />
+              <text x={bx + 34} y={by + 23} textAnchor="middle" fontSize="11.5" fontWeight="700" fill="var(--dg-on-blue)">
+                Piece
+              </text>
+              <text x={bx + 12} y={by + 46} fontSize="12" fontWeight="700" fill="var(--dg-on-blue)">
+                {b.n}
+              </text>
+              <text x={bx + bw - 10} y={by + 22} textAnchor="end" fontSize="12.5" fontWeight="700" fill="var(--dg-on-blue)">
+                {fmt(b.w)}"
+              </text>
+              <text x={bx + 10} y={by + bh - 10} fontSize="12.5" fontWeight="700" fill="var(--dg-on-blue)">
+                {fmt(b.h)}"
+              </text>
+            </>
+          )}
+          {tier === 'medium' && (
+            <text x={bx + 8} y={by + 18} fontSize="11.5" fontWeight="700" fill="var(--dg-on-blue)">
+              #{b.n}
+            </text>
+          )}
+          {(tier === 'full' || tier === 'medium') && (
+            <>
+              <text x={cx} y={cy + (tier === 'full' ? 2 : 5)} textAnchor="middle" fontSize={fs} fontWeight="800" fill="var(--dg-on-blue)">
+                {sizeText}
+              </text>
+              {tier === 'full' && (
+                <text x={cx} y={cy + 22} textAnchor="middle" fontSize="10" fontWeight="600" letterSpacing="1.4" fill="var(--dg-on-blue)" opacity={0.85}>
+                  REQUIRED CUT
+                </text>
+              )}
+            </>
+          )}
+          {tier === 'small' && (
+            <text x={cx} y={cy + 4} textAnchor="middle" fontSize="11" fontWeight="700" fill="var(--dg-on-blue)">
+              {b.n}
+            </text>
+          )}
+        </>
+      )
+    } else if (isLeftover) {
+      const sizeText = fmtLeft(b.w, b.h)
+      const fs = fitFont(`${sizeText}${tier === 'full' ? ' free' : ''}`, bw - 14, tier === 'full' ? 20 : 15)
+      const caption = b.kind === 'free' ? 'Saved' : 'Offcut'
+      body = (
+        <>
+          <rect x={bx} y={by} width={bw} height={bh} fill="var(--dg-green-fill)" />
+          <rect x={bx} y={by} width={bw} height={bh} fill={`url(#${hatchId})`} />
+          <rect
+            x={bx + 0.75}
+            y={by + 0.75}
+            width={Math.max(0, bw - 1.5)}
+            height={Math.max(0, bh - 1.5)}
+            fill="none"
+            stroke="var(--dg-green-edge)"
+            strokeWidth="1.5"
+            strokeDasharray="5 3"
+          />
+          {(tier === 'full' || tier === 'medium') && (
+            <>
+              <rect x={bx + 8} y={by + 8} width={tier === 'full' ? 44 : 30} height={22} rx={6} fill="var(--dg-card)" stroke="var(--dg-green-edge)" />
+              <text x={bx + 8 + (tier === 'full' ? 22 : 15)} y={by + 23} textAnchor="middle" fontSize="12" fontWeight="700" fill="var(--dg-green)">
+                {b.letter}
+                {tier === 'full' ? ' •' : ''}
+              </text>
+            </>
+          )}
+          {tier === 'full' && (
+            <>
+              <text x={bx + 10} y={by + 46} fontSize="11.5" fontWeight="600" fill="var(--dg-green)">
+                {caption}
+              </text>
+              <text x={bx + bw - 10} y={by + 22} textAnchor="end" fontSize="12" fontWeight="600" fill="var(--dg-green)">
+                {fmt(b.w)}" width
+              </text>
+              <text x={bx + 10} y={by + bh - 10} fontSize="12" fontWeight="600" fill="var(--dg-green)">
+                {fmt(b.h)}" height
+              </text>
+            </>
+          )}
+          {tier === 'medium' && bw >= 64 && (
+            <text x={bx + bw - 8} y={by + 22} textAnchor="end" fontSize="12" fontWeight="600" fill="var(--dg-green)">
+              {fmt(b.w)}"
+            </text>
+          )}
+          {tier === 'medium' && bh >= 120 && bw >= 64 && (
+            <text x={bx + bw - 8} y={by + bh - 10} textAnchor="end" fontSize="12" fontWeight="600" fill="var(--dg-green)">
+              {fmt(b.h)}"
+            </text>
+          )}
+          {(tier === 'full' || tier === 'medium') && (
+            <>
+              <text x={cx} y={cy + (tier === 'full' ? 2 : 5)} textAnchor="middle" fontSize={fs} fontWeight="800" fill="var(--dg-green)">
+                {sizeText}
+                {tier === 'full' ? ' free' : ''}
+              </text>
+              {bh >= 70 && (
+                <text x={cx} y={cy + (tier === 'full' ? 22 : 24)} textAnchor="middle" fontSize="10" fontWeight="600" letterSpacing="1.2" fill="var(--dg-green)" opacity={0.85}>
+                  {tier === 'full' ? 'Reusable Clean Stock' : 'STOCK'}
+                </text>
+              )}
+            </>
+          )}
+          {tier === 'small' && (
+            <text x={cx} y={cy + 4} textAnchor="middle" fontSize="11" fontWeight="700" fill="var(--dg-green)">
+              {b.letter}
+            </text>
+          )}
+        </>
+      )
+    } else {
+      // earlier cut (and anything else): a plain muted block
+      const sizeText = `${fmt(b.w)} × ${fmt(b.h)}`
+      body = (
+        <>
+          <rect x={bx} y={by} width={bw} height={bh} fill="var(--dg-earlier)" />
+          {(tier === 'full' || tier === 'medium') && (
+            <>
+              <text x={cx} y={cy + 4} textAnchor="middle" fontSize={fitFont(sizeText, bw - 14, 15)} fontWeight="700" fill="var(--dg-muted)">
+                {sizeText}
+              </text>
+              {bh >= 60 && (
+                <text x={cx} y={cy + 22} textAnchor="middle" fontSize="10" fontWeight="600" letterSpacing="1.2" fill="var(--dg-muted)">
+                  ALREADY CUT
+                </text>
+              )}
+            </>
+          )}
+        </>
+      )
+    }
+
+    return (
+      <g key={`b${i}`} pointerEvents="none">
+        {body}
+        {highlighted && (
+          <rect x={bx + 1.5} y={by + 1.5} width={Math.max(0, bw - 3)} height={Math.max(0, bh - 3)} fill="none" stroke="var(--dg-text)" strokeWidth="2.5" />
+        )}
+      </g>
+    )
   }
 
   return (
     <div
       ref={containerRef}
       className={fill ? 'flex h-full w-full items-center justify-center' : 'w-full'}
-      style={fill ? undefined : { maxWidth: maxW + LEFT_MARGIN + RIGHT_MARGIN }}
+      style={fill || autoHeight ? undefined : { maxWidth: maxW + LEFT + RIGHT }}
     >
       <svg
         role="img"
@@ -179,499 +326,204 @@ export function SheetDiagram({
         width={fill ? undefined : svgW}
         height={fill ? undefined : svgH}
         preserveAspectRatio="xMidYMid meet"
-        className={fill ? 'h-full max-h-full w-full max-w-full font-sans' : 'max-w-full font-sans'}
+        className={fill ? 'h-full max-h-full w-full max-w-full font-sans' : 'block max-w-full font-sans'}
         style={{ overflow: 'visible' }}
       >
         <defs>
-          <pattern id={`${uidBase}-hatch-leftover`} width="6" height="6" patternTransform="rotate(45)" patternUnits="userSpaceOnUse">
-            <line x1="0" y1="0" x2="0" y2="6" stroke="var(--success-border)" strokeWidth="1" opacity="0.35" />
+          <pattern id={hatchId} width="8" height="8" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
+            <line x1="0" y1="0" x2="0" y2="8" stroke="var(--dg-green-hatch)" strokeWidth="2.4" />
           </pattern>
-          <pattern id={`${uidBase}-hatch-waste`} width="5" height="5" patternTransform="rotate(45)" patternUnits="userSpaceOnUse">
-            <line x1="0" y1="0" x2="0" y2="5" stroke="var(--border-strong)" strokeWidth="1" opacity="0.5" />
-            <line x1="0" y1="0" x2="5" y2="0" stroke="var(--border-strong)" strokeWidth="1" opacity="0.5" />
+          <pattern id={gridId} width="22" height="22" patternUnits="userSpaceOnUse">
+            <path d="M22 0H0V22" fill="none" stroke="var(--dg-grid)" strokeWidth="1" />
           </pattern>
-          <marker id={`${uidBase}-arrow-start`} viewBox="0 0 10 10" refX="1" refY="5" markerWidth="6" markerHeight="6" orient="auto">
-            <path d="M9,1 L1,5 L9,9" fill="none" stroke="var(--muted-foreground)" strokeWidth="1.5" />
-          </marker>
-          <marker id={`${uidBase}-arrow-end`} viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto">
-            <path d="M1,1 L9,5 L1,9" fill="none" stroke="var(--muted-foreground)" strokeWidth="1.5" />
-          </marker>
         </defs>
 
-        {/* Waste, grey crossed-hatch */}
-        {wasteCells.map((c, i) => {
-          const pw = c.w * pxPerInch
-          const ph = c.h * pxPerInch
-          const showLabel = wasteLabelFits(pw, ph)
+        {/* Grid-paper card */}
+        <rect x="0.5" y="0.5" width={svgW - 1} height={svgH - 1} rx="24" fill="var(--dg-card)" />
+        <rect x="0.5" y="0.5" width={svgW - 1} height={svgH - 1} rx="24" fill={`url(#${gridId})`} />
+        <rect x="0.5" y="0.5" width={svgW - 1} height={svgH - 1} rx="24" fill="none" stroke="var(--dg-border)" />
+
+        {/* Sheet width callout */}
+        <line x1={sheetLeft} y1={TOP - 28} x2={sheetLeft + sheetPxW} y2={TOP - 28} stroke="var(--dg-border)" strokeWidth="1" />
+        <rect x={calloutCx - calloutW / 2} y={TOP - 41} width={calloutW} height={26} rx={7} fill="var(--dg-card)" stroke="var(--dg-border)" />
+        <g stroke="var(--dg-muted)" strokeWidth="1.4" fill="none" strokeLinecap="round" strokeLinejoin="round">
+          <path d={`M${calloutCx - calloutW / 2 + 14} ${TOP - 24} v-6 m-2.5 2.5 l2.5 -2.5 l2.5 2.5`} />
+          <path d={`M${calloutCx - calloutW / 2 + 19} ${TOP - 24} v6 m-2.5 -2.5 l2.5 2.5 l2.5 -2.5`} />
+        </g>
+        <text x={calloutCx + 10} y={TOP - 23} textAnchor="middle" fontSize="12.5" fontWeight="600" fill="var(--dg-text)">
+          {calloutText}
+        </text>
+
+        {/* Sheet */}
+        <rect x={sheetLeft} y={TOP} width={sheetPxW} height={sheetPxH} rx={3} fill="var(--dg-sheet)" />
+        {blocks.map(renderBlock)}
+        <rect x={sheetLeft} y={TOP} width={sheetPxW} height={sheetPxH} rx={3} fill="none" stroke="var(--dg-sheet-edge)" strokeWidth="2" pointerEvents="none" />
+
+        {/* Cut path: dashed orange lines with numbered badges, from sheet.cuts (the engine's own numbering) */}
+        {cutLines.map((c) => {
+          const active = activeCut === c.n
+          const dim = activeCut != null && !active
+          const across = c.kind === 'across'
+          const x1 = across ? X(c.from) : X(c.pos)
+          const y1 = across ? Y(c.pos) : Y(c.from)
+          const x2 = across ? X(c.to) : X(c.pos)
+          const y2 = across ? Y(c.pos) : Y(c.to)
           return (
-            <g key={`waste-${i}`}>
-              <rect
-                x={X(c.x)}
-                y={Y(c.y)}
-                width={pw}
-                height={ph}
-                fill={`url(#${uidBase}-hatch-waste)`}
-                stroke="var(--border-strong)"
-                strokeWidth="1"
-              />
-              {showLabel && (
-                <text
-                  x={X(c.x) + pw / 2}
-                  y={Y(c.y) + ph / 2}
-                  textAnchor="middle"
-                  dominantBaseline="middle"
-                  fontSize="11"
-                  fill="var(--muted-foreground)"
-                >
-                  Waste
-                </text>
+            <line
+              key={`cut-line-${c.n}`}
+              x1={x1}
+              y1={y1}
+              x2={x2}
+              y2={y2}
+              stroke="var(--dg-orange)"
+              strokeWidth={active ? 3 : 2}
+              strokeDasharray="7 4"
+              opacity={dim ? 0.4 : 1}
+              pointerEvents="none"
+            />
+          )
+        })}
+        {badges.map((b) => {
+          const active = activeCut === b.n
+          const dim = activeCut != null && !active
+          const moved = Math.abs(b.x - b.ox) > 0.5 || Math.abs(b.y - b.oy) > 0.5
+          return (
+            <g key={`cut-badge-${b.n}`}>
+              {moved && (
+                <line x1={b.ox} y1={b.oy} x2={b.x} y2={b.y} stroke="var(--dg-orange)" strokeWidth="1.5" opacity={dim ? 0.4 : 1} pointerEvents="none" />
               )}
+              <CutBadge cx={b.x} cy={b.y} n={b.n} active={active} dim={dim} onToggle={() => onCutToggle?.(b.n)} />
             </g>
           )
         })}
 
-        {/* Already-cut pieces: a plain muted grey-blue block, same clean style as any
-            other block, no hatching — hatching stays only on green leftovers. Its size
-            is always shown; "Already cut" is a second line only when there's room. */}
-        {blocks
-          .filter((b) => b.kind === 'earlier')
-          .map((b, i) => {
-            const pw = b.w * pxPerInch
-            const ph = b.h * pxPerInch
-            const plan = chooseLabel(b, pxPerInch).earlier!
-            return (
-              <g key={`earlier-${i}`}>
-                <rect
-                  x={X(b.x)}
-                  y={Y(b.y)}
-                  width={pw}
-                  height={ph}
-                  fill="var(--muted)"
-                  stroke="var(--border-strong)"
-                  strokeWidth="1"
-                />
-                {plan.kind === 'two-line' && (
-                  <>
-                    <text x={X(b.x) + pw / 2} y={Y(b.y) + ph / 2 - 6} textAnchor="middle" fontSize="11" fontWeight="600" fill="var(--muted-foreground)">
-                      {plan.line1}
-                    </text>
-                    <text x={X(b.x) + pw / 2} y={Y(b.y) + ph / 2 + 8} textAnchor="middle" fontSize="11" fill="var(--faint)">
-                      {plan.line2}
-                    </text>
-                  </>
-                )}
-                {plan.kind === 'one-line' && (
-                  <text x={X(b.x) + pw / 2} y={Y(b.y) + ph / 2} textAnchor="middle" dominantBaseline="middle" fontSize="11" fontWeight="600" fill="var(--muted-foreground)">
-                    {plan.line1}
-                  </text>
-                )}
-              </g>
-            )
-          })}
+        {/* Left ruler, numbered up from the bottom, plus the rotated total */}
+        <line x1={axisX} y1={Y(0)} x2={axisX} y2={Y(sheetH)} stroke="var(--dg-faint)" strokeWidth="1" />
+        {yTicks.map((t, i) => (
+          <g key={`yt${i}`}>
+            <line x1={axisX} y1={TOP + t.y} x2={axisX + 6} y2={TOP + t.y} stroke={t.end ? 'var(--dg-faint)' : 'var(--dg-green)'} strokeWidth="1" />
+            <text
+              x={axisX - 5}
+              y={TOP + t.y + 4}
+              textAnchor="end"
+              fontSize="12"
+              fontWeight="600"
+              fill={t.end ? 'var(--dg-muted)' : 'var(--dg-green)'}
+            >
+              {fmt(t.value)}
+            </text>
+          </g>
+        ))}
+        <text
+          transform={`translate(${Math.max(13, sheetLeft - 59)} ${TOP + sheetPxH / 2}) rotate(-90)`}
+          textAnchor="middle"
+          fontSize="10.5"
+          fontWeight="600"
+          letterSpacing="1.4"
+          fill="var(--dg-muted)"
+        >
+          {fmt(sheetH)}" TOTAL
+        </text>
 
-        {/* Free leftovers: existing free, this plan's freeNew, focus */}
-        {blocks
-          .map((b, blockIndex) => ({ b, blockIndex }))
-          .filter(({ b }) => b.kind === 'free' || b.kind === 'freeNew' || b.kind === 'focus')
-          .map(({ b, blockIndex }) => {
-            const pw = b.w * pxPerInch
-            const ph = b.h * pxPerInch
-            const plan = chooseLabel(b, pxPerInch)
-            const highlighted = highlightIndex === blockIndex
-            const strokeW = highlighted ? 1.5 : 1
-            const dashed = !highlighted
-            const choice = plan.free!
-            return (
-              <g key={`free-${blockIndex}`}>
-                <rect
-                  x={X(b.x)}
-                  y={Y(b.y)}
-                  width={pw}
-                  height={ph}
-                  fill="var(--success-bg)"
-                  stroke="var(--success-border)"
-                  strokeWidth={strokeW}
-                  strokeDasharray={dashed ? '4 3' : undefined}
-                />
-                <rect x={X(b.x)} y={Y(b.y)} width={pw} height={ph} fill={`url(#${uidBase}-hatch-leftover)`} />
-                {choice.kind === 'wide' && (
-                  <text
-                    x={X(b.x) + pw / 2}
-                    y={Y(b.y) + ph / 2}
-                    textAnchor="middle"
-                    dominantBaseline="middle"
-                    fontSize="12"
-                    fontWeight="600"
-                    fill="var(--success-text)"
-                  >
-                    {choice.letter} · {choice.dims}
-                    {choice.showFree ? ' free' : ''}
-                  </text>
-                )}
-                {choice.kind === 'stacked' && (
-                  <>
-                    <text
-                      x={X(b.x) + pw / 2}
-                      y={Y(b.y) + ph / 2 - 6}
-                      textAnchor="middle"
-                      fontSize="11"
-                      fontWeight="600"
-                      fill="var(--success-text)"
-                    >
-                      {choice.letter}
-                    </text>
-                    <text
-                      x={X(b.x) + pw / 2}
-                      y={Y(b.y) + ph / 2 + 8}
-                      textAnchor="middle"
-                      fontSize="11"
-                      fontWeight="600"
-                      fill="var(--success-text)"
-                    >
-                      {choice.dims}
-                    </text>
-                  </>
-                )}
-              </g>
-            )
-          })}
+        {/* Bottom ruler */}
+        <line x1={sheetLeft} y1={TOP + sheetPxH + 16} x2={sheetLeft + sheetPxW} y2={TOP + sheetPxH + 16} stroke="var(--dg-faint)" strokeWidth="1" />
+        {xTicks.map((t, i) => (
+          <g key={`xt${i}`}>
+            <line x1={X(t.value)} y1={TOP + sheetPxH + 16} x2={X(t.value)} y2={TOP + sheetPxH + (t.major ? 24 : 21)} stroke="var(--dg-faint)" strokeWidth="1" />
+            {t.major && (
+              <text x={X(t.value)} y={TOP + sheetPxH + 40} textAnchor="middle" fontSize="12" fontWeight="600" fill="var(--dg-muted)">
+                {rulerLabel(t.value, fmt)}
+              </text>
+            )}
+          </g>
+        ))}
 
-        {/* Dotted callouts for any block too small for its inline label — piece,
-            already-cut piece, or leftover — never rotated text. y-nudged apart so
-            several on one sheet (A3, C2, C3, C4...) never overlap each other's text. */}
-        {callouts.map((c) => {
-          const kind = blocks[c.blockIndex]?.kind
-          const color = kind === 'cut' ? 'var(--accent-text)' : kind === 'earlier' ? 'var(--muted-foreground)' : 'var(--success-text)'
-          const x1 = LEFT_MARGIN + c.anchorX
-          const y1 = TOP_MARGIN + c.anchorY
-          const x2 = x1 + 18
-          const y2 = TOP_MARGIN + c.y
+        {/* Blocks too small to hold their own size are listed here, so none is left unlabelled */}
+        {notes.map((n, i) => (
+          <text key={n.key} x={sheetLeft} y={TOP + sheetPxH + RULER + 12 + i * NOTE_LINE} fontSize="11.5" fill="var(--dg-muted)">
+            • {n.text}
+          </text>
+        ))}
+
+        {/* Legend */}
+        {legend.map((l) => {
+          const x = legendX
+          legendX += itemW(l.text) + legendGap
           return (
-            <g key={`callout-${c.blockIndex}`}>
-              <line x1={x1} y1={y1} x2={x2} y2={y2} stroke={color} strokeWidth="1" strokeDasharray="1 3" strokeLinecap="round" />
-              <circle cx={x2} cy={y2} r="2" fill={color} />
-              <text x={x2 + 4} y={y2} dominantBaseline="middle" fontSize="11" fontWeight="600" fill={color}>
-                {c.text}
+            <g key={l.key}>
+              {l.key === 'blue' && <rect x={x} y={legendY - 8} width={16} height={16} rx={5} fill="var(--dg-blue)" />}
+              {l.key === 'green' && (
+                <>
+                  <rect x={x + 0.5} y={legendY - 7.5} width={15} height={15} rx={4.5} fill="var(--dg-green-fill)" stroke="var(--dg-green-edge)" />
+                  <path d={`M${x + 4} ${legendY + 0.5} l3 3 l5 -6`} fill="none" stroke="var(--dg-green)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+                </>
+              )}
+              {l.key === 'orange' && (
+                <>
+                  <circle cx={x + 8} cy={legendY} r={8} fill="var(--dg-orange)" />
+                  <text x={x + 8} y={legendY + 3.5} textAnchor="middle" fontSize="10" fontWeight="700" fill="var(--dg-on-orange)">
+                    #
+                  </text>
+                </>
+              )}
+              <text x={x + 24} y={legendY + 4.5} fontSize="12.5" fill="var(--dg-muted)">
+                {l.text}
               </text>
             </g>
           )
         })}
-
-        {/* Pieces */}
-        {blocks
-          .filter((b) => b.kind === 'cut')
-          .map((b, i) => {
-            const pw = b.w * pxPerInch
-            const ph = b.h * pxPerInch
-            const plan = chooseLabel(b, pxPerInch).piece!
-            return (
-              <g key={`cut-${i}`}>
-                <rect
-                  x={X(b.x)}
-                  y={Y(b.y)}
-                  width={pw}
-                  height={ph}
-                  fill="var(--accent-bg)"
-                  stroke="var(--accent-border)"
-                  strokeWidth="1"
-                />
-                {plan.kind === 'two-line' && (
-                  <>
-                    <text
-                      x={X(b.x) + pw / 2}
-                      y={Y(b.y) + ph / 2 - 6}
-                      textAnchor="middle"
-                      fontSize="12"
-                      fontWeight="600"
-                      fill="var(--accent-text)"
-                    >
-                      {plan.line1}
-                    </text>
-                    <text
-                      x={X(b.x) + pw / 2}
-                      y={Y(b.y) + ph / 2 + 8}
-                      textAnchor="middle"
-                      fontSize="12"
-                      fontWeight="600"
-                      fill="var(--accent-text)"
-                    >
-                      {plan.line2}
-                    </text>
-                  </>
-                )}
-                {plan.kind === 'one-line' && (
-                  <text
-                    x={X(b.x) + pw / 2}
-                    y={Y(b.y) + ph / 2}
-                    textAnchor="middle"
-                    dominantBaseline="middle"
-                    fontSize="11"
-                    fontWeight="600"
-                    fill="var(--accent-text)"
-                  >
-                    {plan.line1}
-                  </text>
-                )}
-              </g>
-            )
-          })}
-
-        {/* Sheet outline, thick neutral stroke */}
-        <rect
-          x={X(0)}
-          y={Y(0)}
-          width={sheetPxW}
-          height={sheetPxH}
-          fill="none"
-          stroke="var(--border-stronger)"
-          strokeWidth="2"
-        />
-
-        {/* Numbered dashed cut lines */}
-        {cutLines.map((c) => {
-          const isActive = activeCut === c.n
-          const dimmed = activeCut != null && !isActive
-          const stroke = 'var(--muted-foreground)'
-          const strokeWidth = isActive ? 2.5 : 1
-          const opacity = dimmed ? 0.3 : isActive ? 1 : 0.75
-          if (c.kind === 'across') {
-            const y = Y(c.pos)
-            const x1 = X(c.from) - 8
-            const x2 = X(c.to) + 8
-            const circleX = x2 + 12
-            return (
-              <g key={`cut-line-${c.n}`}>
-                <line x1={x1} y1={y} x2={x2} y2={y} stroke={stroke} strokeWidth={strokeWidth} strokeDasharray="6 4" opacity={opacity} />
-                <CutCircle cx={circleX} cy={y} n={c.n} active={isActive} onToggle={() => toggleCut(c.n)} />
-              </g>
-            )
-          }
-          const x = X(c.pos)
-          const y1 = Y(c.from) - 8
-          const y2 = Y(c.to) + 8
-          // The circle sits at the line's own top end, not a fixed offset from the
-          // dimension-line zone above the sheet — a fixed offset drifts into the
-          // dimension numbers whenever the region doesn't start at the sheet's own
-          // top edge (a sub-region on Leftover detail, for example).
-          const circleY = y1 - 4
-          return (
-            <g key={`cut-line-${c.n}`}>
-              <line x1={x} y1={y1} x2={x} y2={y2} stroke={stroke} strokeWidth={strokeWidth} strokeDasharray="6 4" opacity={opacity} />
-              <CutCircle cx={x} cy={circleY} n={c.n} active={isActive} onToggle={() => toggleCut(c.n)} />
-            </g>
-          )
-        })}
-
-        {/* Dimension lines: overall + segment ticks, top and left */}
-        <DimensionOverall
-          x1={X(0)}
-          x2={X(sheetW)}
-          y={TOP_MARGIN - 40}
-          label={fmt(sheetW)}
-          orientation="horizontal"
-          uidBase={uidBase}
-        />
-        <DimensionOverall
-          x1={Y(0)}
-          x2={Y(sheetH)}
-          y={LEFT_MARGIN - 40}
-          label={fmt(sheetH)}
-          orientation="vertical"
-          uidBase={uidBase}
-        />
-
-        {/* Segment tick marks + labels, top */}
-        <line x1={LEFT_MARGIN} y1={TOP_MARGIN - 18} x2={LEFT_MARGIN + sheetPxW} y2={TOP_MARGIN - 18} stroke="var(--border-strong)" strokeWidth="1" />
-        {layout.xSegs.map((s, i) => (
-          <line
-            key={`xtick-${i}`}
-            x1={X(s.from)}
-            y1={TOP_MARGIN - 22}
-            x2={X(s.from)}
-            y2={TOP_MARGIN - 14}
-            stroke="var(--border-strong)"
-            strokeWidth="1"
-          />
-        ))}
-        <line
-          x1={X(sheetW)}
-          y1={TOP_MARGIN - 22}
-          x2={X(sheetW)}
-          y2={TOP_MARGIN - 14}
-          stroke="var(--border-strong)"
-          strokeWidth="1"
-        />
-        {xNudge.placed.map((lbl, i) => (
-          <g key={`xlabel-${i}`}>
-            {lbl.leader && (
-              <line x1={lbl.naturalCenter} y1={TOP_MARGIN - 12} x2={lbl.center} y2={TOP_MARGIN - 26} stroke="var(--faint)" strokeWidth="0.75" />
-            )}
-            <text x={lbl.center} y={lbl.leader ? TOP_MARGIN - 28 : TOP_MARGIN - 8} textAnchor="middle" fontSize="12" fill="var(--muted-foreground)">
-              {lbl.text}
-            </text>
-          </g>
-        ))}
-
-        {/* Segment tick marks + labels, left */}
-        <line x1={LEFT_MARGIN - 18} y1={TOP_MARGIN} x2={LEFT_MARGIN - 18} y2={TOP_MARGIN + sheetPxH} stroke="var(--border-strong)" strokeWidth="1" />
-        {layout.ySegs.map((s, i) => (
-          <line
-            key={`ytick-${i}`}
-            x1={LEFT_MARGIN - 22}
-            y1={Y(s.from)}
-            x2={LEFT_MARGIN - 14}
-            y2={Y(s.from)}
-            stroke="var(--border-strong)"
-            strokeWidth="1"
-          />
-        ))}
-        {yNudge.placed.map((lbl, i) => (
-          <text key={`ylabel-${i}`} x={LEFT_MARGIN - 26} y={lbl.center} textAnchor="end" dominantBaseline="middle" fontSize="12" fill="var(--muted-foreground)">
-            {lbl.text}
-          </text>
-        ))}
-
-        {/* Ruler along the bottom edge: ticks every 12 in, labels at 0/24/48-style intervals */}
-        <Ruler x0={X(0)} pxPerInch={pxPerInch} sheetW={sheetW} y={TOP_MARGIN + sheetPxH + 10} />
       </svg>
-
-      {(xNudge.overflow.length > 0 || yNudge.overflow.length > 0) && (
-        <p className="mt-1 text-[11px] text-muted-foreground">
-          {[...xNudge.overflow, ...yNudge.overflow].map((t) => `${t} in`).join(', ')}
-        </p>
-      )}
     </div>
   )
 }
 
-function CutCircle({
+function CutBadge({
   cx,
   cy,
   n,
   active,
+  dim,
   onToggle,
 }: {
   cx: number
   cy: number
   n: number
   active: boolean
+  dim: boolean
   onToggle: () => void
 }) {
+  const onKey = (e: KeyboardEvent<SVGGElement>) => {
+    if (e.key === 'Enter' || e.key === ' ') {
+      e.preventDefault()
+      onToggle()
+    }
+  }
   return (
     <g
       role="button"
       tabIndex={0}
-      aria-pressed={active}
       aria-label={`Cut ${n}`}
+      aria-pressed={active}
       onClick={onToggle}
-      onKeyDown={(e) => {
-        if (e.key === 'Enter' || e.key === ' ') {
-          e.preventDefault()
-          onToggle()
-        }
-      }}
+      onKeyDown={onKey}
       style={{ cursor: 'pointer', outline: 'none' }}
       className="focus-visible:opacity-90"
     >
       {/* Generous invisible hit target keeps the >=44px tap-target rule without changing the
           drawn circle's size. */}
-      <circle cx={cx} cy={cy} r="22" fill="transparent" />
+      <circle cx={cx} cy={cy} r={22} fill="transparent" />
       <circle
         cx={cx}
         cy={cy}
-        r="9"
-        fill={active ? 'var(--accent-text)' : 'var(--background)'}
-        stroke="var(--muted-foreground)"
-        strokeWidth="1.25"
+        r={active ? 13 : 11.5}
+        fill="var(--dg-orange)"
+        stroke="var(--dg-card)"
+        strokeWidth={active ? 3 : 2}
+        opacity={dim ? 0.45 : 1}
       />
-      <text x={cx} y={cy} textAnchor="middle" dominantBaseline="middle" fontSize="11" fontWeight="600" fill={active ? 'var(--background)' : 'var(--muted-foreground)'}>
+      <text x={cx} y={cy + 4} textAnchor="middle" fontSize="12" fontWeight="700" fill="var(--dg-on-orange)" pointerEvents="none">
         {n}
       </text>
-    </g>
-  )
-}
-
-function DimensionOverall({
-  x1,
-  x2,
-  y,
-  label,
-  orientation,
-  uidBase,
-}: {
-  x1: number
-  x2: number
-  y: number
-  label: string
-  orientation: 'horizontal' | 'vertical'
-  uidBase: string
-}) {
-  if (orientation === 'horizontal') {
-    return (
-      <g>
-        <line
-          x1={x1}
-          y1={y}
-          x2={x2}
-          y2={y}
-          stroke="var(--muted-foreground)"
-          strokeWidth="1"
-          markerStart={`url(#${uidBase}-arrow-start)`}
-          markerEnd={`url(#${uidBase}-arrow-end)`}
-        />
-        <text x={(x1 + x2) / 2} y={y - 6} textAnchor="middle" fontSize="12" fontWeight="500" fill="var(--muted-foreground)">
-          {label}
-        </text>
-      </g>
-    )
-  }
-  // Vertical: x1/x2 are actually the y-range; y param is the x position.
-  return (
-    <g>
-      <line
-        x1={y}
-        y1={x1}
-        x2={y}
-        y2={x2}
-        stroke="var(--muted-foreground)"
-        strokeWidth="1"
-        markerStart={`url(#${uidBase}-arrow-start)`}
-        markerEnd={`url(#${uidBase}-arrow-end)`}
-      />
-      <text
-        x={y - 8}
-        y={(x1 + x2) / 2}
-        textAnchor="middle"
-        fontSize="12"
-        fontWeight="500"
-        fill="var(--muted-foreground)"
-        transform={`rotate(-90 ${y - 8} ${(x1 + x2) / 2})`}
-      >
-        {label}
-      </text>
-    </g>
-  )
-}
-
-function Ruler({ x0, pxPerInch, sheetW, y }: { x0: number; pxPerInch: number; sheetW: number; y: number }) {
-  const ticks: number[] = []
-  for (let i = 0; i <= sheetW; i += 12) ticks.push(i)
-  if (ticks[ticks.length - 1] !== sheetW) ticks.push(sheetW)
-  const labelEvery = 24
-
-  return (
-    <g>
-      <line x1={x0} y1={y} x2={x0 + sheetW * pxPerInch} y2={y} stroke="var(--border)" strokeWidth="1" />
-      {ticks.map((t) => (
-        <g key={`ruler-${t}`}>
-          <line x1={x0 + t * pxPerInch} y1={y} x2={x0 + t * pxPerInch} y2={y + 4} stroke="var(--border-strong)" strokeWidth="1" />
-          {t % labelEvery === 0 && (
-            <text x={x0 + t * pxPerInch} y={y + 15} textAnchor="middle" fontSize="11" fill="var(--faint)">
-              {t}
-            </text>
-          )}
-        </g>
-      ))}
     </g>
   )
 }

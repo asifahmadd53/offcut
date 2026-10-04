@@ -3,6 +3,7 @@ import { TransformComponent, TransformWrapper, type ReactZoomPanPinchRef } from 
 import { IconX } from '@tabler/icons-react'
 import { dayMonth } from '@/lib/format'
 import { fmtLeft } from '@/lib/inches'
+import { dgLightDeclarations } from '@/lib/diagramStyle'
 import { badgedLeftovers } from '@/lib/labelChoice'
 import { SheetDiagram } from './SheetDiagram'
 import { Dialog, DialogContent, DialogTitle } from './ui/dialog'
@@ -45,7 +46,7 @@ export function PlanSheet({ sheet, blocks, highlightIndex }: PlanSheetProps) {
       <div className="mb-3.5 flex flex-col items-start gap-4 lg:flex-row lg:items-start lg:gap-6">
         <div
           data-plan-sheet-svg={sheet.sheetId}
-          className="h-[60vh] min-h-[320px] w-full lg:h-[70vh] lg:min-h-[480px] lg:flex-1"
+          className="w-full min-w-0 lg:flex-1"
         >
           <SheetDiagram
             sheetW={sheet.sheetW}
@@ -55,7 +56,7 @@ export function PlanSheet({ sheet, blocks, highlightIndex }: PlanSheetProps) {
             activeCut={activeCut}
             onCutToggle={toggleCut}
             highlightIndex={highlightIndex}
-            fill
+            autoHeight
           />
         </div>
 
@@ -285,6 +286,7 @@ function SaveImageButton({ sheet }: { sheet: SheetPlan; blocks: Block[] }) {
           --success-bg: #dcfce7;
           --success-border: #16a34a;
           --success-text: #14532d;
+          ${dgLightDeclarations()}
         }
       `
       clone.insertBefore(style, clone.firstChild)
