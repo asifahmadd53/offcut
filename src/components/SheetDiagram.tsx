@@ -48,6 +48,8 @@ const LEFT = 72
 const RIGHT = 22
 /** Distance from the sheet to its width callout above and its height callout beside it. */
 const SIDE_DIM = 28
+/** The on-page drawing is drawn a touch smaller than the space it could fill (print/full screen still fill it). */
+const PAGE_SCALE = 0.92
 const TOP = 60
 const RULER = 48
 const NOTE_LINE = 16
@@ -106,7 +108,8 @@ export function SheetDiagram({
     // callout, its dimension line and the widest ruler number on the left.
     const fixedV = TOP + RULER
     const budgetH = fill ? containerH - fixedV : autoHeight ? Math.max(vh * 0.9, 420) - fixedV : maxH
-    const fitScale = (m: number) => Math.min(Math.max(containerW - 2 * m, 20) / sheetW, Math.max(budgetH, 60) / sheetH)
+    const fitScale = (m: number) =>
+      Math.min(Math.max(containerW - 2 * m, 20) / sheetW, Math.max(budgetH, 60) / sheetH) * (fill ? 1 : PAGE_SCALE)
     const baseMargin = RIGHT + 40
     const widestNumber = Math.max(...verticalTicks(blocks, sheetH, fitScale(baseMargin)).map((t) => fmt(t.value).length))
     const margin = Math.max(baseMargin, SIDE_DIM + 19 + widestNumber * 6.8 + 8)
