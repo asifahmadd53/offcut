@@ -45,6 +45,8 @@ interface SheetDiagramProps {
 
 const LEFT = 72
 const RIGHT = 22
+/** Distance from the sheet to its width callout above and its height callout beside it. */
+const SIDE_DIM = 28
 const TOP = 60
 const RULER = 48
 const NOTE_LINE = 16
@@ -99,13 +101,18 @@ export function SheetDiagram({
   }, [])
 
   const g = useMemo(() => {
-    const innerW = Math.max(containerW - LEFT - RIGHT, 20)
+    // The sheet sits dead centre: the same margin on both sides, wide enough for the height
+    // callout, its dimension line and the widest ruler number on the left.
     const fixedV = TOP + RULER
     const budgetH = fill ? containerH - fixedV : autoHeight ? Math.max(vh * 0.9, 420) - fixedV : maxH
-    const s = Math.min(innerW / sheetW, Math.max(budgetH, 60) / sheetH)
+    const fitScale = (m: number) => Math.min(Math.max(containerW - 2 * m, 20) / sheetW, Math.max(budgetH, 60) / sheetH)
+    const baseMargin = RIGHT + 40
+    const widestNumber = Math.max(...verticalTicks(blocks, sheetH, fitScale(baseMargin)).map((t) => fmt(t.value).length))
+    const margin = Math.max(baseMargin, SIDE_DIM + 19 + widestNumber * 6.8 + 8)
+    const s = fitScale(margin)
     const sheetPxW = sheetW * s
     const sheetPxH = sheetH * s
-    const sheetLeft = LEFT + (innerW - sheetPxW) / 2
+    const sheetLeft = (containerW - sheetPxW) / 2
     const notes = smallBlockNotes(blocks, s)
     const notesH = notes.length ? notes.length * NOTE_LINE + 10 : 0
     const svgW = containerW
@@ -138,7 +145,13 @@ export function SheetDiagram({
   const calloutText = `${fmt(sheetW)}" Sheet Width`
   const calloutW = calloutText.length * 7.2 + 50
   const calloutCx = sheetLeft + sheetPxW / 2
-  const axisX = sheetLeft - 14
+  const dimX = sheetLeft - SIDE_DIM
+  const heightText = `${fmt(sheetH)}" Sheet Height`
+  const heightLong = heightText.length * 7.2 + 50
+  const heightPill = heightLong <= sheetPxH - 12 ? heightText : `${fmt(sheetH)}"`
+  const heightPillW = heightPill === heightText ? heightLong : heightPill.length * 7.2 + 50
+  const showHeightPill = heightPillW <= sheetPxH - 12
+  const midY = TOP + sheetPxH / 2
 
   const renderBlock = (b: Block, i: number) => {
     const bx = X(b.x)
@@ -385,13 +398,14 @@ export function SheetDiagram({
           )
         })}
 
-        {/* Left ruler, numbered up from the bottom, plus the rotated total */}
-        <line x1={axisX} y1={Y(0)} x2={axisX} y2={Y(sheetH)} stroke="var(--dg-faint)" strokeWidth="1" />
+        {/* Sheet height callout: the width callout turned on its side, the same distance from the sheet */}
+        <line x1={dimX} y1={TOP} x2={dimX} y2={TOP + sheetPxH} stroke="var(--dg-border)" strokeWidth="1" />
+        {/* Left ruler numbers, counted up from the bottom, reaching back to the sheet */}
         {yTicks.map((t, i) => (
           <g key={`yt${i}`}>
-            <line x1={axisX} y1={TOP + t.y} x2={axisX + 6} y2={TOP + t.y} stroke={t.end ? 'var(--dg-faint)' : 'var(--dg-green)'} strokeWidth="1" />
+            <line x1={dimX - 14} y1={TOP + t.y} x2={sheetLeft - 1} y2={TOP + t.y} stroke={t.end ? 'var(--dg-faint)' : 'var(--dg-green)'} strokeWidth="1" opacity={t.end ? 0.6 : 0.8} />
             <text
-              x={axisX - 5}
+              x={dimX - 18}
               y={TOP + t.y + 4}
               textAnchor="end"
               fontSize="12"
@@ -402,16 +416,19 @@ export function SheetDiagram({
             </text>
           </g>
         ))}
-        <text
-          transform={`translate(${Math.max(13, sheetLeft - 59)} ${TOP + sheetPxH / 2}) rotate(-90)`}
-          textAnchor="middle"
-          fontSize="10.5"
-          fontWeight="600"
-          letterSpacing="1.4"
-          fill="var(--dg-muted)"
-        >
-          {fmt(sheetH)}" TOTAL
-        </text>
+        {showHeightPill && (
+          <g transform={`translate(${dimX} ${midY}) rotate(-90)`}>
+            <rect x={-heightPillW / 2} y={-13} width={heightPillW} height={26} rx={7} fill="var(--dg-card)" stroke="var(--dg-border)" />
+            {/* the same up/down arrows as the width callout, kept upright on screen */}
+            <g transform={`translate(${-heightPillW / 2 + 16.5} 0) rotate(90)`} stroke="var(--dg-muted)" strokeWidth="1.4" fill="none" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M-2.5 4 v-6 m-2.5 2.5 l2.5 -2.5 l2.5 2.5" />
+              <path d="M2.5 4 v6 m-2.5 -2.5 l2.5 2.5 l2.5 -2.5" />
+            </g>
+            <text x={10} y={4.5} textAnchor="middle" fontSize="12.5" fontWeight="600" fill="var(--dg-text)">
+              {heightPill}
+            </text>
+          </g>
+        )}
 
         {/* Bottom ruler */}
         <line x1={sheetLeft} y1={TOP + sheetPxH + 16} x2={sheetLeft + sheetPxW} y2={TOP + sheetPxH + 16} stroke="var(--dg-faint)" strokeWidth="1" />
