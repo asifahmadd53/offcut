@@ -349,9 +349,9 @@ export function SheetDiagram({
         </defs>
 
         {/* Grid-paper card */}
-        <rect x="0.5" y="0.5" width={svgW - 1} height={svgH - 1} rx="6" fill="var(--dg-card)" />
-        <rect x="0.5" y="0.5" width={svgW - 1} height={svgH - 1} rx="6" fill={`url(#${gridId})`} />
-        <rect x="0.5" y="0.5" width={svgW - 1} height={svgH - 1} rx="6" fill="none" stroke="var(--dg-border)" />
+        <rect x="0.5" y="0.5" width={svgW - 1} height={svgH - 1} rx="12" fill="var(--dg-card)" />
+        <rect x="0.5" y="0.5" width={svgW - 1} height={svgH - 1} rx="12" fill={`url(#${gridId})`} />
+        <rect x="0.5" y="0.5" width={svgW - 1} height={svgH - 1} rx="12" fill="none" stroke="var(--dg-border)" />
 
         {/* Sheet width callout */}
         <line x1={sheetLeft} y1={TOP - 28} x2={sheetLeft + sheetPxW} y2={TOP - 28} stroke="var(--dg-border)" strokeWidth="1" />
