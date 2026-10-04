@@ -8,6 +8,7 @@ import {
   rulerLabel,
   smallBlockNotes,
   verticalTicks,
+  legendRows,
 } from './diagramStyle'
 import type { Block } from './sheetView'
 
@@ -92,5 +93,13 @@ describe('diagram tokens', () => {
     for (const [token, value] of Object.entries(DG_LIGHT)) {
       expect(rootBlock, token).toContain(`${token}: ${value};`)
     }
+  })
+})
+
+describe('legendRows', () => {
+  it('keeps one row when everything fits and wraps when it does not', () => {
+    expect(legendRows([90, 120, 80], 400, 18)).toEqual([[0, 1, 2]])
+    expect(legendRows([90, 120, 80], 250, 18)).toEqual([[0, 1], [2]])
+    expect(legendRows([90, 120, 80], 100, 18)).toEqual([[0], [1], [2]])
   })
 })

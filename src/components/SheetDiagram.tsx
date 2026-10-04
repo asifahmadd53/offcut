@@ -1,8 +1,9 @@
 import { useEffect, useId, useMemo, useRef, useState, type KeyboardEvent } from 'react'
 import { diagramAriaLabel } from '@/lib/diagramLayout'
 import {
-  blockTier,
+  blockTierFor,
   horizontalTicks,
+  legendRows,
   placeBadges,
   rulerLabel,
   smallBlockNotes,
@@ -49,6 +50,14 @@ const TOP = 60
 const RULER = 48
 const LEGEND = 46
 const NOTE_LINE = 16
+const LEGEND_ROW = 24
+const LEGEND_GAP = 18
+const LEGEND_ITEMS = [
+  { key: 'blue', text: 'Cut pieces' },
+  { key: 'green', text: 'Saved leftover' },
+  { key: 'orange', text: 'Cut path' },
+]
+const legendItemW = (t: string) => 16 + 8 + t.length * 6.9
 
 /** Largest font (up to `base`) that keeps `text` inside `maxPx`, using a rough glyph width. */
 const fitFont = (text: string, maxPx: number, base: number) =>
@@ -101,7 +110,10 @@ export function SheetDiagram({
 
   const g = useMemo(() => {
     const innerW = Math.max(containerW - LEFT - RIGHT, 20)
-    const fixedV = TOP + RULER + LEGEND
+    // On a narrow phone the legend wraps to more rows instead of running off the right edge.
+    const rows = legendRows(LEGEND_ITEMS.map((l) => legendItemW(l.text)), containerW - 24, LEGEND_GAP)
+    const legendH = LEGEND + (rows.length - 1) * LEGEND_ROW
+    const fixedV = TOP + RULER + legendH
     const budgetH = fill ? containerH - fixedV : autoHeight ? Math.max(vh * 0.9, 420) - fixedV : maxH
     const s = Math.min(innerW / sheetW, Math.max(budgetH, 60) / sheetH)
     const sheetPxW = sheetW * s
@@ -110,11 +122,11 @@ export function SheetDiagram({
     const notes = smallBlockNotes(blocks, s)
     const notesH = notes.length ? notes.length * NOTE_LINE + 10 : 0
     const svgW = containerW
-    const svgH = TOP + sheetPxH + RULER + notesH + LEGEND
-    return { s, sheetPxW, sheetPxH, sheetLeft, notes, svgW, svgH }
+    const svgH = TOP + sheetPxH + RULER + notesH + legendH
+    return { s, sheetPxW, sheetPxH, sheetLeft, notes, svgW, svgH, rows, legendH }
   }, [autoHeight, blocks, containerH, containerW, fill, maxH, sheetH, sheetW, vh])
 
-  const { s, sheetPxW, sheetPxH, sheetLeft, notes, svgW, svgH } = g
+  const { s, sheetPxW, sheetPxH, sheetLeft, notes, svgW, svgH, rows: legendRowList, legendH } = g
   const X = (x: number) => sheetLeft + x * s
   const Y = (y: number) => TOP + y * s
 
@@ -141,23 +153,23 @@ export function SheetDiagram({
   const calloutCx = sheetLeft + sheetPxW / 2
   const axisX = sheetLeft - 14
 
-  const legend = [
-    { key: 'blue', text: 'Cut pieces' },
-    { key: 'green', text: 'Saved leftover' },
-    { key: 'orange', text: 'Cut path' },
-  ]
-  const itemW = (t: string) => 16 + 8 + t.length * 6.9
-  const legendGap = 18
-  const legendTotal = legend.reduce((sum, l) => sum + itemW(l.text), 0) + legendGap * (legend.length - 1)
-  let legendX = Math.max(12, (svgW - legendTotal) / 2)
-  const legendY = svgH - LEGEND / 2 + 2
+  // Each legend item's own x/y, every row centred on its own width.
+  const legendPos = legendRowList.flatMap((row, r) => {
+    const total = row.reduce((sum, i) => sum + legendItemW(LEGEND_ITEMS[i].text), 0) + LEGEND_GAP * (row.length - 1)
+    let x = Math.max(12, (svgW - total) / 2)
+    return row.map((i) => {
+      const at = { item: LEGEND_ITEMS[i], x, y: svgH - legendH + 25 + r * LEGEND_ROW }
+      x += legendItemW(LEGEND_ITEMS[i].text) + LEGEND_GAP
+      return at
+    })
+  })
 
   const renderBlock = (b: Block, i: number) => {
     const bx = X(b.x)
     const by = Y(b.y)
     const bw = b.w * s
     const bh = b.h * s
-    const tier = blockTier(bw, bh)
+    const tier = blockTierFor(b, s)
     const cx = bx + bw / 2
     const cy = by + bh / 2
     const highlighted = highlightIndex === i
@@ -446,9 +458,7 @@ export function SheetDiagram({
         ))}
 
         {/* Legend */}
-        {legend.map((l) => {
-          const x = legendX
-          legendX += itemW(l.text) + legendGap
+        {legendPos.map(({ item: l, x, y: legendY }) => {
           return (
             <g key={l.key}>
               {l.key === 'blue' && <rect x={x} y={legendY - 8} width={16} height={16} rx={5} fill="var(--dg-blue)" />}

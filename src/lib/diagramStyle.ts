@@ -48,6 +48,20 @@ export function blockTier(pw: number, ph: number): BlockTier {
   return 'tiny'
 }
 
+/**
+ * The tier a block really gets: a block wide enough for text in principle but too narrow for
+ * its own size at the smallest readable font drops to 'small' (letter/number only) and is
+ * listed under the drawing instead, so text never spills out of its block.
+ */
+export function blockTierFor(b: Block, pxPerInch: number): BlockTier {
+  const pw = b.w * pxPerInch
+  const tier = blockTier(pw, b.h * pxPerInch)
+  if (tier !== 'full' && tier !== 'medium') return tier
+  const text = b.kind === 'cut' ? (b.label ?? fmtDims(b.w, b.h)) : b.kind === 'earlier' ? fmtDims(b.w, b.h) : fmtLeft(b.w, b.h)
+  const fits = text.length * 0.58 * 9 <= pw - 14
+  return fits ? tier : 'small'
+}
+
 export interface YTick {
   /** Inches measured up from the bottom of the sheet (0 at the bottom, sheetH at the top). */
   value: number
@@ -115,7 +129,7 @@ export interface BlockNote {
 export function smallBlockNotes(blocks: Block[], pxPerInch: number): BlockNote[] {
   const notes: BlockNote[] = []
   blocks.forEach((b, i) => {
-    const tier = blockTier(b.w * pxPerInch, b.h * pxPerInch)
+    const tier = blockTierFor(b, pxPerInch)
     if (tier !== 'small' && tier !== 'tiny') return
     if (b.kind === 'cut') {
       notes.push({ key: `n${i}`, text: `Piece ${b.n ?? ''} · ${b.label ?? fmtDims(b.w, b.h)}`.replace('  ', ' ') })
@@ -166,3 +180,25 @@ export function placeBadges(items: BadgeInput[], minDist = 26): PlacedBadge[] {
 
 /** `24"` style ruler label; the zero end is written bare. */
 export const rulerLabel = (n: number, fmt: (n: number) => string) => (n === 0 ? '0' : `${fmt(n)}"`)
+
+/**
+ * Wraps legend items into rows that each fit `availW`, so a narrow phone shows two short rows
+ * instead of cutting the last item off. Returns indices per row; an item wider than a whole
+ * row still gets a row of its own.
+ */
+export function legendRows(widths: number[], availW: number, gap: number): number[][] {
+  const rows: number[][] = [[]]
+  let used = 0
+  widths.forEach((w, i) => {
+    const row = rows[rows.length - 1]
+    const need = row.length ? gap + w : w
+    if (row.length && used + need > availW) {
+      rows.push([i])
+      used = w
+    } else {
+      row.push(i)
+      used += need
+    }
+  })
+  return rows
+}
