@@ -3,7 +3,6 @@ import { diagramAriaLabel } from '@/lib/diagramLayout'
 import {
   blockTierFor,
   horizontalTicks,
-  legendRows,
   placeBadges,
   rulerLabel,
   smallBlockNotes,
@@ -48,16 +47,7 @@ const LEFT = 72
 const RIGHT = 22
 const TOP = 60
 const RULER = 48
-const LEGEND = 46
 const NOTE_LINE = 16
-const LEGEND_ROW = 24
-const LEGEND_GAP = 18
-const LEGEND_ITEMS = [
-  { key: 'blue', text: 'Cut pieces' },
-  { key: 'green', text: 'Saved leftover' },
-  { key: 'orange', text: 'Cut path' },
-]
-const legendItemW = (t: string) => 16 + 8 + t.length * 6.9
 
 /** Largest font (up to `base`) that keeps `text` inside `maxPx`, using a rough glyph width. */
 const fitFont = (text: string, maxPx: number, base: number) =>
@@ -66,7 +56,7 @@ const fitFont = (text: string, maxPx: number, base: number) =>
 /**
  * Draws a sheet as a to-scale cutting drawing on a grid-paper card: blue pieces, green
  * hatched leftovers, a dashed orange cut path with numbered badges (the engine's own cut
- * numbers), rulers numbered from the bottom, and a legend. Colour is never the only signal
+ * numbers), rulers numbered from the bottom. (The colour key lives beside the drawing in PlanSheet.) Colour is never the only signal
  * (R15): every block carries text, and any block too small for its own text is listed under
  * the sheet. One SVG, so print and Save image keep working.
  */
@@ -85,7 +75,7 @@ export function SheetDiagram({
 }: SheetDiagramProps) {
   const containerRef = useRef<HTMLDivElement>(null)
   const [containerW, setContainerW] = useState(maxW + LEFT + RIGHT)
-  const [containerH, setContainerH] = useState(maxH + TOP + RULER + LEGEND)
+  const [containerH, setContainerH] = useState(maxH + TOP + RULER)
   const [vh, setVh] = useState(() => (typeof window === 'undefined' ? 800 : window.innerHeight))
   const uid = useId().replace(/:/g, '')
 
@@ -110,10 +100,7 @@ export function SheetDiagram({
 
   const g = useMemo(() => {
     const innerW = Math.max(containerW - LEFT - RIGHT, 20)
-    // On a narrow phone the legend wraps to more rows instead of running off the right edge.
-    const rows = legendRows(LEGEND_ITEMS.map((l) => legendItemW(l.text)), containerW - 24, LEGEND_GAP)
-    const legendH = LEGEND + (rows.length - 1) * LEGEND_ROW
-    const fixedV = TOP + RULER + legendH
+    const fixedV = TOP + RULER
     const budgetH = fill ? containerH - fixedV : autoHeight ? Math.max(vh * 0.9, 420) - fixedV : maxH
     const s = Math.min(innerW / sheetW, Math.max(budgetH, 60) / sheetH)
     const sheetPxW = sheetW * s
@@ -122,11 +109,11 @@ export function SheetDiagram({
     const notes = smallBlockNotes(blocks, s)
     const notesH = notes.length ? notes.length * NOTE_LINE + 10 : 0
     const svgW = containerW
-    const svgH = TOP + sheetPxH + RULER + notesH + legendH
-    return { s, sheetPxW, sheetPxH, sheetLeft, notes, svgW, svgH, rows, legendH }
+    const svgH = TOP + sheetPxH + RULER + notesH
+    return { s, sheetPxW, sheetPxH, sheetLeft, notes, svgW, svgH }
   }, [autoHeight, blocks, containerH, containerW, fill, maxH, sheetH, sheetW, vh])
 
-  const { s, sheetPxW, sheetPxH, sheetLeft, notes, svgW, svgH, rows: legendRowList, legendH } = g
+  const { s, sheetPxW, sheetPxH, sheetLeft, notes, svgW, svgH } = g
   const X = (x: number) => sheetLeft + x * s
   const Y = (y: number) => TOP + y * s
 
@@ -152,17 +139,6 @@ export function SheetDiagram({
   const calloutW = calloutText.length * 7.2 + 50
   const calloutCx = sheetLeft + sheetPxW / 2
   const axisX = sheetLeft - 14
-
-  // Each legend item's own x/y, every row centred on its own width.
-  const legendPos = legendRowList.flatMap((row, r) => {
-    const total = row.reduce((sum, i) => sum + legendItemW(LEGEND_ITEMS[i].text), 0) + LEGEND_GAP * (row.length - 1)
-    let x = Math.max(12, (svgW - total) / 2)
-    return row.map((i) => {
-      const at = { item: LEGEND_ITEMS[i], x, y: svgH - legendH + 25 + r * LEGEND_ROW }
-      x += legendItemW(LEGEND_ITEMS[i].text) + LEGEND_GAP
-      return at
-    })
-  })
 
   const renderBlock = (b: Block, i: number) => {
     const bx = X(b.x)
@@ -456,32 +432,6 @@ export function SheetDiagram({
             • {n.text}
           </text>
         ))}
-
-        {/* Legend */}
-        {legendPos.map(({ item: l, x, y: legendY }) => {
-          return (
-            <g key={l.key}>
-              {l.key === 'blue' && <rect x={x} y={legendY - 8} width={16} height={16} rx={5} fill="var(--dg-blue)" />}
-              {l.key === 'green' && (
-                <>
-                  <rect x={x + 0.5} y={legendY - 7.5} width={15} height={15} rx={4.5} fill="var(--dg-green-fill)" stroke="var(--dg-green-edge)" />
-                  <path d={`M${x + 4} ${legendY + 0.5} l3 3 l5 -6`} fill="none" stroke="var(--dg-green)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-                </>
-              )}
-              {l.key === 'orange' && (
-                <>
-                  <circle cx={x + 8} cy={legendY} r={8} fill="var(--dg-orange)" />
-                  <text x={x + 8} y={legendY + 3.5} textAnchor="middle" fontSize="10" fontWeight="700" fill="var(--dg-on-orange)">
-                    #
-                  </text>
-                </>
-              )}
-              <text x={x + 24} y={legendY + 4.5} fontSize="12.5" fill="var(--dg-muted)">
-                {l.text}
-              </text>
-            </g>
-          )
-        })}
       </svg>
     </div>
   )

@@ -180,25 +180,3 @@ export function placeBadges(items: BadgeInput[], minDist = 26): PlacedBadge[] {
 
 /** `24"` style ruler label; the zero end is written bare. */
 export const rulerLabel = (n: number, fmt: (n: number) => string) => (n === 0 ? '0' : `${fmt(n)}"`)
-
-/**
- * Wraps legend items into rows that each fit `availW`, so a narrow phone shows two short rows
- * instead of cutting the last item off. Returns indices per row; an item wider than a whole
- * row still gets a row of its own.
- */
-export function legendRows(widths: number[], availW: number, gap: number): number[][] {
-  const rows: number[][] = [[]]
-  let used = 0
-  widths.forEach((w, i) => {
-    const row = rows[rows.length - 1]
-    const need = row.length ? gap + w : w
-    if (row.length && used + need > availW) {
-      rows.push([i])
-      used = w
-    } else {
-      row.push(i)
-      used += need
-    }
-  })
-  return rows
-}

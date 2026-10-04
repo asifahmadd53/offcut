@@ -77,6 +77,7 @@ export function PlanSheet({ sheet, blocks, highlightIndex }: PlanSheetProps) {
             {hasEarlier && <Legend swatch="old" label="Already cut" />}
             <Legend swatch="cut" label={sheet.isNew ? 'Cut pieces' : 'New piece'} />
             <Legend swatch="free" label={sheet.isNew ? 'Saved leftover' : 'Free after this cut'} />
+            <Legend swatch="path" label="Cut path" />
           </div>
           {anyTurned && (
             <span className="mb-3 mt-[-6px] inline-block rounded-full bg-muted px-2.5 py-0.5 text-[12px] text-muted-foreground">
@@ -365,7 +366,21 @@ function SaveImageButton({ sheet }: { sheet: SheetPlan; blocks: Block[] }) {
   )
 }
 
-function Legend({ swatch, label }: { swatch: 'cut' | 'free' | 'old'; label: string }) {
+function Legend({ swatch, label }: { swatch: 'cut' | 'free' | 'old' | 'path'; label: string }) {
+  if (swatch === 'path') {
+    return (
+      <div className="flex items-center gap-2">
+        <span
+          aria-hidden="true"
+          className="flex h-3.5 w-3.5 flex-none items-center justify-center rounded-full text-[9px] font-bold leading-none"
+          style={{ background: 'var(--dg-orange)', color: 'var(--dg-on-orange)' }}
+        >
+          #
+        </span>
+        {label}
+      </div>
+    )
+  }
   const cls =
     swatch === 'cut'
       ? 'border-hair border-accent-border bg-accent-bg'
