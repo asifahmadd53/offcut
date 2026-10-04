@@ -201,7 +201,20 @@ export default function Plan() {
   const manySheets = sheets.length > 5
 
   return (
-    <AppShell title="Cutting plan" back="/new">
+    <AppShell
+      title="Cutting plan"
+      back="/new"
+      stickyBar={
+        <div className="flex flex-col gap-2.5">
+          <Button size="lg" className="w-full" disabled={confirming} onClick={onConfirm}>
+            ✓ Confirm cut and save leftovers
+          </Button>
+          <Button size="lg" variant="outline" className="w-full" onClick={() => navigate('/new')}>
+            Change pieces
+          </Button>
+        </div>
+      }
+    >
       <p className="mb-1 text-[15px] font-semibold text-foreground">
         Client name: <span className="font-normal text-muted-foreground">{clientName}</span>
       </p>
@@ -269,26 +282,9 @@ export default function Plan() {
         </div>
       )}
 
-      <Button size="lg" className="mb-2.5 w-full" disabled={confirming} onClick={onConfirm}>
-        ✓ Confirm cut and save leftovers
-      </Button>
-
-      {usesLeftover ? (
-        <>
-          <Button variant="outline" className="mb-1 w-full" onClick={pickDifferentLeftover}>
-            Pick a different leftover
-          </Button>
-          <button
-            type="button"
-            onClick={() => navigate('/new')}
-            className="block w-full text-center text-[14px] text-accent-text"
-          >
-            Change pieces
-          </button>
-        </>
-      ) : (
-        <Button size="lg" variant="outline" className="w-full" onClick={() => navigate('/new')}>
-          Change pieces
+      {usesLeftover && (
+        <Button variant="outline" className="mb-1 w-full" onClick={pickDifferentLeftover}>
+          Pick a different leftover
         </Button>
       )}
 
