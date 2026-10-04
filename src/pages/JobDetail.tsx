@@ -41,7 +41,20 @@ export default function JobDetail() {
   }
 
   return (
-    <AppShell title={pieceSummary(cut.pieces)} back={backTo}>
+    <AppShell
+      title={pieceSummary(cut.pieces)}
+      back={backTo}
+      stickyBar={
+        <div className="flex flex-col gap-2.5">
+          <Button variant="outline" className="h-12 w-full" onClick={() => setPrintOpen(true)}>
+            Print or save PDF
+          </Button>
+          <Button variant="outline" className="h-12 w-full" onClick={cutAgain}>
+            Cut these pieces again
+          </Button>
+        </div>
+      }
+    >
       {cut.clientName && <p className="mb-1 text-[15px] font-semibold">{cut.clientName}</p>}
       <p className="mb-3.5 text-[13px] text-muted-foreground">
         Cut on {dayMonth(cut.createdAt)} · {sourceSummary(cut.sheets)} · {bladeText}
@@ -59,13 +72,6 @@ export default function JobDetail() {
       {cut.sheets.map((sheet, i) => (
         <PlanSheet key={sheet.sheetId + i} sheet={sheet} blocks={buildBlocks(sheet, derived, cut.id)} />
       ))}
-
-      <Button variant="outline" className="mb-2.5 h-12 w-full" onClick={() => setPrintOpen(true)}>
-        Print or save PDF
-      </Button>
-      <Button variant="outline" className="h-12 w-full" onClick={cutAgain}>
-        Cut these pieces again
-      </Button>
 
       <PrintOrPdfDialog
         open={printOpen}
