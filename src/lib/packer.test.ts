@@ -65,6 +65,13 @@ describe('packJob', () => {
     expect(s.steps).toEqual(['Cut across at 77 in', 'Cut down at 23 in', 'Cut down at 46 in'])
   })
 
+  it('words a repeated cut so it says which edge it counts from and how far into its part', () => {
+    // Three 23-wide pieces: the second and third "down" cuts are inside the right-hand strip.
+    const r = packJob([piece(23, 40, 3)], [], opts)
+    const steps = r.sheets[0].steps
+    expect(steps.some((x) => x.includes(" from the left edge (23 in into the "))).toBe(true)
+  })
+
   it('fills sheets[0].cuts with structured data paralleling steps for the golden example', () => {
     const r = packJob([piece(23, 77, 2)], [], opts)
     const s = r.sheets[0]

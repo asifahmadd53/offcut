@@ -159,7 +159,13 @@ function buildSteps(bin: Bin): string[] {
   return bin.cuts.map((c) => {
     const from = c.kind === 'across' ? bin.region.y : bin.region.x
     const base = `Cut ${c.kind} at ${fmt(r4(c.pos - from))} in`
-    const text = seen.has(base) ? `${base} (in the ${fmt(c.rect.w)} × ${fmt(c.rect.h)} part)` : base
+    // A second "Cut down at 23 in" on the same sheet would be ambiguous, so say which edge the
+    // number counts from and how far into the named part the saw actually goes.
+    const into = r4(c.pos - (c.kind === 'across' ? c.rect.y : c.rect.x))
+    const edge = c.kind === 'across' ? 'top' : 'left'
+    const text = seen.has(base)
+      ? `${base} from the ${edge} edge (${fmt(into)} in into the ${fmt(c.rect.w)} × ${fmt(c.rect.h)} part)`
+      : base
     seen.add(base)
     return text
   })
