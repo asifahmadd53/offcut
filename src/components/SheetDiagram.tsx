@@ -1,4 +1,4 @@
-import { useEffect, useId, useMemo, useRef, useState, type KeyboardEvent } from 'react'
+import { useEffect, useId, useLayoutEffect, useMemo, useRef, useState, type KeyboardEvent } from 'react'
 import { diagramAriaLabel } from '@/lib/diagramLayout'
 import {
   blockTierFor,
@@ -84,9 +84,13 @@ export function SheetDiagram({
   const [vh, setVh] = useState(() => (typeof window === 'undefined' ? 800 : window.innerHeight))
   const uid = useId().replace(/:/g, '')
 
-  useEffect(() => {
+  // Measured before the browser paints, so the first frame already has the real size instead
+  // of flashing the small starting guess for an instant and then jumping to full size.
+  useLayoutEffect(() => {
     const el = containerRef.current
     if (!el) return
+    if (el.clientWidth > 0) setContainerW(el.clientWidth)
+    if (fill && el.clientHeight > 0) setContainerH(el.clientHeight)
     const ro = new ResizeObserver((entries) => {
       const w = entries[0]?.contentRect.width
       const h = entries[0]?.contentRect.height

@@ -170,6 +170,8 @@ offcut/
 
 - **C67.** Job detail's two buttons ("Print or save PDF" and "Cut these pieces again") are pinned to the bottom of the screen exactly like Plan's (C57): they moved from the end of the page content into `AppShell`'s `stickyBar` slot, so the page scrolls above them and nothing is covered. Same buttons, same handlers, same popup; only `JobDetail.tsx` changed. `npm run typecheck` verified clean; not looked at in a browser.
 
+- **C68.** Fixed the one-frame "small diagram" flash when a page with a sheet diagram opens (Plan, Job detail, Leftover detail, Full screen, Print). Cause: `SheetDiagram` starts from a fallback width (`maxW + LEFT + RIGHT` = 238 px) and only measured its real box in a `useEffect`, which runs after the browser has already painted, so the first frame showed the small guess and the next frame jumped to full size. The measuring effect is now a `useLayoutEffect` that also reads the box's `clientWidth`/`clientHeight` straight away, so React re-renders with the real size before the first paint; the `ResizeObserver` stays for later changes (window resize, rotation, the Full screen dialog). Nothing else changed. Checked in a temporary headless page that logged the diagram's size on every animation frame from page start: before the fix it painted 238×327 and then 696×566; after, only 696×566 (three loads each; page deleted afterwards). Not seen in the logged-in app. `npm run typecheck`, `npm test` and `npm run build` verified clean.
+
 ## Working agreements
 - Be brief in chat: at most 12 lines per stage — what was done, commands run and results, what to check, what's needed from the user.
 - Ask before: adding a dependency outside the stack table, changing a rule in R1–R16, or deviating from an approved screen.
