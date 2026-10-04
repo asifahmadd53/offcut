@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import * as DialogPrimitive from '@radix-ui/react-dialog'
-import { IconLoader2, IconX } from '@tabler/icons-react'
+import { IconLoader2, IconShare2, IconX } from '@tabler/icons-react'
 import { Button } from './ui/button'
 import { buildPrintPages } from '@/lib/print'
 import { buildPrintPdf, pdfFileName } from '@/lib/pdf'
@@ -34,6 +34,7 @@ export function PrintOrPdfDialog({ open, onOpenChange, cut, onPrint, onDone, onB
   const derived = useData((s) => s.derived)
   const settings = useSettings((s) => s.settings)
   const [saving, setSaving] = useState(false)
+  const [sharing, setSharing] = useState(false)
 
   async function saveAsPdf() {
     if (saving) return
@@ -59,6 +60,41 @@ export function PrintOrPdfDialog({ open, onOpenChange, cut, onPrint, onDone, onB
     }
   }
 
+  // Same PDF as Save as PDF, handed to the phone's share sheet (WhatsApp, email…). Where the
+  // device cannot share files (most laptops) it is downloaded instead, so Share never dead-ends.
+  async function sharePdf() {
+    if (sharing || saving) return
+    onBeforeSave?.()
+    setSharing(true)
+    try {
+      const pages = buildPrintPages(cut, derived, settings)
+      const { jsPDF } = await import('jspdf')
+      const blob = await buildPrintPdf(pages, settings.paperSize, jsPDF)
+      const name = pdfFileName(cut)
+      const file = new File([blob], name, { type: 'application/pdf' })
+      if (navigator.canShare?.({ files: [file] })) {
+        await navigator.share({ files: [file], title: name })
+      } else {
+        const url = URL.createObjectURL(blob)
+        const a = document.createElement('a')
+        a.href = url
+        a.download = name
+        a.click()
+        URL.revokeObjectURL(url)
+        toast('Sharing is not available here. PDF saved instead.')
+      }
+      onOpenChange(false)
+    } catch (err) {
+      // Closing the share sheet without choosing anyone is not a failure.
+      if (!(err instanceof DOMException && err.name === 'AbortError')) {
+        console.error(err)
+        toast.error('Could not share the PDF. Try Save as PDF instead.')
+      }
+    } finally {
+      setSharing(false)
+    }
+  }
+
   return (
     <DialogPrimitive.Root open={open} onOpenChange={onOpenChange}>
       <DialogPrimitive.Portal>
@@ -81,12 +117,16 @@ export function PrintOrPdfDialog({ open, onOpenChange, cut, onPrint, onDone, onB
             </DialogPrimitive.Close>
           </div>
 
-          <Button size="lg" className="mb-2.5 w-full" disabled={saving} onClick={saveAsPdf}>
+          <Button size="lg" className="mb-2.5 w-full" disabled={saving || sharing} onClick={saveAsPdf}>
             {saving && <IconLoader2 size={18} className="animate-spin" />}
             Save as PDF
           </Button>
           <Button variant="outline" size="lg" className="mb-2.5  w-full" onClick={onPrint}>
             Print
+          </Button>
+          <Button variant="outline" size="lg" className="mb-2.5 w-full" disabled={sharing || saving} onClick={sharePdf}>
+            {sharing ? <IconLoader2 size={18} className="animate-spin" /> : <IconShare2 size={18} />}
+            Share
           </Button>
           <button
             type="button"
