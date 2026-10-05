@@ -8,7 +8,8 @@ import type { CutDoc, Settings, SheetPlan } from './types'
 
 /**
  * Turns a job's client/sheet reference (or its pieces/date, when either is missing) into
- * a file name — e.g. "Asif 34 by 56.pdf" when both were typed on New job, else falling
+ * a file name — "Asif 34 by 56.pdf" when a client and sheet number were typed on New job,
+ * "Asif.pdf" when only the client was, else (no client at all) falling
  * back to "Offcut - 23x77 2pcs - 2026-09-21". A "/" or "-" inside the sheet number is
  * written as the word "by" ("34/56" -> "34 by 56"): "/" is a path separator, and the user
  * wants neither character in the saved name. Pure and DOM-free so it can be unit-tested
@@ -18,8 +19,10 @@ export function pdfFileName(cut: CutDoc): string {
   const clientName = cut.clientName?.trim()
   const sheetNumber = cut.sheetNumber?.trim().replace(/\s*[/-]\s*/g, ' by ')
   const raw =
-    clientName && sheetNumber
-      ? `${clientName} ${sheetNumber}`
+    clientName
+      ? sheetNumber
+        ? `${clientName} ${sheetNumber}`
+        : clientName
       : (() => {
           const first = cut.pieces?.[0]
           const pieceText = first ? `${fmt(first.w)}x${fmt(first.h)} ${first.qty}pcs` : 'sheet'

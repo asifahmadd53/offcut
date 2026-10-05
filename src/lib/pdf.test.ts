@@ -82,7 +82,7 @@ describe('pdfFileName', () => {
     expect(pdfFileName({ ...cut, sheetNumber: '34/66' })).not.toMatch(/[/-]/)
   })
 
-  it('falls back to the piece/date name when sheetNumber is missing, even with a client', () => {
+  it('uses just the client name when there is no sheet number', () => {
     const cut: CutDoc = {
       id: 'x',
       type: 'cut',
@@ -95,7 +95,9 @@ describe('pdfFileName', () => {
       clientId: 'c1',
       clientName: 'Asif',
     }
-    expect(pdfFileName(cut)).toBe('Offcut - 23x77 2pcs - 2026-09-21.pdf')
+    expect(pdfFileName(cut)).toBe('Asif.pdf')
+    expect(pdfFileName({ ...cut, sheetNumber: '   ' })).toBe('Asif.pdf')
+    expect(pdfFileName({ ...cut, clientName: undefined })).toBe('Offcut - 23x77 2pcs - 2026-09-21.pdf')
   })
 })
 
