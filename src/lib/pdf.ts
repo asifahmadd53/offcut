@@ -1,8 +1,8 @@
 import { computeWasteCells } from './diagramLayout'
 import { spreadPositions } from './diagramStyle'
 import { plural } from './format'
-import { tapeSummary } from './tape'
 import { fmt, sizeFormatter, sizeStyleOf, type Formatter } from './inches'
+import { tapeSummary, tapeTotalText } from './tape'
 import { SvgDoc, type DrawDoc, type RGB } from './svgDoc'
 import type { jsPDF as JsPdfDoc, jsPDFOptions } from 'jspdf'
 import type { PrintPage } from './print'
@@ -187,7 +187,7 @@ export interface PartSection {
 }
 
 /**
- * The parts list: the pieces to cut, which of them get edge tape, and what was cut earlier. Leftovers are not listed
+ * The parts list: the pieces to cut, and what was cut earlier. Leftovers are not listed
  * here (they are drawn, labelled, and counted in "How much is used"). Pieces keep the size
  * as typed (R16).
  */
@@ -202,12 +202,8 @@ export function partSections(blocks: Block[]): PartSection[] {
   const earlier: PartRow[] = blocks
     .filter((b) => b.kind === 'earlier')
     .map((b) => ({ name: 'Already cut', size: F.fmtDims(b.w, b.h) }))
-  // Pieces that get edge tape, with the length of each taped side, and the total to buy.
-  const taped = tapeSummary(blocks.filter((b) => b.kind === 'cut').map((b) => ({ n: b.n ?? 0, w: b.w, h: b.h, tape: b.tape })))
-  const tapeRows: PartRow[] = taped.rows.map((r) => ({ name: `Piece ${r.n}`, size: r.lengths.map((n) => F.fmt(n)).join(' + ') }))
   return [
     { title: 'Cutting pieces', note: 'width × height', rows: pieces },
-    { title: 'Edge tape', note: `${F.fmt(taped.total)} in total`, rows: tapeRows },
     { title: 'Already cut earlier', rows: earlier },
   ].filter((s) => s.rows.length > 0)
 }
@@ -562,13 +558,15 @@ function drawDiagram(doc: DrawDoc, page: PrintPage, box: Box) {
   // where two taped sides meet). Dark enough to stay clear when printed in black and white.
   for (const b of blocks.filter((x) => x.kind === 'cut' && x.tape)) {
     const t = b.tape!
-    const bw = b.w * sc
-    const bh = b.h * sc
+    // Inset from the piece's own border so the tape never touches the edge or the cut lines along it.
+    const m = Math.min(0.9, Math.min(b.w, b.h) * sc / 8)
+    const bw = b.w * sc - 2 * m
+    const bh = b.h * sc - 2 * m
     const th = Math.max(1, Math.min(1.8, Math.min(bw, bh) / 8))
-    const l = X(b.x)
-    const r = X(b.x + b.w)
-    const top = Y(b.y)
-    const bot = Y(b.y + b.h)
+    const l = X(b.x) + m
+    const r = X(b.x + b.w) - m
+    const top = Y(b.y) + m
+    const bot = Y(b.y + b.h) - m
     const gap = 0.5
     const x1 = l + (t.left ? th : gap)
     const x2 = r - (t.right ? th : gap)
@@ -772,6 +770,14 @@ function drawInfoColumn(doc: DrawDoc, page: PrintPage, box: Box, compact: boolea
     y += lineHeight(9)
   }
   y += 3
+
+  // Tape to buy for this one sheet, just above the pieces.
+  const taped = tapeSummary(page.blocks.filter((b) => b.kind === 'cut').map((b) => ({ n: b.n ?? 0, w: b.w, h: b.h, tape: b.tape })))
+  if (taped.total > 0) {
+    put(doc, 'Edge tape used', x, y, { size: 9, bold: true })
+    put(doc, tapeTotalText(taped.total, F.fmt), x + w, y, { size: 9, align: 'right' })
+    y += lineHeight(9) + 3
+  }
 
   const sections = partSections(page.blocks)
   const sizes = compact ? [8, 7.5, 7, 6.5, 6, 5.5, 5] : [8, 7.5, 7]

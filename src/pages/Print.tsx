@@ -60,13 +60,15 @@ export default function Print() {
   const size = PAGE_MM[settings.paperSize]
 
   return (
-    <div className="min-h-dvh bg-muted">
+    <div className="print-root min-h-dvh bg-muted">
       <style>{`
         @page { size: ${settings.paperSize === 'A4' ? 'A4' : 'letter'}; margin: 0; }
         .print-page svg { display: block; width: 100%; height: auto; }
         @media print {
           .no-print { display: none !important; }
           html, body { background: #fff !important; }
+          .print-root { min-height: 0 !important; background: #fff !important; }
+          .print-wrap { padding: 0 !important; }
           .print-page {
             width: ${size.w};
             height: ${size.h};
@@ -116,7 +118,7 @@ export default function Print() {
         On a computer, the print window lets you choose your printer.
       </p>
 
-      <div className="px-4 pb-8 pt-2">
+      <div className="print-wrap px-4 pb-8 pt-2">
         {!svgPages && <p className="no-print py-10 text-center text-[14px] text-muted-foreground">Getting your pages ready…</p>}
         {svgPages?.map((svg, i) => (
           // The SVG is built from this job's own data with every text escaped (SvgDoc).

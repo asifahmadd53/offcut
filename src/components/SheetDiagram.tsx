@@ -432,7 +432,13 @@ type BlockLabelShape = { lines: string[]; size: number; rotated: boolean }
  * piece, with a dotted line down its middle (shortened where two taped sides meet so the dots
  * never cross) and, on a long enough side, the word TAPE.
  */
-function TapedEdges({ tape, x, y, w, h }: { tape: NonNullable<Block['tape']>; x: number; y: number; w: number; h: number }) {
+function TapedEdges({ tape, x: bx, y: by, w: bw, h: bh }: { tape: NonNullable<Block['tape']>; x: number; y: number; w: number; h: number }) {
+  // Keep the tape off the piece's own border (and the cut lines along it) so it never touches the edge.
+  const m = Math.min(4, Math.min(bw, bh) / 8)
+  const x = bx + m
+  const y = by + m
+  const w = bw - 2 * m
+  const h = bh - 2 * m
   const t = Math.max(2.5, Math.min(6, Math.min(w, h) / 12))
   const dots = { stroke: 'var(--dg-tape-ink)', strokeWidth: Math.max(1, t / 3), strokeDasharray: '0.1 4', strokeLinecap: 'round' as const }
   const word = t >= 5.5

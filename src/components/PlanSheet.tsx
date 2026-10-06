@@ -86,6 +86,13 @@ export function PlanSheet({ sheet, blocks, highlightIndex, sizeStyle = 'decimal'
             {Math.round(usedArea).toLocaleString()} of {Math.round(regionArea).toLocaleString()} sq in
           </p>
 
+          {tape.total > 0 && (
+            <p className="mb-0 mt-3 flex justify-between gap-3">
+              <span className="text-muted-foreground">Edge tape used</span>
+              <span className="font-semibold">{tapeTotalText(tape.total, F.fmt)}</span>
+            </p>
+          )}
+
           {pieces.length > 0 && (
             <>
               <p className="mb-1 mt-3 flex justify-between gap-3 text-muted-foreground">

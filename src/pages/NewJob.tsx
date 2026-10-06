@@ -256,13 +256,13 @@ export default function NewJob() {
           <Input
             id="sheet-number"
             type="text"
-            inputMode="text"
+            inputMode="tel"
             autoComplete="off"
             placeholder="e.g. 34/66"
             enterKeyHint="next"
             className="h-[42px] border border-border-stronger bg-transparent px-3 text-[16px]"
             value={sheetNumber}
-            onChange={(e) => setSheetNumber(e.target.value)}
+            onChange={(e) => setSheetNumber(e.target.value.replace(/[^0-9/ ]/g, ''))}
           />
         </div>
       </div>

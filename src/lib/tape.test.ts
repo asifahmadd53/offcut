@@ -66,7 +66,7 @@ describe('edge tape through the plan', () => {
     expect(taped.sheets[0].placements.map(({ x, y, w, h }) => [x, y, w, h])).toEqual(plain.sheets[0].placements.map(({ x, y, w, h }) => [x, y, w, h]))
   })
 
-  it('reaches the drawing blocks and the PDF parts list with its own "Edge tape" heading', () => {
+  it('reaches the drawing blocks but not the PDF parts list', () => {
     const ps = [piece(20, 50, { top: true, left: true })]
     const sheets = packJob(ps, [], opts).sheets
     const cut: CutDoc = { id: 'c', type: 'cut', createdAt: 1, syncedAt: 1, deviceId: 'd', pieces: ps, kerf: 0, sheets }
@@ -75,8 +75,6 @@ describe('edge tape through the plan', () => {
     expect(blocks.find((b) => b.kind === 'cut')?.tape).toEqual({ top: true, left: true })
     const page = buildPrintPages(cut, derived, DEFAULT_SETTINGS)[0]
     const sections = partSections(page.blocks)
-    expect(sections.map((s) => s.title)).toEqual(['Cutting pieces', 'Edge tape'])
-    expect(sections[1].rows).toEqual([{ name: 'Piece 1', size: '20 + 50' }])
-    expect(sections[1].note).toBe('70 in total')
+    expect(sections.map((s) => s.title)).toEqual(['Cutting pieces'])
   })
 })

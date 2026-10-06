@@ -32,6 +32,8 @@ export default function ClientJobs() {
   const hideJobs = useData((s) => s.hideJobs)
   const clearJob = useJob((s) => s.clearJob)
   const setClient = useJob((s) => s.setClient)
+  const setClientPhone = useJob((s) => s.setClientPhone)
+  const setSheetNumber = useJob((s) => s.setSheetNumber)
   const [toDelete, setToDelete] = useState<JobView | null>(null)
   const [leftoverToDelete, setLeftoverToDelete] = useState<Leftover | null>(null)
   const [showAllJobs, setShowAllJobs] = useState(false)
@@ -59,6 +61,9 @@ export default function ClientJobs() {
   function startNewJobForClient() {
     clearJob()
     setClient(clientId!, clientName)
+    // Carry the phone and sheet number over from this client's latest job that has them; blank otherwise.
+    setClientPhone(jobs.find((j) => j.cut.clientPhone)?.cut.clientPhone ?? '')
+    setSheetNumber(jobs.find((j) => j.cut.sheetNumber)?.cut.sheetNumber ?? '')
     navigate('/new')
   }
 
