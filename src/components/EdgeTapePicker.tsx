@@ -67,7 +67,7 @@ export function EdgeTapePicker({ value, onChange, widthText, heightText, w, h }:
         aria-label={`${NAME[side]}${len ? `, ${len} inches` : ''}${on ? ', has tape' : ', no tape'}`}
         onClick={() => toggle(side)}
         className={cn(
-          'flex items-center justify-center gap-2 rounded-lg border px-2 font-mono text-[11px] font-bold uppercase tracking-wide transition-transform active:scale-[0.97]',
+          'flex min-w-0 items-center justify-center gap-2 rounded-lg border px-2 font-mono text-[10px] font-bold uppercase tracking-wide transition-transform active:scale-[0.97] sm:text-[11px]',
           vertical ? 'min-w-[44px] flex-col py-3' : 'min-h-[44px]',
           on ? 'border-brand bg-brand-tint text-brand-ink' : 'border-border-strong bg-card text-muted-foreground hover:bg-muted',
           className,
@@ -87,7 +87,7 @@ export function EdgeTapePicker({ value, onChange, widthText, heightText, w, h }:
       type="button"
       onClick={onClick}
       className={cn(
-        'min-h-[40px] rounded-full border px-4 text-[13px] font-semibold active:scale-[0.98]',
+        'min-h-[30px] rounded-full border px-4 text-[13px] font-semibold active:scale-[0.98]',
         active ? 'border-brand bg-brand-tint text-brand-ink' : 'border-border-strong text-foreground hover:bg-muted',
       )}
     >
@@ -99,9 +99,9 @@ export function EdgeTapePicker({ value, onChange, widthText, heightText, w, h }:
   const fmt = sizeFormatter('decimal').fmt
 
   return (
-    <div className="rounded-xl border-hair border-border bg-card p-3" style={GRID}>
-      <div className="mx-auto grid w-full max-w-[380px] grid-cols-[60px_1fr_60px] grid-rows-[auto_auto_auto] items-stretch gap-2">
-        {pill('top', 'col-start-2 row-start-1')}
+    <div className="rounded-lg border-hair border-border bg-card p-3" style={GRID}>
+      <div className="mx-auto grid w-full max-w-[380px] grid-cols-[52px_minmax(0,1fr)_52px] grid-rows-[auto_auto_auto] items-stretch gap-2">
+        {pill('top', 'col-span-3 col-start-1 row-start-1')}
         {pill('left', 'col-start-1 row-start-2', true, true)}
         <svg
           className="col-start-2 row-start-2 h-auto w-full"
@@ -122,7 +122,7 @@ export function EdgeTapePicker({ value, onChange, widthText, heightText, w, h }:
           </text>
         </svg>
         {pill('right', 'col-start-3 row-start-2', true)}
-        {pill('bottom', 'col-start-2 row-start-3')}
+        {pill('bottom', 'col-span-3 col-start-1 row-start-3')}
       </div>
 
       <p className="mt-3 text-center text-[14px] font-semibold" aria-live="polite">

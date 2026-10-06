@@ -116,6 +116,21 @@ export default function NewJob() {
     widthRef.current?.focus()
   }
 
+  // "Done" on the tape card finishes the piece: with a valid size it goes straight into
+  // "Pieces in this job" with its tape; otherwise the card closes (the tape is kept) and the
+  // missing size is pointed out.
+  function onTapeDone() {
+    if (bothValid && !tooBig) {
+      doAdd()
+      toast('Piece added with its edge tape.')
+      return
+    }
+    setTapeOpen(false)
+    setTriedAdd(true)
+    toast('Type the width and height to add this piece.')
+    widthRef.current?.focus()
+  }
+
   function onMakePlan() {
     setClientTouched(true)
     if (!clientId) {
@@ -318,27 +333,27 @@ export default function NewJob() {
         <Stepper value={qty} onChange={setQty} />
       </div>
 
-      <div className="mb-3 overflow-hidden rounded-xl border-2 border-brand bg-brand-tint">
+      <div className="mb-3 overflow-hidden rounded-lg border border-brand bg-brand-tint">
         <button
           type="button"
           aria-expanded={tapeOpen}
           onClick={() => setTapeOpen((v) => !v)}
-          className="flex min-h-[68px] w-full items-center gap-3 px-3 py-2 text-left"
+          className="flex min-h-[40px] w-full items-center gap-3 px-3 py-2 text-left"
         >
-          <span aria-hidden="true" className="flex h-11 w-11 flex-none items-center justify-center rounded-lg bg-brand text-brand-fg">
+          <span aria-hidden="true" className="flex h-8 w-8 flex-none items-center justify-center rounded-lg bg-brand text-brand-fg">
             <svg width="26" height="26" viewBox="0 0 24 24" fill="none">
               <rect x="2" y="7" width="20" height="10" rx="2" fill="currentColor" opacity="0.28" />
               <line x1="4.5" y1="12" x2="19.5" y2="12" stroke="currentColor" strokeWidth="2.6" strokeDasharray="0.1 4.3" strokeLinecap="round" />
             </svg>
           </span>
           <span className="min-w-0 flex-1">
-            <span className="block text-[17px] font-extrabold text-brand-ink">Edge tape</span>
-            <span className="block text-[13px] text-brand-ink">
+            <span className="block text-sm font-extrabold text-brand-ink">Edge tape</span>
+            <span className="block text-xs text-brand-ink">
               {hasTape(tape) ? `Tape on ${describeSides(tape)}` : 'Optional · choose which sides get tape'}
             </span>
           </span>
           {!tapeOpen && (
-            <span className="flex-none rounded-full bg-brand px-3.5 py-2 text-[13px] font-bold text-brand-fg">
+            <span className="flex-none rounded-full bg-brand px-3.5 py-1 text-[13px] font-bold text-brand-fg">
               {hasTape(tape) ? 'Change' : '+ Add tape'}
             </span>
           )}
@@ -349,8 +364,11 @@ export default function NewJob() {
               Tap the edges of this piece that get tape. Taped edges are dotted.
             </p>
             <EdgeTapePicker value={tape} onChange={setTape} widthText={cleanTyped(width) || undefined} heightText={cleanTyped(height) || undefined} w={wVal} h={hVal} />
-            <div className="mt-3 flex justify-end">
-              <Button className="h-10 px-8" onClick={() => setTapeOpen(false)}>
+            <div className="mt-3 flex items-center justify-between gap-3">
+              <p className="mb-0 text-[12px] text-muted-foreground">
+                {bothValid && !tooBig ? 'Done adds this piece to the job.' : 'Type the width and height, then tap Done.'}
+              </p>
+              <Button size="lg" className="flex-none px-8" onClick={onTapeDone}>
                 Done
               </Button>
             </div>
@@ -380,13 +398,13 @@ export default function NewJob() {
             <div key={p.id} className="flex items-center justify-between gap-2 border-b border-hair border-border rounded-md px-2 py-1">
               <div className="min-w-0">
                 <p className="mb-0 text-[16px] font-semibold">
-                  {pieceDims(p)} <span className="font-normal text-muted-foreground">· {p.qty} pcs</span>
+                  {pieceDims(p)} <span className="font-normal text-muted-foreground">· {plural(p.qty, 'pc')}</span>
                 </p>
                 {hasTape(p.tape) ? (
                   <button
                     type="button"
                     onClick={() => setEditTapeId(p.id)}
-                    className="my-1 inline-flex min-h-[34px] items-center gap-2 rounded-full px-3 text-[13px] font-bold"
+                    className="my-1 inline-flex min-h-[24px] items-center gap-2 rounded-full px-3 text-[13px] font-bold"
                     style={{ background: 'var(--dg-tape)', color: 'var(--dg-tape-ink)' }}
                   >
                     <span aria-hidden="true" className="h-0 w-4 border-t-[3px] border-dotted" style={{ borderColor: 'var(--dg-tape-ink)' }} />
@@ -434,9 +452,9 @@ export default function NewJob() {
       </div>
 
       <Dialog open={!!editingPiece} onOpenChange={(open) => !open && setEditTapeId(null)}>
-        <DialogContent>
-          <DialogTitle>Edge tape</DialogTitle>
-          <DialogDescription>Tap the sides that get tape. Dotted sides are taped.</DialogDescription>
+        <DialogContent className="max-h-[92dvh] overflow-y-auto">
+          <DialogTitle>Edge tape{editingPiece ? ` · ${pieceDims(editingPiece)}` : ''}</DialogTitle>
+          <DialogDescription>Tap the edges that get tape. Taped edges are dotted.</DialogDescription>
           {editingPiece && (
             <div className="mt-4">
               <EdgeTapePicker
@@ -447,9 +465,11 @@ export default function NewJob() {
                 w={editingPiece.w}
                 h={editingPiece.h}
               />
-              <Button className="mt-4 h-12 w-full" onClick={() => setEditTapeId(null)}>
-                Done
-              </Button>
+              <div className="mt-3 flex justify-end">
+                <Button size="lg" className="px-8" onClick={() => setEditTapeId(null)}>
+                  Done
+                </Button>
+              </div>
             </div>
           )}
         </DialogContent>
