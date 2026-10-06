@@ -1,7 +1,7 @@
 import { jsPDF } from 'jspdf'
 import { describe, expect, it } from 'vitest'
 import { buildPrintPages } from './print'
-import { buildPrintPdf, pdfFileName, sheetStats, spreadPositions, tableRows } from './pdf'
+import { buildPrintPdf, buildPrintSvgPages, partSections, pdfFileName, sheetStats, spreadPositions } from './pdf'
 import { packJob } from './packer'
 import { deriveStock } from './stock'
 import { DEFAULT_SETTINGS } from './types'
@@ -237,16 +237,26 @@ describe('spreadPositions', () => {
   })
 })
 
-describe('tableRows', () => {
-  it('lists pieces as typed and leftovers short side first, in plain words', () => {
+describe('partSections', () => {
+  it('keeps cutting pieces and leftovers under separate headings, in plain words', () => {
     const r = packJob([piece(23, 77, 2)], [], opts)
     const cut = cutFrom([piece(23, 77, 2)], r.sheets)
     const pages = buildPrintPages(cut, deriveStock([cut]), DEFAULT_SETTINGS)
-    expect(tableRows(pages[0].blocks)).toEqual([
-      { name: 'Piece 1', size: '23 × 77', what: 'Piece' },
-      { name: 'Piece 2', size: '23 × 77', what: 'Piece' },
-      { name: 'A', size: '19 × 48', what: 'New leftover' },
-      { name: 'B', size: '2 × 77', what: 'New leftover' },
+    expect(partSections(pages[0].blocks)).toEqual([
+      {
+        title: 'Cutting pieces',
+        rows: [
+          { name: 'Piece 1', size: '23 × 77' },
+          { name: 'Piece 2', size: '23 × 77' },
+        ],
+      },
+      {
+        title: 'Leftovers to keep',
+        rows: [
+          { name: 'A', size: '19 × 48' },
+          { name: 'B', size: '2 × 77' },
+        ],
+      },
     ])
   })
 })
@@ -356,6 +366,68 @@ describe('PDF text never overlaps and stays on the page', () => {
     const cut = withClient(cutFrom([piece(23, 77, 2)], r.sheets))
     const pages = buildPrintPages(cut, deriveStock([cut]), DEFAULT_SETTINGS)
     const text = await (await buildPrintPdf(pages, 'A4', jsPDF, cut)).text()
-    for (const needle of ['Asif Ahmad', '0300 1234567', '34/66', 'is used', 'Cut order', 'Leftovers kept']) expect(text).toContain(needle)
+    for (const needle of ['Asif Ahmad', '0300 1234567', '34/66', 'is used', 'Leftovers kept']) expect(text).toContain(needle)
+  })
+})
+
+describe('one page per sheet, however many parts', () => {
+  const withClient = (cut: CutDoc): CutDoc => ({ ...cut, clientId: 'c', clientName: 'Asif Ahmad', clientPhone: '0300 1234567', sheetNumber: '34/66' })
+
+  async function pdfPages(cut: CutDoc, paper: 'A4' | 'Letter' = 'A4') {
+    const pages = buildPrintPages(cut, deriveStock([cut]), DEFAULT_SETTINGS)
+    const text = await (await buildPrintPdf(pages, paper, jsPDF, cut)).text()
+    return { sheets: pages.length, pdfPages: countPdfPages(text), text }
+  }
+
+  it('55 different pieces: every sheet stays on a single page and none is left out', async () => {
+    const ps = Array.from({ length: 55 }, (_, i) => piece(2 + (i % 11) * 0.75, 3 + Math.floor(i / 11) * 1.25, 1, `d${i}`))
+    const sheets = packJob(ps, [], opts).sheets
+    const cut = withClient(cutFrom(ps, sheets))
+    for (const paper of ['A4', 'Letter'] as const) {
+      const res = await pdfPages(cut, paper)
+      expect(res.pdfPages).toBe(res.sheets)
+    }
+    const boxes: TextBox[] = []
+    await buildPrintPdf(buildPrintPages(cut, deriveStock([cut]), DEFAULT_SETTINGS), 'A4', recorder(boxes) as unknown as typeof jsPDF, cut)
+    expect(overlaps(boxes)).toEqual([])
+    const all = boxes.map((b) => b.text).join('\n')
+    for (let n = 1; n <= 55; n++) expect(all).toContain(`Piece ${n}`)
+  })
+
+  it('120 identical small pieces still fit one page per sheet', async () => {
+    const ps = [piece(3, 3, 120)]
+    const sheets = packJob(ps, [], opts).sheets
+    const res = await pdfPages(withClient(cutFrom(ps, sheets)))
+    expect(res.pdfPages).toBe(res.sheets)
+  })
+
+  it('has no cut order anywhere, and keeps pieces and leftovers under separate headings', async () => {
+    const r = packJob([piece(23, 77, 2)], [], opts)
+    const cut = withClient(cutFrom([piece(23, 77, 2)], r.sheets))
+    const { text } = await pdfPages(cut)
+    expect(text.toLowerCase()).not.toContain('cut order')
+    expect(text.toLowerCase()).not.toContain('measure each cut')
+    expect(text).toContain('CUTTING PIECES')
+    expect(text).toContain('LEFTOVERS TO KEEP')
+  })
+})
+
+describe('Print screen pages are the saved PDF pages', () => {
+  it('draws the same texts, in the same order, on the same number of pages', async () => {
+    const ps = [piece(23, 80, 2), piece(15.5, 20.25, 3), piece(30, 20, 1), piece(1.6, 18, 2)]
+    const sheets = packJob(ps, [], { ...opts, kerf: 1 / 16 }).sheets
+    const cut: CutDoc = { ...cutFrom(ps, sheets), kerf: 1 / 16, clientName: 'Asif Ahmad', sheetNumber: '34/66' }
+    const pages = buildPrintPages(cut, deriveStock([cut]), DEFAULT_SETTINGS)
+
+    const boxes: TextBox[] = []
+    await buildPrintPdf(pages, 'A4', recorder(boxes) as unknown as typeof jsPDF, cut)
+    const svgs = buildPrintSvgPages(pages, 'A4', jsPDF, cut)
+
+    expect(svgs).toHaveLength(pages.length)
+    const unescape = (s: string) => s.replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&amp;/g, '&')
+    const svgTexts = svgs.map((svg) => [...svg.matchAll(/<text [^>]*>([^<]*)<\/text>/g)].map((m) => unescape(m[1])))
+    const pdfTexts = pages.map((_, i) => boxes.filter((b) => b.page === i + 1).map((b) => b.text))
+    expect(svgTexts).toEqual(pdfTexts)
+    for (const svg of svgs) expect(svg.startsWith('<svg')).toBe(true)
   })
 })

@@ -1,6 +1,7 @@
 import { computeWasteCells, edgesToSegments, extractEdges } from './diagramLayout'
 import { plural } from './format'
 import { fmt, fmtLeft } from './inches'
+import { SvgDoc, type DrawDoc, type RGB } from './svgDoc'
 import type { jsPDF as JsPdfDoc, jsPDFOptions } from 'jspdf'
 import type { PrintPage } from './print'
 import type { Block } from './sheetView'
@@ -34,12 +35,13 @@ export function pdfFileName(cut: CutDoc): string {
   return raw.replace(/[\\/:*?"<>|]/g, '').replace(/\s+/g, ' ').trim() + '.pdf'
 }
 
-
 // ---------------------------------------------------------------------------
 // Page layout. The PDF is what the carpenter hands to a client, so everything a
 // reader needs sits on the sheet's own page in plain words: who it is for, how
-// much of the sheet is used, the drawing, the numbered cut order and every part.
-// Only vector rect/line/text calls in Helvetica (offline, no embedded fonts).
+// much of the sheet is used, the drawing and every part with its size. One page
+// per sheet, always — a busy sheet gets smaller type and a second column in the
+// parts list, never a second page. The Print screen draws these very same pages
+// (through SvgDoc), so printing and saving give the identical document.
 // ---------------------------------------------------------------------------
 
 const PAGE_MM: Record<'A4' | 'Letter', { w: number; h: number }> = {
@@ -52,8 +54,6 @@ const FOOTER_H = 8
 const INFO_W = 56
 const COL_GAP = 4
 const PT = 0.3528 // mm per point
-
-type RGB = [number, number, number]
 
 const COL = {
   ink: [27, 26, 23] as RGB,
@@ -86,7 +86,7 @@ interface TextStyle {
 }
 
 /** Every text in the file goes through here, one line per call, so nothing wraps on its own. */
-function put(doc: JsPdfDoc, text: string, x: number, y: number, st: TextStyle) {
+function put(doc: DrawDoc, text: string, x: number, y: number, st: TextStyle) {
   doc.setFont('helvetica', st.bold ? 'bold' : 'normal')
   doc.setFontSize(st.size)
   doc.setTextColor(...(st.color ?? COL.ink))
@@ -95,20 +95,20 @@ function put(doc: JsPdfDoc, text: string, x: number, y: number, st: TextStyle) {
   doc.text(text, x, y, opts)
 }
 
-function widthOf(doc: JsPdfDoc, text: string, size: number, bold = false): number {
+function widthOf(doc: DrawDoc, text: string, size: number, bold = false): number {
   doc.setFont('helvetica', bold ? 'bold' : 'normal')
   doc.setFontSize(size)
   return doc.getTextWidth(text)
 }
 
-function wrap(doc: JsPdfDoc, text: string, maxW: number, size: number, bold = false): string[] {
+function wrap(doc: DrawDoc, text: string, maxW: number, size: number, bold = false): string[] {
   doc.setFont('helvetica', bold ? 'bold' : 'normal')
   doc.setFontSize(size)
   const r = doc.splitTextToSize(text, maxW)
   return Array.isArray(r) ? r : [String(r)]
 }
 
-function ellipsize(doc: JsPdfDoc, text: string, maxW: number, size: number, bold = false): string {
+function ellipsize(doc: DrawDoc, text: string, maxW: number, size: number, bold = false): string {
   if (widthOf(doc, text, size, bold) <= maxW) return text
   let cur = text
   while (cur.length > 1 && widthOf(doc, cur + '…', size, bold) > maxW) cur = cur.slice(0, -1)
@@ -175,36 +175,79 @@ export function spreadPositions(desired: number[], minGap: number, lo: number, h
   return ys
 }
 
-interface TableRow {
+// ---------- Parts: cutting pieces and leftovers are never mixed ----------
+
+export interface PartRow {
   name: string
   size: string
-  what: string
+}
+
+export interface PartSection {
+  title: string
+  rows: PartRow[]
 }
 
 /**
- * Every piece, leftover and already-cut block on the sheet, in plain words and reading order:
- * pieces (by number), then leftovers, then what was cut earlier. Leftovers show their short
- * side first, exactly like the drawing; pieces keep the size as typed.
+ * Every block on the sheet, in plain words, under its own heading: the pieces to cut, the
+ * leftovers this cut creates (kept), leftovers that were already in stock, and what was cut
+ * earlier. Pieces keep the size as typed; leftovers show their short side first (R16).
  */
-export function tableRows(blocks: Block[]): TableRow[] {
-  const pieces: TableRow[] = blocks
+export function partSections(blocks: Block[]): PartSection[] {
+  const pieces: PartRow[] = blocks
     .filter((b) => b.kind === 'cut')
     .map((b) => ({
-      name: `Piece ${b.n ?? ''}`,
+      name: `Piece ${b.n ?? ''}${b.rotated ? ' (turned)' : ''}`,
       size: b.label ?? `${fmt(b.w)} × ${fmt(b.h)}`,
-      what: b.rotated ? 'Piece (turned)' : 'Piece',
     }))
-  const leftovers: TableRow[] = blocks
-    .filter((b) => b.kind === 'free' || b.kind === 'freeNew' || b.kind === 'focus')
-    .map((b) => ({
-      name: b.letter ?? 'Leftover',
-      size: fmtLeft(b.w, b.h),
-      what: b.kind === 'freeNew' ? 'New leftover' : 'In stock',
-    }))
-  const earlier: TableRow[] = blocks
+  const kept: PartRow[] = blocks
+    .filter((b) => b.kind === 'freeNew')
+    .map((b) => ({ name: b.letter ?? 'Leftover', size: fmtLeft(b.w, b.h) }))
+  const inStock: PartRow[] = blocks
+    .filter((b) => b.kind === 'free' || b.kind === 'focus')
+    .map((b) => ({ name: b.letter ?? 'Leftover', size: fmtLeft(b.w, b.h) }))
+  const earlier: PartRow[] = blocks
     .filter((b) => b.kind === 'earlier')
-    .map((b) => ({ name: 'Already cut', size: `${fmt(b.w)} × ${fmt(b.h)}`, what: 'Done earlier' }))
-  return [...pieces, ...leftovers, ...earlier]
+    .map((b) => ({ name: 'Already cut', size: `${fmt(b.w)} × ${fmt(b.h)}` }))
+  return [
+    { title: 'Cutting pieces', rows: pieces },
+    { title: 'Leftovers to keep', rows: kept },
+    { title: 'Leftovers already in stock', rows: inStock },
+    { title: 'Already cut earlier', rows: earlier },
+  ].filter((s) => s.rows.length > 0)
+}
+
+/** "Pieces 1-12, 14" from ["Piece 1", ...] — used only when a sheet has too many parts to list one by one. */
+function joinNames(names: string[]): string {
+  const nums = names.map((n) => /^Piece (\d+)/.exec(n)?.[1]).filter((n): n is string => n !== undefined).map(Number)
+  if (nums.length !== names.length) return names.join(', ')
+  nums.sort((a, b) => a - b)
+  const parts: string[] = []
+  for (let i = 0; i < nums.length; ) {
+    let j = i
+    while (j + 1 < nums.length && nums[j + 1] === nums[j] + 1) j++
+    parts.push(j > i ? `${nums[i]}-${nums[j]}` : `${nums[i]}`)
+    i = j + 1
+  }
+  return `Pieces ${parts.join(', ')}`
+}
+
+/** Same sizes folded into one row each ("Pieces 1-12   35 × 65 ×12"): the last resort for a huge sheet. */
+function groupSections(sections: PartSection[]): PartSection[] {
+  return sections.map((sec) => {
+    const groups = new Map<string, string[]>()
+    for (const r of sec.rows) {
+      const turned = r.name.endsWith('(turned)')
+      const key = `${r.size}${turned ? '|turned' : ''}`
+      groups.set(key, [...(groups.get(key) ?? []), r.name])
+    }
+    const rows = [...groups].map(([key, names]) => {
+      const [size, turned] = key.split('|')
+      if (names.length === 1) return { name: names[0], size }
+      const plain = names.map((n) => n.replace(' (turned)', ''))
+      return { name: `${joinNames(plain)}${turned ? ' (turned)' : ''}`, size: `${size} ×${names.length}` }
+    })
+    return { ...sec, rows }
+  })
 }
 
 // ---------- Job-wide facts repeated on every page ----------
@@ -241,11 +284,11 @@ function sheetsPhrase(job: JobFacts): string {
 
 // ---------- Header and footer ----------
 
-function drawHeader(doc: JsPdfDoc, page: PrintPage, job: JobFacts, pageW: number, continued: boolean): number {
+function drawHeader(doc: DrawDoc, page: PrintPage, job: JobFacts, pageW: number): number {
   const innerW = pageW - MARGIN * 2
   let y = MARGIN + 3
   put(doc, 'OFFCUT  ·  Cutting plan', MARGIN, y, { size: 9, bold: true, color: COL.brand })
-  put(doc, `Sheet ${page.sheetIndex + 1} of ${page.sheetTotal}${continued ? ' (continued)' : ''}`, pageW - MARGIN, y + 1, {
+  put(doc, `Sheet ${page.sheetIndex + 1} of ${page.sheetTotal}`, pageW - MARGIN, y + 1, {
     size: 15,
     bold: true,
     align: 'right',
@@ -282,7 +325,7 @@ function drawHeader(doc: JsPdfDoc, page: PrintPage, job: JobFacts, pageW: number
   return y + 4
 }
 
-function drawFooter(doc: JsPdfDoc, page: PrintPage, pageH: number) {
+function drawFooter(doc: DrawDoc, page: PrintPage, pageH: number) {
   put(doc, page.footerLeft, MARGIN, pageH - MARGIN + 2, { size: 8, color: COL.muted })
 }
 
@@ -294,15 +337,6 @@ interface Box {
   w: number
   h: number
 }
-
-interface LabelBox {
-  x0: number
-  x1: number
-  y0: number
-  y1: number
-}
-
-const hits = (a: LabelBox, b: LabelBox) => a.x0 < b.x1 && b.x0 < a.x1 && a.y0 < b.y1 && b.y0 < a.y1
 
 /** Text lines a block can carry, richest first; the last entry is the bare letter/number. */
 function labelCandidates(b: Block): string[][] {
@@ -330,15 +364,7 @@ function inkFor(b: Block): RGB {
   return COL.greenInk
 }
 
-function fitBlockLabel(
-  doc: JsPdfDoc,
-  b: Block,
-  pw: number,
-  ph: number,
-  cx: number,
-  cy: number,
-  avoid: LabelBox[],
-): { lines: string[]; size: number } | null {
+function fitBlockLabel(doc: DrawDoc, b: Block, pw: number, ph: number): { lines: string[]; size: number } | null {
   const pad = 1.2
   const cands = labelCandidates(b)
   for (let ci = 0; ci < cands.length; ci++) {
@@ -349,23 +375,21 @@ function fitBlockLabel(
       const totalH = lines.length * lh
       const maxW = Math.max(...lines.map((l, i) => widthOf(doc, l, size, i === 0)))
       if (maxW > pw - pad * 2 || totalH > ph - pad * 2) continue
-      const box = { x0: cx - maxW / 2, x1: cx + maxW / 2, y0: cy - totalH / 2, y1: cy + totalH / 2 }
-      if (avoid.some((a) => hits(a, box))) continue
       return { lines, size }
     }
   }
   return null
 }
 
-function drawLegend(doc: JsPdfDoc, sheet: SheetPlan, blocks: Block[], x: number, y: number, maxW: number) {
+function drawLegend(doc: DrawDoc, sheet: SheetPlan, blocks: Block[], x: number, y: number, maxW: number) {
   const items: Array<{ key: 'blue' | 'green' | 'earlier' | 'cut'; text: string }> = [
     { key: 'blue', text: 'Piece to cut' },
     { key: 'green', text: 'Leftover' },
   ]
   if (blocks.some((b) => b.kind === 'earlier')) items.push({ key: 'earlier', text: 'Already cut' })
-  if ((sheet.cuts ?? []).length > 0) items.push({ key: 'cut', text: 'Cut order' })
+  if ((sheet.cuts ?? []).length > 0) items.push({ key: 'cut', text: 'Cut line' })
   const size = 8.5
-  const itemW = (t: string) => 5.5 + widthOf(doc, t, size)
+  const itemW = (t: string) => 7 + widthOf(doc, t, size)
   let cx = x
   let cy = y
   for (const it of items) {
@@ -374,8 +398,11 @@ function drawLegend(doc: JsPdfDoc, sheet: SheetPlan, blocks: Block[], x: number,
       cy += 5.5
     }
     if (it.key === 'cut') {
-      doc.setFillColor(...COL.cut)
-      doc.circle(cx + 1.8, cy - 1, 1.8, 'F')
+      doc.setDrawColor(...COL.cut)
+      doc.setLineWidth(0.45)
+      doc.setLineDashPattern([1.2, 0.8], 0)
+      doc.line(cx, cy - 1, cx + 5.4, cy - 1)
+      doc.setLineDashPattern([], 0)
     } else {
       const fill = it.key === 'blue' ? COL.blueFill : it.key === 'green' ? COL.greenFill : COL.earlierFill
       const edge = it.key === 'blue' ? COL.blue : it.key === 'green' ? COL.green : COL.earlierEdge
@@ -386,7 +413,7 @@ function drawLegend(doc: JsPdfDoc, sheet: SheetPlan, blocks: Block[], x: number,
       doc.rect(cx, cy - 2.8, 3.6, 3.6, 'FD')
       doc.setLineDashPattern([], 0)
     }
-    put(doc, it.text, cx + 5.5, cy, { size, color: COL.muted })
+    put(doc, it.text, cx + 7, cy, { size, color: COL.muted })
     cx += itemW(it.text) + 5
   }
 }
@@ -402,84 +429,13 @@ interface DiagramPlan {
   Y0: number
   X1: number
   Y1: number
-  badges: BadgePlace[]
   fits: BlockFit[]
   wasteFits: Array<{ cell: { x: number; y: number; w: number; h: number }; fit: { lines: string[]; size: number } }>
   callouts: Array<{ name: string; dims: string; ax: number; ay: number; ink: RGB }>
 }
 
-const BADGE_R = 2.6
-
-export interface BadgePlace {
-  n: number
-  x: number
-  y: number
-  /** Where the cut line really starts or ends; the number sits here unless it had to move. */
-  ox: number
-  oy: number
-}
-
-interface BadgeGeometry {
-  X0: number
-  X1: number
-  Y0: number
-  Y1: number
-  /** Sheet inches to mm. */
-  X: (inches: number) => number
-  Y: (inches: number) => number
-  sheetW: number
-}
-
-/**
- * Puts each cut's number as close to its line's end as it can without touching another
- * number, and keeps every number in an allowed strip (above the sheet, beside it on the
- * right, or inside it) so none runs over the dimensions or the notes in the margin.
- */
-export function placeCutBadges(cuts: NonNullable<SheetPlan['cuts']>, g: BadgeGeometry, minDist = 5.7): BadgePlace[] {
-  const R = BADGE_R + 0.4
-  type Zone = { x0: number; x1: number; y0: number; y1: number }
-  const top: Zone = { x0: g.X0 - 1, x1: g.X1 + 7.2, y0: g.Y0 - 7.4, y1: g.Y0 - 1.2 }
-  const right: Zone = { x0: g.X1 + 1.5, x1: g.X1 + 7.2, y0: g.Y0 - 7.4, y1: g.Y1 + 7 }
-  const inside: Zone = { x0: g.X0 + R, x1: g.X1 - R, y0: g.Y0 + R, y1: g.Y1 - R }
-  const placed: BadgePlace[] = []
-  for (const c of cuts) {
-    let ox: number
-    let oy: number
-    let zone: Zone
-    if (c.kind === 'across') {
-      const atEdge = c.to >= g.sheetW - 1e-6
-      ox = atEdge ? g.X1 + 3.8 : g.X(c.to) - R
-      oy = g.Y(c.pos)
-      zone = atEdge ? right : inside
-    } else {
-      const atTop = c.from <= 1e-6
-      ox = g.X(c.pos)
-      oy = atTop ? g.Y0 - 3.8 : g.Y(c.from) + R
-      zone = atTop ? top : inside
-    }
-    const free = (x: number, y: number) => placed.every((p) => Math.hypot(p.x - x, p.y - y) >= minDist)
-    const ok = (x: number, y: number) => x >= zone.x0 && x <= zone.x1 && y >= zone.y0 && y <= zone.y1 && free(x, y)
-    let best: { x: number; y: number } | null = ok(ox, oy) ? { x: ox, y: oy } : null
-    for (let ring = 1; !best && ring <= 40; ring++) {
-      const r = ring * 1.4
-      let bestD = Infinity
-      for (let a = 0; a < 32; a++) {
-        const x = ox + r * Math.cos((a / 32) * Math.PI * 2)
-        const y = oy + r * Math.sin((a / 32) * Math.PI * 2)
-        const d = Math.hypot(x - ox, y - oy)
-        if (ok(x, y) && d < bestD) {
-          best = { x, y }
-          bestD = d
-        }
-      }
-    }
-    placed.push({ n: c.n, x: best?.x ?? ox, y: best?.y ?? oy, ox, oy })
-  }
-  return placed
-}
-
-/** Works out scale, cut numbers and every label for one margin width — nothing is drawn yet. */
-function planDiagram(doc: JsPdfDoc, page: PrintPage, box: Box, zoneRight: number, wasteCells: ReturnType<typeof computeWasteCells>): DiagramPlan {
+/** Works out scale and every label for one margin width — nothing is drawn yet. */
+function planDiagram(doc: DrawDoc, page: PrintPage, box: Box, zoneRight: number, wasteCells: ReturnType<typeof computeWasteCells>): DiagramPlan {
   const { sheet, blocks } = page
   const zone = { top: 20, left: 21, bottom: 16 }
   const availW = box.w - zone.left - zoneRight
@@ -492,16 +448,10 @@ function planDiagram(doc: JsPdfDoc, page: PrintPage, box: Box, zoneRight: number
   const X = (inX: number) => X0 + inX * sc
   const Y = (inY: number) => Y0 + inY * sc
 
-  const cuts = sheet.cuts ?? []
-  const badges = placeCutBadges(cuts, { X0, X1, Y0, Y1, X, Y, sheetW: sheet.sheetW })
-  const avoid: LabelBox[] = badges.map((b) => ({ x0: b.x - BADGE_R - 0.6, x1: b.x + BADGE_R + 0.6, y0: b.y - BADGE_R - 0.6, y1: b.y + BADGE_R + 0.6 }))
-
   const fits: BlockFit[] = []
   const callouts: DiagramPlan['callouts'] = []
   for (const b of blocks) {
-    const pw = b.w * sc
-    const ph = b.h * sc
-    const fit = fitBlockLabel(doc, b, pw, ph, X(b.x) + pw / 2, Y(b.y) + ph / 2, avoid)
+    const fit = fitBlockLabel(doc, b, b.w * sc, b.h * sc)
     fits.push({ block: b, fit })
     if (!fit && b.kind !== 'waste') {
       const name = b.kind === 'cut' ? `Piece ${b.n ?? ''}` : b.kind === 'earlier' ? 'Already cut' : `Leftover ${b.letter ?? ''}`
@@ -515,25 +465,23 @@ function planDiagram(doc: JsPdfDoc, page: PrintPage, box: Box, zoneRight: number
   for (const c of wasteCells) {
     const inside = c.x >= r.x - 1e-6 && c.y >= r.y - 1e-6 && c.x + c.w <= r.x + r.w + 1e-6 && c.y + c.h <= r.y + r.h + 1e-6
     if (!inside) continue
-    const pw = c.w * sc
-    const ph = c.h * sc
-    const fit = fitBlockLabel(doc, { kind: 'waste', x: c.x, y: c.y, w: c.w, h: c.h }, pw, ph, X(c.x) + pw / 2, Y(c.y) + ph / 2, avoid)
+    const fit = fitBlockLabel(doc, { kind: 'waste', x: c.x, y: c.y, w: c.w, h: c.h }, c.w * sc, c.h * sc)
     if (fit) wasteFits.push({ cell: c, fit })
   }
-  return { sc, X0, Y0, X1, Y1, badges, fits, wasteFits, callouts }
+  return { sc, X0, Y0, X1, Y1, fits, wasteFits, callouts }
 }
 
-function drawDiagram(doc: JsPdfDoc, page: PrintPage, box: Box) {
+function drawDiagram(doc: DrawDoc, page: PrintPage, box: Box) {
   const { sheet, blocks } = page
   const sheetW = sheet.sheetW
   const sheetH = sheet.sheetH
   const wasteCells = computeWasteCells(blocks, { x: 0, y: 0, w: sheetW, h: sheetH })
 
-  // Blocks too small for any text get a two-line note in the right margin; give that margin
-  // room only when some block needs it, so an ordinary sheet is drawn as large as possible.
-  let plan = planDiagram(doc, page, box, 15, wasteCells)
-  if (plan.callouts.length > 0) plan = planDiagram(doc, page, box, 36, wasteCells)
-  const { sc, X0, Y0, X1, Y1, badges, fits, wasteFits, callouts } = plan
+  // Blocks too small for any text get a note in the right margin; give that margin room
+  // only when some block needs it, so an ordinary sheet is drawn as large as possible.
+  let plan = planDiagram(doc, page, box, 4, wasteCells)
+  if (plan.callouts.length > 0) plan = planDiagram(doc, page, box, 30, wasteCells)
+  const { sc, X0, Y0, X1, Y1, fits, wasteFits, callouts } = plan
   const X = (inX: number) => X0 + inX * sc
   const Y = (inY: number) => Y0 + inY * sc
   const sw = sheetW * sc
@@ -569,12 +517,11 @@ function drawDiagram(doc: JsPdfDoc, page: PrintPage, box: Box) {
     doc.rect(X(b.x), Y(b.y), b.w * sc, b.h * sc, 'FD')
   }
 
-  // Cut lines and their numbers (the same numbers as the Cut order list).
-  const cuts = sheet.cuts ?? []
+  // Where the saw goes: the dashed cut lines (no order is printed).
   doc.setDrawColor(...COL.cut)
   doc.setLineWidth(0.45)
   doc.setLineDashPattern([1.6, 1.1], 0)
-  for (const c of cuts) {
+  for (const c of sheet.cuts ?? []) {
     if (c.kind === 'across') doc.line(X(c.from), Y(c.pos), X(c.to), Y(c.pos))
     else doc.line(X(c.pos), Y(c.from), X(c.pos), Y(c.to))
   }
@@ -599,11 +546,14 @@ function drawDiagram(doc: JsPdfDoc, page: PrintPage, box: Box) {
     put(doc, 'Waste', X(cell.x) + (cell.w * sc) / 2, Y(cell.y) + (cell.h * sc) / 2 + fit.size * PT * 0.35, { size: fit.size, color: COL.wasteInk, align: 'center' })
   }
 
-  // Callouts: top to bottom, never closer than their own two lines.
+  // Margin notes for the blocks too small to write on: two lines each, or one line each when
+  // there are so many that two would not fit. Every one is also listed in the parts below.
   const ordered = [...callouts].sort((a, b) => a.ay - b.ay)
-  const gutterX = X1 + 10
+  const gutterX = X1 + 5
   const gutterW = box.x + box.w - gutterX
-  const ys = spreadPositions(ordered.map((c) => c.ay), 8.4, Y0 + 3, Y1 + 3)
+  const span = Y1 + 3 - (Y0 + 3)
+  const twoLine = ordered.length <= Math.floor(span / 8.4) + 1
+  const ys = spreadPositions(ordered.map((c) => c.ay), twoLine ? 8.4 : 4.2, Y0 + 3, Y1 + 3)
   ys.forEach((yy, i) => {
     const c = ordered[i]
     doc.setDrawColor(...COL.faint)
@@ -611,21 +561,15 @@ function drawDiagram(doc: JsPdfDoc, page: PrintPage, box: Box) {
     doc.setLineDashPattern([0.4, 0.5], 0)
     doc.line(c.ax, c.ay, gutterX - 1, yy - 1)
     doc.setLineDashPattern([], 0)
-    put(doc, ellipsize(doc, c.name, gutterW, 8, true), gutterX, yy, { size: 8, bold: true, color: c.ink })
-    put(doc, ellipsize(doc, c.dims, gutterW, 8), gutterX, yy + 3.6, { size: 8, color: c.ink })
-  })
-
-  // Cut numbers on top.
-  for (const b of badges) {
-    if (Math.abs(b.x - b.ox) > 0.1 || Math.abs(b.y - b.oy) > 0.1) {
-      doc.setDrawColor(...COL.cut)
-      doc.setLineWidth(0.25)
-      doc.line(b.ox, b.oy, b.x, b.y)
+    if (twoLine) {
+      put(doc, ellipsize(doc, c.name, gutterW, 8, true), gutterX, yy, { size: 8, bold: true, color: c.ink })
+      put(doc, ellipsize(doc, c.dims, gutterW, 8), gutterX, yy + 3.6, { size: 8, color: c.ink })
+    } else {
+      // One short line: just the number or letter and its size.
+      const short = c.name.replace(/^Piece /, '').replace(/^Leftover /, '')
+      put(doc, ellipsize(doc, `${short}  ${c.dims}`, gutterW, 7), gutterX, yy, { size: 7, color: c.ink })
     }
-    doc.setFillColor(...COL.cut)
-    doc.circle(b.x, b.y, BADGE_R, 'F')
-    put(doc, `${b.n}`, b.x, b.y + 7.5 * PT * 0.35, { size: 7.5, bold: true, color: COL.white, align: 'center' })
-  }
+  })
 
   // Overall size: a dimension line above (width) and beside (height) the sheet.
   doc.setDrawColor(...COL.muted)
@@ -666,7 +610,7 @@ function drawDiagram(doc: JsPdfDoc, page: PrintPage, box: Box) {
 
 // ---------- Information column ----------
 
-function heading(doc: JsPdfDoc, text: string, x: number, y: number, w: number): number {
+function heading(doc: DrawDoc, text: string, x: number, y: number, w: number): number {
   put(doc, text.toUpperCase(), x, y, { size: 8, bold: true, color: COL.muted })
   doc.setDrawColor(...COL.rule)
   doc.setLineWidth(0.25)
@@ -674,7 +618,7 @@ function heading(doc: JsPdfDoc, text: string, x: number, y: number, w: number): 
   return y + 5.5
 }
 
-function drawStats(doc: JsPdfDoc, stats: SheetStats, isNew: boolean, x: number, y: number, w: number, compact = false): number {
+function drawStats(doc: DrawDoc, stats: SheetStats, isNew: boolean, x: number, y: number, w: number, compact = false): number {
   y = heading(doc, 'How much is used', x, y, w)
   put(doc, `${stats.usedPct}%`, x, y + 5, { size: 24, bold: true })
   put(doc, isNew ? 'of this sheet is used' : 'of this leftover is used', x + widthOf(doc, `${stats.usedPct}%`, 24, true) + 2, y + 5, { size: 9, color: COL.muted })
@@ -718,71 +662,73 @@ function drawStats(doc: JsPdfDoc, stats: SheetStats, isNew: boolean, x: number, 
   return y + 5
 }
 
-/** Draws steps until `maxY`; returns the steps that did not fit. */
-function drawSteps(doc: JsPdfDoc, steps: string[], startNo: number, x: number, y: number, w: number, maxY: number, size = 9, gap = 1.4): { y: number; rest: number } {
-  const textX = x + 6.5
-  for (let i = 0; i < steps.length; i++) {
-    const lines = wrap(doc, steps[i], w - 6.5, size)
-    const need = Math.max(lines.length * lineHeight(size), 5)
-    if (y + need > maxY) return { y, rest: i }
-    doc.setFillColor(...COL.cut)
-    doc.circle(x + 2.4, y - 0.9, 2.4, 'F')
-    put(doc, `${startNo + i}`, x + 2.4, y - 0.9 + 7.5 * PT * 0.35, { size: 7.5, bold: true, color: COL.white, align: 'center' })
-    lines.forEach((line, k) => put(doc, line, textX, y + k * lineHeight(size), { size }))
-    y += need + gap
-  }
-  return { y, rest: steps.length }
+// ---------- Parts layout: always fits the page ----------
+
+interface PartsLayout {
+  sections: PartSection[]
+  size: number
+  cols: number
+  twoLine: boolean[]
+  height: number
 }
 
-const PARTS_COLS = [0.24, 0.38, 0.38]
+const SECTION_HEAD = 5.5
+const SECTION_GAP = 4.5
+const COL_SPACE = 2
 
-/** Height the whole parts table needs at this width (header included). */
-function partsHeight(doc: JsPdfDoc, rows: TableRow[], w: number, size = 8): number {
-  const cw = PARTS_COLS.map((f) => w * f)
-  return (
-    4.4 +
-    rows.reduce((t, r) => {
-      const lines = [r.name, r.size, r.what].map((c, i) => wrap(doc, c, cw[i] - 2, size).length)
-      return t + Math.max(...lines) * lineHeight(size) + 1.8
-    }, 0)
+function measurePartsLayout(doc: DrawDoc, sections: PartSection[], w: number, size: number, cols: number): PartsLayout {
+  const colW = (w - COL_SPACE * (cols - 1)) / cols
+  const lh = lineHeight(size)
+  const twoLine = sections.map((sec) =>
+    sec.rows.some((r) => widthOf(doc, r.name, size, true) + widthOf(doc, r.size, size) + 2.5 > colW),
   )
+  let height = 0
+  sections.forEach((sec, i) => {
+    const rowH = (twoLine[i] ? 2 * lh : lh) + 0.7
+    height += SECTION_HEAD + Math.ceil(sec.rows.length / cols) * rowH + SECTION_GAP
+  })
+  return { sections, size, cols, twoLine, height }
 }
 
-/** Draws parts rows until `maxY`; returns how many were drawn. */
-function drawParts(doc: JsPdfDoc, rows: TableRow[], x: number, y: number, w: number, maxY: number, withHeader: boolean, size = 8): { y: number; done: number } {
-  const cw = PARTS_COLS.map((f) => w * f)
-  if (withHeader) {
-    if (y + 5.5 > maxY) return { y, done: 0 }
-    doc.setFillColor(240, 237, 231)
-    doc.rect(x, y - 3.6, w, 5.2, 'F')
-    put(doc, 'Name', x + 1, y, { size, bold: true, color: COL.muted })
-    put(doc, 'Size (W × H)', x + cw[0] + 1, y, { size, bold: true, color: COL.muted })
-    put(doc, 'What it is', x + cw[0] + cw[1] + 1, y, { size, bold: true, color: COL.muted })
-    y += 4.4
+/**
+ * The largest type (and the fewest columns) at which every part fits in `availH`. A sheet
+ * with very many parts drops to a smaller type, then a second column, then — only in the
+ * tightest mode — one row per size ("Pieces 1-12  35 × 65 ×12"). Never returns "next page".
+ */
+function layoutParts(doc: DrawDoc, sections: PartSection[], w: number, availH: number, sizes: number[], allowGroup: boolean): PartsLayout | null {
+  const sets = allowGroup ? [sections, groupSections(sections)] : [sections]
+  for (const set of sets) {
+    for (const size of sizes) {
+      for (const cols of [1, 2]) {
+        const lay = measurePartsLayout(doc, set, w, size, cols)
+        if (lay.height <= availH) return lay
+      }
+    }
   }
-  let done = 0
-  for (const r of rows) {
-    const cells = [r.name, r.size, r.what]
-    const wrapped = cells.map((c, i) => wrap(doc, c, cw[i] - 2, size))
-    const h = Math.max(...wrapped.map((l) => l.length)) * lineHeight(size)
-    if (y - 2.4 + h + 1.8 > maxY) break
-    wrapped.forEach((lines, i) => {
-      const cx = x + cw.slice(0, i).reduce((a, b) => a + b, 0) + 1
-      lines.forEach((line, k) => put(doc, line, cx, y + k * lineHeight(size), { size, bold: i === 0 }))
+  return null
+}
+
+function drawParts(doc: DrawDoc, lay: PartsLayout, x: number, y: number, w: number): number {
+  const colW = (w - COL_SPACE * (lay.cols - 1)) / lay.cols
+  const lh = lineHeight(lay.size)
+  lay.sections.forEach((sec, si) => {
+    y = heading(doc, `${sec.title} (${sec.rows.length})`, x, y, w)
+    const rowH = (lay.twoLine[si] ? 2 * lh : lh) + 0.7
+    const perCol = Math.ceil(sec.rows.length / lay.cols)
+    sec.rows.forEach((r, i) => {
+      const c = Math.floor(i / perCol)
+      const cx = x + c * (colW + COL_SPACE)
+      const base = y + (i % perCol) * rowH + lay.size * PT * 0.95
+      put(doc, r.name, cx, base, { size: lay.size, bold: true })
+      if (lay.twoLine[si]) put(doc, r.size, cx, base + lh, { size: lay.size })
+      else put(doc, r.size, cx + colW, base, { size: lay.size, align: 'right' })
     })
-    y += h + 0.4
-    doc.setDrawColor(...COL.rule)
-    doc.setLineWidth(0.15)
-    doc.line(x, y - 1.9, x + w, y - 1.9)
-    y += 1.4
-    done++
-  }
-  return { y, done }
+    y += perCol * rowH + SECTION_GAP
+  })
+  return y
 }
 
-function drawInfoColumn(doc: JsPdfDoc, page: PrintPage, box: Box, compact = false): { steps: number; rows: number } {
-  const stepSize = compact ? 8 : 9
-  const partsSize = compact ? 7.5 : 8
+function drawInfoColumn(doc: DrawDoc, page: PrintPage, box: Box, compact: boolean): { fits: boolean } {
   const x = box.x
   const w = box.w
   const maxY = box.y + box.h
@@ -800,78 +746,55 @@ function drawInfoColumn(doc: JsPdfDoc, page: PrintPage, box: Box, compact = fals
     put(doc, line, x, y, { size: 9, color: COL.muted })
     y += lineHeight(9)
   }
+  y += 3
 
-  y = heading(doc, 'Cut order', x, y + 3, w)
-  let stepsDone = page.cutOrder.length
-  const rows = tableRows(page.blocks)
-  const partsBlock = 11 + partsHeight(doc, rows, w, partsSize)
-  if (page.cutOrder.length === 0) {
-    put(doc, 'Nothing to cut on this sheet.', x, y, { size: 9 })
-    y += 6
-  } else {
-    for (const line of wrap(doc, 'Measure each cut from the top-left corner of the area being cut.', w, 8)) {
-      put(doc, line, x, y, { size: 8, color: COL.muted })
-      y += lineHeight(8)
-    }
-    y += 1.5
-    // Cut order first, whole if it fits; the parts table then follows here if it also fits whole,
-    // otherwise it moves to the next page rather than being split in two.
-    const r = drawSteps(doc, page.cutOrder, 1, x, y, w, maxY, stepSize, compact ? 0.7 : 1.4)
-    y = r.y
-    stepsDone = r.rest
-  }
-
-  let rowsDone = 0
-  if (stepsDone === page.cutOrder.length && y + partsBlock <= maxY + 1) {
-    y = heading(doc, 'Parts', x, y + 2, w)
-    rowsDone = drawParts(doc, rows, x, y, w, maxY, true, partsSize).done
-  }
-  return { steps: stepsDone, rows: rowsDone }
-}
-
-/** Anything that did not fit beside the drawing continues on a page of its own. */
-function drawContinuation(doc: JsPdfDoc, page: PrintPage, job: JobFacts, pageW: number, pageH: number, stepsDone: number, rowsDone: number) {
-  const rows = tableRows(page.blocks)
-  let sd = stepsDone
-  let rd = rowsDone
-  while (sd < page.cutOrder.length || rd < rows.length) {
-    doc.addPage()
-    let y = drawHeader(doc, page, job, pageW, true)
-    const x = MARGIN
-    const w = pageW - MARGIN * 2
-    const maxY = pageH - MARGIN - FOOTER_H
-    if (sd < page.cutOrder.length) {
-      y = heading(doc, 'Cut order (continued)', x, y, w)
-      const r = drawSteps(doc, page.cutOrder.slice(sd), sd + 1, x, y, w, maxY)
-      y = r.y
-      sd += Math.max(r.rest, 1)
-      if (sd < page.cutOrder.length) {
-        drawFooter(doc, page, pageH)
-        continue
-      }
-    }
-    if (rd < rows.length) {
-      y = heading(doc, rd === 0 ? 'Parts' : 'Parts (continued)', x, y + 2, w)
-      const r = drawParts(doc, rows.slice(rd), x, y, w, maxY, true)
-      rd += Math.max(r.done, 1)
-    }
-    drawFooter(doc, page, pageH)
-  }
+  const sections = partSections(page.blocks)
+  const sizes = compact ? [8, 7.5, 7, 6.5, 6, 5.5, 5] : [8, 7.5, 7]
+  const lay = layoutParts(doc, sections, w, maxY - y, sizes, compact)
+  // Only an absurd sheet has no room even in the tightest mode; draw it as tight as it goes.
+  const used = lay ?? measurePartsLayout(doc, groupSections(sections), w, 5, 2)
+  drawParts(doc, used, x, y, w)
+  return { fits: lay !== null }
 }
 
 /** A stand-in for the document that measures text like the real one but draws nothing. */
-function dryRun(doc: JsPdfDoc): JsPdfDoc {
+function dryRun(doc: DrawDoc): DrawDoc {
   const d = Object.create(doc) as Record<string, unknown>
-  for (const k of ['text', 'rect', 'roundedRect', 'circle', 'line', 'setFillColor', 'setDrawColor', 'setLineWidth', 'setLineDashPattern', 'setTextColor']) {
+  for (const k of ['text', 'rect', 'circle', 'line', 'setFillColor', 'setDrawColor', 'setLineWidth', 'setLineDashPattern', 'setTextColor']) {
     d[k] = () => d
   }
-  return d as unknown as JsPdfDoc
+  return d as unknown as DrawDoc
+}
+
+/** Draws every sheet's page onto `doc`; the one place the saved PDF and the Print screen both come from. */
+function drawJob(doc: DrawDoc, pages: PrintPage[], paperSize: Settings['paperSize'], cut?: CutDoc) {
+  const size = PAGE_MM[paperSize]
+  const job = jobFacts(pages, cut)
+
+  pages.forEach((page, i) => {
+    if (i > 0) doc.addPage()
+    const top = drawHeader(doc, page, job, size.w)
+    const bottom = size.h - MARGIN - FOOTER_H
+    const infoBox: Box = { x: size.w - MARGIN - INFO_W, y: top, w: INFO_W, h: bottom - top }
+    const diagramBox: Box = { x: MARGIN, y: top, w: infoBox.x - COL_GAP - MARGIN, h: bottom - top }
+    drawDiagram(doc, page, diagramBox)
+    // Normal-size text if everything fits beside the drawing, tighter text if that makes it fit.
+    const compact = !drawInfoColumn(dryRun(doc), page, infoBox, false).fits
+    drawInfoColumn(doc, page, infoBox, compact)
+    drawFooter(doc, page, size.h)
+  })
+
+  // Page numbers last, so they count the real pages.
+  const total = doc.getNumberOfPages()
+  for (let i = 1; i <= total; i++) {
+    doc.setPage(i)
+    put(doc, `Page ${i} of ${total}`, size.w - MARGIN, size.h - MARGIN + 2, { size: 8, color: COL.muted, align: 'right' })
+  }
 }
 
 /**
- * Builds the actual multi-page PDF Blob for a job, one page per sheet (more only when a very
- * long cut order or parts list does not fit beside the drawing). It uses the same PrintPage[]
- * model the on-screen print preview uses so the content always matches, plus the saved cut
+ * Builds the actual PDF Blob for a job: exactly one page per sheet, however many pieces
+ * it has. It uses the same PrintPage[] model the print builder produces, plus the saved cut
  * (when given) for the client's name, phone and sheet number. Everything is vector
  * rect/line/text in Helvetica, so it works fully offline. jsPDF itself must be dynamically
  * imported by the caller so it never lands in the main bundle.
@@ -882,34 +805,25 @@ export async function buildPrintPdf(
   JsPDF: new (opts: jsPDFOptions) => JsPdfDoc,
   cut?: CutDoc,
 ): Promise<Blob> {
-  const size = PAGE_MM[paperSize]
   const doc = new JsPDF({ unit: 'mm', format: paperSize === 'A4' ? 'a4' : 'letter' })
-  const job = jobFacts(pages, cut)
-
-  pages.forEach((page, i) => {
-    if (i > 0) doc.addPage()
-    const top = drawHeader(doc, page, job, size.w, false)
-    const bottom = size.h - MARGIN - FOOTER_H
-    const infoBox: Box = { x: size.w - MARGIN - INFO_W, y: top, w: INFO_W, h: bottom - top }
-    const diagramBox: Box = { x: MARGIN, y: top, w: infoBox.x - COL_GAP - MARGIN, h: bottom - top }
-    drawDiagram(doc, page, diagramBox)
-    // Normal-size text if the whole column fits beside the drawing, slightly tighter text if
-    // that makes it fit, and only then a continuation page.
-    const fits = (r: { steps: number; rows: number }) => r.steps === page.cutOrder.length && r.rows === tableRows(page.blocks).length
-    const dry = dryRun(doc)
-    const normal = drawInfoColumn(dry, page, infoBox, false)
-    const compact = fits(normal) ? normal : drawInfoColumn(dry, page, infoBox, true)
-    const left = drawInfoColumn(doc, page, infoBox, !fits(normal) && fits(compact))
-    drawFooter(doc, page, size.h)
-    drawContinuation(doc, page, job, size.w, size.h, left.steps, left.rows)
-  })
-
-  // Page numbers last, so they count the real pages (a long sheet can run onto a second one).
-  const total = doc.getNumberOfPages()
-  for (let i = 1; i <= total; i++) {
-    doc.setPage(i)
-    put(doc, `Page ${i} of ${total}`, size.w - MARGIN, size.h - MARGIN + 2, { size: 8, color: COL.muted, align: 'right' })
-  }
-
+  drawJob(doc as unknown as DrawDoc, pages, paperSize, cut)
   return doc.output('blob')
+}
+
+/**
+ * The same pages as `buildPrintPdf`, as one SVG string per page, for the Print screen. They
+ * are produced by the very same drawing code (measured with jsPDF's own font metrics), so
+ * what prints is what the saved PDF contains.
+ */
+export function buildPrintSvgPages(
+  pages: PrintPage[],
+  paperSize: Settings['paperSize'],
+  JsPDF: new (opts: jsPDFOptions) => JsPdfDoc,
+  cut?: CutDoc,
+): string[] {
+  const size = PAGE_MM[paperSize]
+  const measure = new JsPDF({ unit: 'mm', format: paperSize === 'A4' ? 'a4' : 'letter' })
+  const svg = new SvgDoc(measure as unknown as ConstructorParameters<typeof SvgDoc>[0], size.w, size.h)
+  drawJob(svg, pages, paperSize, cut)
+  return svg.svgPages()
 }

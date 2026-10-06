@@ -1,14 +1,14 @@
+import { useEffect, useState } from 'react'
 import { useNavigate, useParams, useLocation } from 'react-router-dom'
 import { IconChevronLeft } from '@tabler/icons-react'
-import { PrintPage } from '@/components/PrintPage'
-import { dgLightDeclarations } from '@/lib/diagramStyle'
+import { buildPrintSvgPages } from '@/lib/pdf'
 import { buildPrintPages } from '@/lib/print'
 import { useData } from '@/store/data'
 import { useSettings } from '@/store/settings'
 
 const PAGE_MM: Record<'A4' | 'Letter', { w: string; h: string }> = {
   A4: { w: '210mm', h: '297mm' },
-  Letter: { w: '8.5in', h: '11in' },
+  Letter: { w: '215.9mm', h: '279.4mm' },
 }
 
 /**
@@ -16,6 +16,9 @@ const PAGE_MM: Record<'A4' | 'Letter', { w: string; h: string }> = {
  * minimal shell (a print-hidden top bar, nothing else) rather than the tab bar / sticky
  * bar machinery AppShell provides for the normal app. Fully offline: everything here
  * comes from useData()'s local Firestore cache, no network calls.
+ *
+ * The pages are not a separate layout: they are the saved PDF's own pages, drawn by the
+ * same code (lib/pdf.ts) as SVG, so printing and Save as PDF always give the same document.
  */
 export default function Print() {
   const { jobId } = useParams()
@@ -23,9 +26,25 @@ export default function Print() {
   const location = useLocation()
   const derived = useData((s) => s.derived)
   const settings = useSettings((s) => s.settings)
+  const [svgPages, setSvgPages] = useState<string[] | null>(null)
 
   const job = derived.jobs.find((j) => j.cut.id === jobId)
   const hint = (location.state as { hint?: string } | null)?.hint === 'pdf'
+
+  useEffect(() => {
+    if (!job) return
+    let cancelled = false
+    ;(async () => {
+      // jsPDF is only needed for its text measuring; it is the same chunk Save as PDF loads.
+      const { jsPDF } = await import('jspdf')
+      const pages = buildPrintPages(job.cut, derived, settings)
+      const out = buildPrintSvgPages(pages, settings.paperSize, jsPDF, job.cut)
+      if (!cancelled) setSvgPages(out)
+    })().catch((err) => console.error(err))
+    return () => {
+      cancelled = true
+    }
+  }, [job, derived, settings])
 
   if (!job) {
     return (
@@ -38,62 +57,32 @@ export default function Print() {
     )
   }
 
-  const pages = buildPrintPages(job.cut, derived, settings)
   const size = PAGE_MM[settings.paperSize]
 
   return (
     <div className="min-h-dvh bg-muted">
       <style>{`
         @page { size: ${settings.paperSize === 'A4' ? 'A4' : 'letter'}; margin: 0; }
-        /* SheetDiagram and PrintPage read the app's CSS variable tokens, which flip to
-           dark values under prefers-color-scheme: dark (index.css). Paper is always
-           light, so every token .print-page's own content reads is pinned back to its
-           light-mode value here regardless of the device's OS theme. */
-        .print-page {
-          --background: #f6f3ee;
-          --card: #ffffff;
-          --foreground: #1b1a17;
-          --muted: #ece8e0;
-          --muted-foreground: #5f5a50;
-          --faint: #736d62;
-          --border: #e8e2d8;
-          --border-strong: #8f8270;
-          --border-stronger: #736853;
-          --accent-bg: #dbeafe;
-          --accent-border: #60a5fa;
-          --accent-text: #1e3a8a;
-          --success-bg: #dcfce7;
-          --success-border: #16a34a;
-          --success-text: #14532d;
-          ${dgLightDeclarations()}
-          color-scheme: light;
-        }
+        .print-page svg { display: block; width: 100%; height: auto; }
         @media print {
           .no-print { display: none !important; }
           html, body { background: #fff !important; }
           .print-page {
             width: ${size.w};
             height: ${size.h};
-            padding: 9mm;
-            background: #fff;
-            color: #1f1e1c;
-            box-shadow: none !important;
             margin: 0 !important;
+            box-shadow: none !important;
             overflow: hidden;
           }
-          .print-block { break-inside: avoid; }
+          .print-page:not(:last-child) { break-after: page; page-break-after: always; }
           * { print-color-adjust: exact; -webkit-print-color-adjust: exact; }
         }
         @media screen {
           .print-page {
-            width: ${size.w};
-            height: ${size.h};
-            padding: 9mm;
+            width: min(100%, ${size.w});
             background: #fff;
-            color: #1f1e1c;
             box-shadow: 0 1px 4px rgba(0,0,0,0.15);
             margin: 0 auto 24px auto;
-            overflow: hidden;
           }
         }
       `}</style>
@@ -110,8 +99,9 @@ export default function Print() {
         <p className="flex-1 truncate text-[15px] font-semibold">Print</p>
         <button
           type="button"
+          disabled={!svgPages}
           onClick={() => window.print()}
-          className="flex h-10 items-center justify-center rounded-lg bg-primary px-4 text-[14px] font-semibold text-primary-foreground"
+          className="flex h-10 items-center justify-center rounded-lg bg-primary px-4 text-[14px] font-semibold text-primary-foreground disabled:opacity-50"
         >
           Print
         </button>
@@ -126,9 +116,11 @@ export default function Print() {
         On a computer, the print window lets you choose your printer.
       </p>
 
-      <div className="overflow-x-auto px-4 pb-8 pt-2">
-        {pages.map((page, i) => (
-          <PrintPage key={page.sheet.sheetId + i} page={page} isLast={i === pages.length - 1} />
+      <div className="px-4 pb-8 pt-2">
+        {!svgPages && <p className="no-print py-10 text-center text-[14px] text-muted-foreground">Getting your pages ready…</p>}
+        {svgPages?.map((svg, i) => (
+          // The SVG is built from this job's own data with every text escaped (SvgDoc).
+          <div key={i} className="print-page" dangerouslySetInnerHTML={{ __html: svg }} />
         ))}
       </div>
     </div>
