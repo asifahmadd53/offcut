@@ -238,6 +238,11 @@ describe('spreadPositions', () => {
 })
 
 describe('partSections', () => {
+  it('lists pieces in ascending order, however the packing placed them', () => {
+    const blocks = [3, 1, 2, 10].map((n, i) => ({ kind: 'cut' as const, x: i, y: 0, w: 1, h: 1, n, label: '1 × 1' }))
+    expect(partSections(blocks)[0].rows.map((r) => r.name)).toEqual(['Piece 1', 'Piece 2', 'Piece 3', 'Piece 10'])
+  })
+
   it('lists the cutting pieces only; leftovers are not in the parts list', () => {
     const r = packJob([piece(23, 77, 2)], [], opts)
     const cut = cutFrom([piece(23, 77, 2)], r.sheets)
@@ -245,6 +250,7 @@ describe('partSections', () => {
     expect(partSections(pages[0].blocks)).toEqual([
       {
         title: 'Cutting pieces',
+        note: 'W × H, inches',
         rows: [
           { name: 'Piece 1', size: '23 × 77' },
           { name: 'Piece 2', size: '23 × 77' },

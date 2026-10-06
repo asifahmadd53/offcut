@@ -56,17 +56,17 @@ describe('blockTier and smallBlockCallouts', () => {
 
   it('gives every block too small to show its own size a note and a pointer (R15)', () => {
     const withSliver: Block[] = [...blocks, { kind: 'freeNew', x: 0, y: 0, w: 1, h: 40, letter: 'C' }]
-    expect(smallBlockCallouts(withSliver, 5.9)).toEqual([{ key: 'n3', name: 'C', dims: '1 × 40', ax: 1, ay: 20 }])
+    expect(smallBlockCallouts(withSliver, 5.9)).toEqual([{ key: 'n3', name: 'C', dims: '', ax: 1, ay: 20 }])
     expect(smallBlockCallouts(blocks, 5.9)).toEqual([])
   })
 
   it('a narrow block writes its size on separate lines before falling back to a note', () => {
     const narrow: Block = { kind: 'cut', x: 0, y: 0, w: 10.5, h: 38.6, label: '10 1/2 × 38.6', n: 15 }
-    expect(stackedText(narrow, 10.5 * 6, 38.6 * 6)?.lines).toEqual(['15', '10 1/2', '× 38.6'])
+    expect(stackedText(narrow, 10.5 * 6, 38.6 * 6)?.lines).toEqual(['#15', '10 1/2', '× 38.6'])
     expect(blockTierFor(narrow, 6)).toBe('stacked')
     expect(smallBlockCallouts([narrow], 6)).toEqual([])
     const flat: Block = { kind: 'cut', x: 0, y: 0, w: 27.6, h: 4, label: '4 × 27.6', n: 12, rotated: true }
-    expect(stackedText(flat, 27.6 * 6, 4 * 6)?.lines).toEqual(['12  4 × 27.6'])
+    expect(stackedText(flat, 27.6 * 6, 4 * 6)?.lines).toEqual(['#12 · 4 × 27.6'])
   })
 
   it('even a 2 x 2 piece gets one', () => {

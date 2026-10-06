@@ -26,7 +26,7 @@ export function PlanSheet({ sheet, blocks, highlightIndex }: PlanSheetProps) {
   const anyTurned = sheet.placements.some((p) => p.rotated)
   const hasEarlier = blocks.some((b) => b.kind === 'earlier')
 
-  const pieces = blocks.filter((b) => b.kind === 'cut')
+  const pieces = blocks.filter((b) => b.kind === 'cut').sort((p, q) => (p.n ?? 0) - (q.n ?? 0))
 
   const [fullScreen, setFullScreen] = useState(false)
 
@@ -78,20 +78,12 @@ export function PlanSheet({ sheet, blocks, highlightIndex }: PlanSheetProps) {
             {Math.round(usedArea).toLocaleString()} of {Math.round(regionArea).toLocaleString()} sq in
           </p>
 
-          <p className="mb-0.5 text-muted-foreground">Saved to stock</p>
-          {sheet.newLeftovers.length === 0 ? (
-            <p>None</p>
-          ) : (
-            sheet.newLeftovers.map((l) => (
-              <p key={l.id}>
-                {l.letter}: {fmtLeft(l.w, l.h)}
-              </p>
-            ))
-          )}
-
           {pieces.length > 0 && (
             <>
-              <p className="mb-1 mt-3 text-muted-foreground">Cutting pieces ({pieces.length})</p>
+              <p className="mb-1 mt-3 flex justify-between gap-3 text-muted-foreground">
+                <span>Cutting pieces ({pieces.length})</span>
+                <span className="text-[12px]">width × height</span>
+              </p>
               {pieces.map((b) => (
                 <p key={b.n} className="mb-0 flex justify-between gap-3">
                   <span className="font-semibold">
@@ -115,6 +107,19 @@ export function PlanSheet({ sheet, blocks, highlightIndex }: PlanSheetProps) {
           Full screen
         </button>
         <SaveImageButton sheet={sheet} blocks={blocks} />
+      </div>
+
+      <div className="mb-3.5 rounded-lg bg-muted p-3 text-[13px]">
+        <p className="mb-0.5 text-muted-foreground">Saved to stock</p>
+        {sheet.newLeftovers.length === 0 ? (
+          <p className="mb-0">None</p>
+        ) : (
+          sheet.newLeftovers.map((l) => (
+            <p key={l.id} className="mb-0">
+              {l.letter}: {fmtLeft(l.w, l.h)}
+            </p>
+          ))
+        )}
       </div>
 
       <Dialog open={fullScreen} onOpenChange={setFullScreen}>

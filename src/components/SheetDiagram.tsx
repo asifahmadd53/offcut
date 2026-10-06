@@ -10,7 +10,7 @@ import {
   stackedText,
   verticalTicks,
 } from '@/lib/diagramStyle'
-import { fmt, fmtLeft } from '@/lib/inches'
+import { fmt } from '@/lib/inches'
 import type { Block } from '@/lib/sheetView'
 import type { SheetPlan } from '@/lib/types'
 
@@ -234,13 +234,9 @@ export function SheetDiagram({
         </>
       )
     } else if (isLeftover) {
-      const sizeText = fmtLeft(b.w, b.h)
-      // Same for leftovers: the letter chip needs room above the size, else the letter joins it.
-      const chipped = tier === 'full' || (tier === 'medium' && bh >= CHIP_MIN_H)
-      const shown = tier === 'medium' && !chipped ? `${b.letter} · ${sizeText}` : sizeText
-      const fs = fitFont(`${shown}${tier === 'full' ? ' free' : ''}`, bw - 14, tier === 'full' ? 20 : 15)
-      const textY = tier === 'full' ? cy + 2 : chipped ? by + 30 + (bh - 30) / 2 + 5 : cy + 5
-      const caption = b.kind === 'free' ? 'Saved' : 'Offcut'
+      // A leftover shows only its letter; its size is listed once, under the sheet.
+      const letterFits = bw >= 12 && bh >= 14
+      const fs = Math.max(10, Math.min(22, Math.min(bw, bh) * 0.5))
       body = (
         <>
           <rect x={bx} y={by} width={bw} height={bh} fill="var(--dg-green-fill)" />
@@ -255,54 +251,8 @@ export function SheetDiagram({
             strokeWidth="1.5"
             strokeDasharray="5 3"
           />
-          {chipped && (
-            <>
-              <rect x={bx + 8} y={by + 8} width={tier === 'full' ? 44 : 30} height={22} rx={6} fill="var(--dg-card)" stroke="var(--dg-green-edge)" />
-              <text x={bx + 8 + (tier === 'full' ? 22 : 15)} y={by + 23} textAnchor="middle" fontSize="12" fontWeight="700" fill="var(--dg-green)">
-                {b.letter}
-                {tier === 'full' ? ' •' : ''}
-              </text>
-            </>
-          )}
-          {tier === 'full' && (
-            <>
-              <text x={bx + 10} y={by + 46} fontSize="11.5" fontWeight="600" fill="var(--dg-green)">
-                {caption}
-              </text>
-              <text x={bx + bw - 10} y={by + 22} textAnchor="end" fontSize="12" fontWeight="600" fill="var(--dg-green)">
-                {fmt(b.w)}" width
-              </text>
-              <text x={bx + 10} y={by + bh - 10} fontSize="12" fontWeight="600" fill="var(--dg-green)">
-                {fmt(b.h)}" height
-              </text>
-            </>
-          )}
-          {tier === 'medium' && bw >= 64 && (
-            <text x={bx + bw - 8} y={by + 22} textAnchor="end" fontSize="12" fontWeight="600" fill="var(--dg-green)">
-              {fmt(b.w)}"
-            </text>
-          )}
-          {tier === 'medium' && bh >= 120 && bw >= 64 && (
-            <text x={bx + bw - 8} y={by + bh - 10} textAnchor="end" fontSize="12" fontWeight="600" fill="var(--dg-green)">
-              {fmt(b.h)}"
-            </text>
-          )}
-          {(tier === 'full' || tier === 'medium') && (
-            <>
-              <text x={cx} y={textY} textAnchor="middle" fontSize={fs} fontWeight="800" fill="var(--dg-green)">
-                {shown}
-                {tier === 'full' ? ' free' : ''}
-              </text>
-              {(tier === 'full' ? bh >= 70 : chipped && bh >= 86) && (
-                <text x={cx} y={tier === 'full' ? cy + 22 : textY + 19} textAnchor="middle" fontSize="10" fontWeight="600" letterSpacing="1.2" fill="var(--dg-green)" opacity={0.85}>
-                  {tier === 'full' ? 'Reusable Clean Stock' : 'STOCK'}
-                </text>
-              )}
-            </>
-          )}
-          {stacked && <StackedLines lines={stacked.lines} size={stacked.size} cx={cx} cy={cy} fill="var(--dg-green)" />}
-          {tier === 'small' && (
-            <text x={cx} y={cy + 4} textAnchor="middle" fontSize="11" fontWeight="700" fill="var(--dg-green)">
+          {letterFits && (
+            <text x={cx} y={cy + fs * 0.35} textAnchor="middle" fontSize={fs} fontWeight="800" fill="var(--dg-green)">
               {b.letter}
             </text>
           )}
@@ -463,17 +413,18 @@ export function SheetDiagram({
                   <text x={noteX} y={y} fontSize={noteFont} fontWeight="700" fill="var(--dg-text)">
                     {c.name}
                   </text>
-                  <text x={noteX} y={y + noteFont + 2} fontSize={noteFont} fill="var(--dg-muted)">
-                    {c.dims}
-                  </text>
+                  {c.dims && (
+                    <text x={noteX} y={y + noteFont + 2} fontSize={noteFont} fill="var(--dg-muted)">
+                      {c.dims}
+                    </text>
+                  )}
                 </>
               ) : (
                 <text x={noteX} y={y} fontSize={noteFont} fill="var(--dg-muted)">
                   <tspan fontWeight="700" fill="var(--dg-text)">
                     {c.name}
                   </tspan>
-                  {'  '}
-                  {c.dims}
+                  {c.dims && `  ${c.dims}`}
                 </text>
               )}
             </g>

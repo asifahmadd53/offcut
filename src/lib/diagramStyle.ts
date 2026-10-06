@@ -57,8 +57,7 @@ function sizeParts(b: Block): { top: string; w: string; h: string } {
     const [w, h] = text.split(' × ')
     return { w: w ?? fmt(fallbackW), h: h ?? fmt(fallbackH) }
   }
-  if (b.kind === 'cut') return { top: `${b.n ?? ''}`, ...split(b.label ?? fmtDims(b.w, b.h), b.w, b.h) }
-  if (b.kind === 'free' || b.kind === 'freeNew' || b.kind === 'focus') return { top: b.letter ?? '', ...split(fmtLeft(b.w, b.h), b.w, b.h) }
+  if (b.kind === 'cut') return { top: `#${b.n ?? ''}`, ...split(b.label ?? fmtDims(b.w, b.h), b.w, b.h) }
   return { top: '', w: fmt(b.w), h: fmt(b.h) }
 }
 
@@ -68,15 +67,15 @@ export interface StackedText {
 }
 
 /**
- * A narrow block can still carry its size by stacking it: "15" / "10 1/2" / "× 38.6". Returns
+ * A narrow block can still carry its size by stacking it: "#15" / "10 1/2" / "× 38.6". Returns
  * the largest stacking that fits inside the block (px), or null when none does and the size
  * has to go in a note with a line to the block instead.
  */
 export function stackedText(b: Block, pw: number, ph: number): StackedText | null {
-  if (b.kind === 'waste') return null
+  if (b.kind !== 'cut' && b.kind !== 'earlier') return null
   const { top, w, h } = sizeParts(b)
   // One line when the block is wide enough (a flat strip), else stacked on separate lines.
-  const variants = [[`${top}  ${w} × ${h}`.trim()], [top, w, `× ${h}`], [top, w, '×', h]].map((v) => v.filter((x) => x !== ''))
+  const variants = [[top ? `${top} · ${w} × ${h}` : `${w} × ${h}`], [top, w, `× ${h}`], [top, w, '×', h]].map((v) => v.filter((x) => x !== ''))
   for (const size of [10, 9, 8]) {
     for (const lines of variants) {
       const widest = Math.max(...lines.map((l) => l.length)) * 0.6 * size
@@ -179,15 +178,19 @@ export interface SmallCallout {
 export function smallBlockCallouts(blocks: Block[], pxPerInch: number): SmallCallout[] {
   const out: SmallCallout[] = []
   blocks.forEach((b, i) => {
+    const at = { ax: b.x + b.w, ay: b.y + b.h / 2 }
+    // A leftover shows only its letter (its size is in the "Saved to stock" list); it gets a
+    // note with a line only when even the letter does not fit.
+    if (b.kind === 'free' || b.kind === 'freeNew' || b.kind === 'focus') {
+      if (b.w * pxPerInch < 12 || b.h * pxPerInch < 14) out.push({ key: `n${i}`, name: b.letter ?? 'Leftover', dims: '', ...at })
+      return
+    }
     const tier = blockTierFor(b, pxPerInch)
     if (tier !== 'small' && tier !== 'tiny') return
-    const at = { ax: b.x + b.w, ay: b.y + b.h / 2 }
     if (b.kind === 'cut') {
       out.push({ key: `n${i}`, name: `Piece ${b.n ?? ''}`.trim(), dims: b.label ?? fmtDims(b.w, b.h), ...at })
     } else if (b.kind === 'earlier') {
       out.push({ key: `n${i}`, name: 'Already cut', dims: fmtDims(b.w, b.h), ...at })
-    } else if (b.kind === 'free' || b.kind === 'freeNew' || b.kind === 'focus') {
-      out.push({ key: `n${i}`, name: b.letter ?? 'Leftover', dims: fmtLeft(b.w, b.h), ...at })
     }
   })
   return out

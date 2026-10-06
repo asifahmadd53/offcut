@@ -1,7 +1,7 @@
-import { computeWasteCells, edgesToSegments, extractEdges } from './diagramLayout'
+import { computeWasteCells } from './diagramLayout'
 import { spreadPositions } from './diagramStyle'
 import { plural } from './format'
-import { fmt, fmtLeft } from './inches'
+import { fmt } from './inches'
 import { SvgDoc, type DrawDoc, type RGB } from './svgDoc'
 import type { jsPDF as JsPdfDoc, jsPDFOptions } from 'jspdf'
 import type { PrintPage } from './print'
@@ -171,6 +171,8 @@ export interface PartRow {
 
 export interface PartSection {
   title: string
+  /** Small reminder on the heading line, e.g. how to read the sizes. */
+  note?: string
   rows: PartRow[]
 }
 
@@ -182,6 +184,7 @@ export interface PartSection {
 export function partSections(blocks: Block[]): PartSection[] {
   const pieces: PartRow[] = blocks
     .filter((b) => b.kind === 'cut')
+    .sort((p, q) => (p.n ?? 0) - (q.n ?? 0))
     .map((b) => ({
       name: `Piece ${b.n ?? ''}${b.rotated ? ' (turned)' : ''}`,
       size: b.label ?? `${fmt(b.w)} × ${fmt(b.h)}`,
@@ -190,7 +193,7 @@ export function partSections(blocks: Block[]): PartSection[] {
     .filter((b) => b.kind === 'earlier')
     .map((b) => ({ name: 'Already cut', size: `${fmt(b.w)} × ${fmt(b.h)}` }))
   return [
-    { title: 'Cutting pieces', rows: pieces },
+    { title: 'Cutting pieces', note: 'W × H, inches', rows: pieces },
     { title: 'Already cut earlier', rows: earlier },
   ].filter((s) => s.rows.length > 0)
 }
@@ -317,7 +320,7 @@ interface Box {
   h: number
 }
 
-/** Text lines a block can carry, richest first; the last entry is the bare letter/number. */
+/** Text lines a block can carry, richest first; the last entry is the bare number/letter. */
 function labelCandidates(b: Block): string[][] {
   const plain = `${fmt(b.w)} × ${fmt(b.h)}`
   const split = (text: string) => {
@@ -326,25 +329,14 @@ function labelCandidates(b: Block): string[][] {
   }
   if (b.kind === 'cut') {
     const d = b.label ?? plain
-    const n = `${b.n ?? ''}`
-    const full = [`Piece ${n}`, d]
+    const n = `#${b.n ?? ''}`
+    const full = [`Piece ${b.n ?? ''}`, d]
     const { w, h } = split(d)
-    return [b.rotated ? [...full, 'turned to fit'] : full, full, [`${n}  ${d}`], [n, w, `× ${h}`], [n, w, '×', h], [n]]
+    return [b.rotated ? [...full, 'turned to fit'] : full, full, [`${n} · ${d}`], [n, w, `× ${h}`], [n, w, '×', h], [n]]
   }
-  if (b.kind === 'free' || b.kind === 'freeNew' || b.kind === 'focus') {
-    const d = fmtLeft(b.w, b.h)
-    const name = b.letter ?? ''
-    const full = [`Leftover ${name}`, d]
-    const { w, h } = split(d)
-    return [
-      [...full, b.kind === 'freeNew' ? 'saved to stock' : 'already in stock'],
-      full,
-      [`${name}  ${d}`],
-      [name, w, `× ${h}`],
-      [name, w, '×', h],
-      [name],
-    ]
-  }
+  // A leftover shows just its letter (its size is not printed); too small for even that, it
+  // gets a note with a line to it.
+  if (b.kind === 'free' || b.kind === 'freeNew' || b.kind === 'focus') return [[b.letter ?? '']]
   if (b.kind === 'earlier') return [['Already cut', plain], [plain], [fmt(b.w), `× ${fmt(b.h)}`], [fmt(b.w), '×', fmt(b.h)]]
   return [['Waste']]
 }
@@ -362,7 +354,8 @@ function fitBlockLabel(doc: DrawDoc, b: Block, pw: number, ph: number): { lines:
   for (let ci = 0; ci < cands.length; ci++) {
     const lines = cands[ci]
     const tagOnly = ci === cands.length - 1 && cands.length > 1
-    for (let size = 10; size >= (tagOnly ? 7 : 7.5); size -= 0.5) {
+    const leftover = b.kind === 'free' || b.kind === 'freeNew' || b.kind === 'focus'
+    for (let size = leftover ? 16 : 10; size >= (tagOnly ? 7 : 7.5); size -= 0.5) {
       const lh = lineHeight(size)
       const totalH = lines.length * lh
       const maxW = Math.max(...lines.map((l, i) => widthOf(doc, l, size, i === 0)))
@@ -448,7 +441,7 @@ function planDiagram(doc: DrawDoc, page: PrintPage, box: Box, zoneRight: number,
     // A block that can only show its bare number or letter still gets its size in a note with a line to it.
     if ((!fit || fit.tag) && b.kind !== 'waste') {
       const name = b.kind === 'cut' ? `Piece ${b.n ?? ''}` : b.kind === 'earlier' ? 'Already cut' : `Leftover ${b.letter ?? ''}`
-      const dims = b.kind === 'cut' ? (b.label ?? `${fmt(b.w)} × ${fmt(b.h)}`) : b.kind === 'earlier' ? `${fmt(b.w)} × ${fmt(b.h)}` : fmtLeft(b.w, b.h)
+      const dims = b.kind === 'cut' ? (b.label ?? `${fmt(b.w)} × ${fmt(b.h)}`) : b.kind === 'earlier' ? `${fmt(b.w)} × ${fmt(b.h)}` : ''
       callouts.push({ name, dims, ax: X(b.x + b.w), ay: Y(b.y + b.h / 2), ink: inkFor(b) })
     }
   }
@@ -556,11 +549,11 @@ function drawDiagram(doc: DrawDoc, page: PrintPage, box: Box) {
     doc.setLineDashPattern([], 0)
     if (twoLine) {
       put(doc, ellipsize(doc, c.name, gutterW, 8, true), gutterX, yy, { size: 8, bold: true, color: c.ink })
-      put(doc, ellipsize(doc, c.dims, gutterW, 8), gutterX, yy + 3.6, { size: 8, color: c.ink })
+      if (c.dims) put(doc, ellipsize(doc, c.dims, gutterW, 8), gutterX, yy + 3.6, { size: 8, color: c.ink })
     } else {
       // One short line: just the number or letter and its size.
       const short = c.name.replace(/^Piece /, '').replace(/^Leftover /, '')
-      put(doc, ellipsize(doc, `${short}  ${c.dims}`, gutterW, 7), gutterX, yy, { size: 7, color: c.ink })
+      put(doc, ellipsize(doc, `${short}  ${c.dims}`.trim(), gutterW, 7), gutterX, yy, { size: 7, color: c.ink })
     }
   })
 
@@ -579,24 +572,6 @@ function drawDiagram(doc: DrawDoc, page: PrintPage, box: Box) {
   const hText = `${fmt(sheetH)} in tall`
   const hW = widthOf(doc, hText, 9.5, true)
   put(doc, hText, dimX - 1.8, (Y0 + Y1) / 2 + hW / 2, { size: 9.5, bold: true, angle: 90 })
-
-  // Section sizes between the edges, skipping any that would touch their neighbour.
-  const dimBlocks = blocks.filter((b) => b.kind === 'cut' || isFree(b))
-  let lastRight = -Infinity
-  for (const s of edgesToSegments(extractEdges(dimBlocks, 'x', 0, sheetW))) {
-    const mid = X((s.from + s.to) / 2)
-    const w = widthOf(doc, s.label, 8)
-    if (mid - w / 2 < lastRight + 1) continue
-    put(doc, s.label, mid, Y0 - 8.2, { size: 8, color: COL.muted, align: 'center' })
-    lastRight = mid + w / 2
-  }
-  let lastY = -Infinity
-  for (const s of edgesToSegments(extractEdges(dimBlocks, 'y', 0, sheetH))) {
-    const mid = Y((s.from + s.to) / 2)
-    if (mid - lastY < 3.6) continue
-    put(doc, s.label, X0 - 2.2, mid + 8 * PT * 0.35, { size: 8, color: COL.muted, align: 'right' })
-    lastY = mid
-  }
 
   drawLegend(doc, sheet, blocks, box.x, Y1 + 9, box.w)
 }
@@ -679,7 +654,9 @@ function drawParts(doc: DrawDoc, lay: PartsLayout, x: number, y: number, w: numb
   const colW = (w - COL_SPACE * (lay.cols - 1)) / lay.cols
   const lh = lineHeight(lay.size)
   lay.sections.forEach((sec, si) => {
+    const headY = y
     y = heading(doc, `${sec.title} (${sec.rows.length})`, x, y, w)
+    if (sec.note) put(doc, sec.note, x + w, headY, { size: 7, color: COL.muted, align: 'right' })
     const rowH = (lay.twoLine[si] ? 2 * lh : lh) + 0.7
     const perCol = Math.ceil(sec.rows.length / lay.cols)
     sec.rows.forEach((r, i) => {
