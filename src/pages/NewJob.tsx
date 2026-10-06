@@ -173,7 +173,15 @@ export default function NewJob() {
   const showClientErr = clientTouched && clientInput.trim() === ''
 
   return (
-    <AppShell title="New job" back="/">
+    <AppShell
+      title="New job"
+      back="/"
+      stickyBar={
+        <Button size="lg" className="w-full" disabled={!canMakePlan} onClick={onMakePlan}>
+          Make cutting plan
+        </Button>
+      }
+    >
       {onlyLeftoverId && (
         <div className="mb-3 rounded-lg bg-accent-bg px-3 py-2 text-[13px] text-accent-text">
           Planning with leftover {onlyLeftover?.letter ?? ''}
@@ -406,10 +414,6 @@ export default function NewJob() {
   }}
 />
       </div>
-
-      <Button size="lg" className="w-full" disabled={!canMakePlan} onClick={onMakePlan}>
-        Make cutting plan
-      </Button>
 
       <Dialog open={!!editingPiece} onOpenChange={(open) => !open && setEditTapeId(null)}>
         <DialogContent>

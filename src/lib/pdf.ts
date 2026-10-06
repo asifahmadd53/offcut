@@ -82,8 +82,8 @@ const COL = {
   wasteFill: [246, 243, 238] as RGB,
   wasteInk: [125, 119, 107] as RGB,
   cut: [234, 110, 0] as RGB,
-  tape: [250, 204, 21] as RGB,
-  tapeInk: [59, 42, 5] as RGB,
+  tape: [194, 65, 12] as RGB,
+  tapeInk: [255, 255, 255] as RGB,
   sheetEdge: [50, 48, 44] as RGB,
 }
 
@@ -401,7 +401,7 @@ function drawLegend(doc: DrawDoc, sheet: SheetPlan, blocks: Block[], x: number, 
   ]
   if (blocks.some((b) => b.kind === 'earlier')) items.push({ key: 'earlier', text: 'Already cut' })
   if ((sheet.cuts ?? []).length > 0) items.push({ key: 'cut', text: 'Cut line' })
-  if (blocks.some((b) => b.kind === 'cut' && b.tape)) items.push({ key: 'tape', text: 'Yellow dotted edge = tape' })
+  if (blocks.some((b) => b.kind === 'cut' && b.tape)) items.push({ key: 'tape', text: 'Dotted edge = tape' })
   const size = 8.5
   const itemW = (t: string) => 7 + widthOf(doc, t, size)
   let cx = x
@@ -546,7 +546,7 @@ function drawDiagram(doc: DrawDoc, page: PrintPage, box: Box) {
     doc.rect(X(b.x), Y(b.y), b.w * sc, b.h * sc, 'FD')
   }
 
-  // Edge tape: a yellow band along every taped side of a piece with a dotted line down its middle.
+  // Edge tape: a band in the primary colour along every taped side of a piece with a dotted line down its middle.
   for (const b of blocks.filter((x) => x.kind === 'cut' && x.tape)) {
     const t = b.tape!
     const bw = b.w * sc

@@ -2,11 +2,12 @@ import { cn } from '@/lib/utils'
 import { cleanTape, describeSides, hasTape, tapeTotal, TAPE_SIDES } from '@/lib/tape'
 import { sizeFormatter } from '@/lib/inches'
 import type { EdgeTape, TapeSide } from '@/lib/types'
+import type { CSSProperties } from 'react'
 
 interface EdgeTapePickerProps {
   value: EdgeTape
   onChange: (tape: EdgeTape) => void
-  /** The piece's typed width and height, shown on the picture and on the sides when known. */
+  /** The piece's typed width and height, shown on the picture and on the edges when known. */
   widthText?: string
   heightText?: string
   /** Numeric sizes: the picture's proportions, the tape length, and "Long sides" / "Short sides". */
@@ -14,17 +15,22 @@ interface EdgeTapePickerProps {
   h?: number | null
 }
 
-const LABEL: Record<TapeSide, string> = { top: 'Top', right: 'Right', bottom: 'Bottom', left: 'Left' }
+const NAME: Record<TapeSide, string> = { top: 'Top edge', right: 'Right edge', bottom: 'Bottom edge', left: 'Left edge' }
 
 const PICTURE_W = 200
 const BAND = 12
 const PAD = 8
 
+const GRID: CSSProperties = {
+  backgroundImage: 'linear-gradient(var(--dg-grid) 1px, transparent 1px), linear-gradient(90deg, var(--dg-grid) 1px, transparent 1px)',
+  backgroundSize: '16px 16px',
+}
+
 /**
- * Edge tape for one piece: a picture of the piece, drawn to its proportions, with a tape strip
- * on each side you tap. A taped side is a yellow band with a dotted line and the word "TAPE"
- * (the same look as on the sheet drawing and the PDF), a plain side says "Tap to add" — never
- * just a colour. Used when adding a piece and when changing the tape of one already in the job.
+ * Edge tape for one piece, as a drafting-board card: the piece drawn to its own proportions in
+ * the middle, with a tape band in the primary colour on every side that gets tape, and one pill
+ * per edge around it ("TOP EDGE: 22.5"" with a TAPED or RAW badge). Tap a pill to switch that
+ * edge. A taped edge is never colour alone: it says TAPED, its band is dotted and its pill is filled.
  */
 export function EdgeTapePicker({ value, onChange, widthText, heightText, w, h }: EdgeTapePickerProps) {
   const toggle = (side: TapeSide) => onChange({ ...value, [side]: !value[side] })
@@ -34,25 +40,39 @@ export function EdgeTapePicker({ value, onChange, widthText, heightText, w, h }:
   const pictureH = Math.round(PICTURE_W * ratio)
   const lengthText = (side: TapeSide) => (side === 'top' || side === 'bottom' ? widthText : heightText)
 
-  const strip = (side: TapeSide, className: string) => {
+  const pill = (side: TapeSide, className: string, vertical = false, flip = false) => {
     const on = !!value[side]
     const len = lengthText(side)
+    const dot = <span key="dot" aria-hidden="true" className={cn('h-2 w-2 flex-none rounded-full', on ? 'bg-brand' : 'bg-faint')} />
+    const text = (
+      <span key="text" className="whitespace-nowrap">
+        {NAME[side]}
+        {len ? `: ${len}"` : ''}
+      </span>
+    )
+    const badge = (
+      <span
+        key="badge"
+        className={cn('flex-none rounded px-1.5 py-0.5 text-[10px] font-extrabold tracking-wider', on ? 'bg-brand text-brand-fg' : 'bg-muted text-muted-foreground')}
+      >
+        {on ? 'TAPED' : 'RAW'}
+      </span>
+    )
     return (
       <button
         type="button"
         aria-pressed={on}
-        aria-label={`${LABEL[side]} side${len ? `, ${len} inches` : ''}${on ? ', has tape' : ', no tape'}`}
+        aria-label={`${NAME[side]}${len ? `, ${len} inches` : ''}${on ? ', has tape' : ', no tape'}`}
         onClick={() => toggle(side)}
         className={cn(
-          'flex min-h-[48px] min-w-[48px] flex-col items-center justify-center rounded-md px-1 text-center transition-transform active:scale-[0.97]',
-          on ? 'text-[12px] font-extrabold tracking-wide' : 'border border-dashed border-border-strong bg-card text-[12px] font-semibold text-muted-foreground hover:bg-muted',
+          'flex items-center justify-center gap-2 rounded-lg border px-2 font-mono text-[11px] font-bold uppercase tracking-wide transition-transform active:scale-[0.97]',
+          vertical ? 'min-w-[44px] flex-col py-3 [writing-mode:vertical-rl]' : 'min-h-[44px]',
+          flip && 'rotate-180',
+          on ? 'border-brand bg-brand-tint text-brand-ink' : 'border-border-strong bg-card text-muted-foreground hover:bg-muted',
           className,
         )}
-        style={on ? { background: 'var(--dg-tape)', color: 'var(--dg-tape-ink)' } : undefined}
       >
-        <span>{on ? 'TAPE' : `+ ${LABEL[side]}`}</span>
-        {on && <span aria-hidden="true" className="my-0.5 block h-0 w-9 border-t-[3px] border-dotted" style={{ borderColor: 'var(--dg-tape-ink)' }} />}
-        {len && <span className={cn('text-[11px]', on ? 'font-semibold' : 'font-normal')}>{len} in</span>}
+        {flip ? [badge, text, dot] : [dot, text, badge]}
       </button>
     )
   }
@@ -67,7 +87,7 @@ export function EdgeTapePicker({ value, onChange, widthText, heightText, w, h }:
       onClick={onClick}
       className={cn(
         'min-h-[40px] rounded-full border px-4 text-[13px] font-semibold active:scale-[0.98]',
-        active ? 'border-accent-border bg-accent-bg text-accent-text' : 'border-border-strong text-foreground hover:bg-muted',
+        active ? 'border-brand bg-brand-tint text-brand-ink' : 'border-border-strong text-foreground hover:bg-muted',
       )}
     >
       {label}
@@ -78,30 +98,30 @@ export function EdgeTapePicker({ value, onChange, widthText, heightText, w, h }:
   const fmt = sizeFormatter('decimal').fmt
 
   return (
-    <div>
-      <div className="mx-auto grid w-full max-w-[360px] grid-cols-[76px_1fr_76px] grid-rows-[auto_auto_auto] items-stretch gap-2">
-        {strip('top', 'col-start-2 row-start-1')}
-        {strip('left', 'col-start-1 row-start-2')}
+    <div className="rounded-xl border-hair border-border bg-card p-3" style={GRID}>
+      <div className="mx-auto grid w-full max-w-[380px] grid-cols-[48px_1fr_48px] grid-rows-[auto_auto_auto] items-stretch gap-2">
+        {pill('top', 'col-start-2 row-start-1')}
+        {pill('left', 'col-start-1 row-start-2', true, true)}
         <svg
           className="col-start-2 row-start-2 h-auto w-full"
           viewBox={`0 0 ${PICTURE_W} ${pictureH}`}
           role="img"
           aria-label={hasTape(value) ? `Piece with tape on ${describeSides(value)}` : 'Piece with no tape'}
         >
-          <rect x={PAD} y={PAD} width={PICTURE_W - 2 * PAD} height={pictureH - 2 * PAD} rx="3" fill="var(--accent-bg)" stroke="var(--border-strong)" strokeWidth="1.5" />
+          <rect x={PAD} y={PAD} width={PICTURE_W - 2 * PAD} height={pictureH - 2 * PAD} rx="4" fill="var(--muted)" stroke="var(--border-strong)" strokeWidth="1.5" />
           {value.top && <Band x={PAD} y={PAD} w={PICTURE_W - 2 * PAD} h={BAND} />}
           {value.bottom && <Band x={PAD} y={pictureH - PAD - BAND} w={PICTURE_W - 2 * PAD} h={BAND} />}
           {value.left && <Band x={PAD} y={PAD} w={BAND} h={pictureH - 2 * PAD} />}
           {value.right && <Band x={PICTURE_W - PAD - BAND} y={PAD} w={BAND} h={pictureH - 2 * PAD} />}
-          <text x={PICTURE_W / 2} y={pictureH / 2 - 2} textAnchor="middle" fontSize="15" fontWeight="700" fill="var(--accent-text)">
-            {widthText && heightText ? `${widthText} × ${heightText}` : 'This piece'}
+          <text x={PICTURE_W / 2} y={pictureH / 2 - 4} textAnchor="middle" fontSize="15" fontWeight="800" fill="var(--foreground)">
+            This piece
           </text>
-          <text x={PICTURE_W / 2} y={pictureH / 2 + 16} textAnchor="middle" fontSize="11" fill="var(--muted-foreground)">
-            width × height, inches
+          <text x={PICTURE_W / 2} y={pictureH / 2 + 14} textAnchor="middle" fontSize="12" fontWeight="600" fill="var(--muted-foreground)">
+            {widthText && heightText ? `${widthText} × ${heightText} in` : 'width × height, inches'}
           </text>
         </svg>
-        {strip('right', 'col-start-3 row-start-2')}
-        {strip('bottom', 'col-start-2 row-start-3')}
+        {pill('right', 'col-start-3 row-start-2', true)}
+        {pill('bottom', 'col-start-2 row-start-3')}
       </div>
 
       <p className="mt-3 text-center text-[14px] font-semibold" aria-live="polite">
@@ -118,7 +138,7 @@ export function EdgeTapePicker({ value, onChange, widthText, heightText, w, h }:
   )
 }
 
-/** A yellow tape band with a dotted line down its middle, as on the sheet drawing. */
+/** A tape band in the primary colour with a dotted line down its middle, as on the sheet drawing. */
 function Band({ x, y, w, h }: { x: number; y: number; w: number; h: number }) {
   const horizontal = w >= h
   return (

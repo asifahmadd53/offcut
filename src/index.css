@@ -197,8 +197,8 @@ button {
   --dg-sheet: #eef1f6;
   --dg-sheet-edge: #c3cbd8;
   --dg-earlier: #d5dbe5;
-  --dg-tape: #facc15;
-  --dg-tape-ink: #3b2a05;
+  --dg-tape: #c2410c;
+  --dg-tape-ink: #ffffff;
 }
 
 @media (prefers-color-scheme: dark) {
@@ -217,7 +217,7 @@ button {
     --dg-sheet: #1f2227;
     --dg-sheet-edge: #3a3f47;
     --dg-earlier: #2c3038;
-    --dg-tape: #eab308;
-    --dg-tape-ink: #1f1500;
+    --dg-tape: #fb923c;
+    --dg-tape-ink: #1b1a17;
   }
 }

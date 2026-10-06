@@ -71,7 +71,7 @@ export function PlanSheet({ sheet, blocks, highlightIndex, sizeStyle = 'decimal'
             <Legend swatch="cut" label={sheet.isNew ? 'Cut pieces' : 'New piece'} />
             <Legend swatch="free" label={sheet.isNew ? 'Saved leftover' : 'Free after this cut'} />
             <Legend swatch="path" label="Cut line" />
-            {tape.rows.length > 0 && <Legend swatch="tape" label="Yellow dotted edge = tape" />}
+            {tape.rows.length > 0 && <Legend swatch="tape" label="Dotted edge = tape" />}
           </div>
           <p className="mb-3 text-[12px] text-muted-foreground">Sizes are width × height, in inches</p>
           {anyTurned && (
