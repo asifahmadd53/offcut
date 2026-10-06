@@ -67,9 +67,11 @@ export function cleanTyped(input: string): string {
     .replace(/\s+/g, ' ')
 }
 
-/** A piece's size as it was typed (width × height), or the usual fractions for older pieces. */
-export const pieceDims = (p: { w: number; h: number; wText?: string; hText?: string }) =>
-  `${p.wText ?? fmt(p.w)} × ${p.hText ?? fmt(p.h)}`
+/** A piece's size as it was typed (width × height); older pieces without typed text show plain decimals. */
+export const pieceDims = (p: { w: number; h: number; wText?: string; hText?: string }) => {
+  const f = sizeFormatter('decimal').fmt
+  return `${p.wText ?? f(p.w)} × ${p.hText ?? f(p.h)}`
+}
 
 export type SizeStyle = 'fraction' | 'decimal'
 
@@ -81,9 +83,9 @@ export interface Formatter {
 
 /**
  * How the sizes the app works out itself (leftovers, rulers, gaps) are written next to the
- * ones the user typed: fractions (10 1/2) or plain decimals (10.5, up to two places).
+ * ones the user typed: plain decimals (10.5, up to two places) or fractions (10 1/2).
  */
-export function sizeFormatter(style: SizeStyle = 'fraction'): Formatter {
+export function sizeFormatter(style: SizeStyle = 'decimal'): Formatter {
   const f = style === 'decimal' ? (n: number) => String(Math.round(n * 100) / 100) : fmt
   return {
     fmt: f,
@@ -93,12 +95,11 @@ export function sizeFormatter(style: SizeStyle = 'fraction'): Formatter {
 }
 
 /**
- * Decimals when the user typed this job's sizes as decimals (10.5, 38.6), fractions when any
- * was typed as a fraction (22 1/2) or when nothing was recorded (older jobs): the worked-out
- * sizes follow the way the job itself was written, so one page never mixes the two.
+ * Fractions only when the user typed one of this job's sizes as a fraction (22 1/2); decimals
+ * otherwise, including older jobs that recorded nothing: the worked-out sizes follow the way
+ * the job itself was written, so one page never mixes the two.
  */
 export function sizeStyleOf(pieces?: Array<{ wText?: string; hText?: string }>): SizeStyle {
   const texts = (pieces ?? []).flatMap((p) => [p.wText, p.hText]).filter((t): t is string => !!t)
-  if (texts.length === 0) return 'fraction'
   return texts.some((t) => t.includes('/')) ? 'fraction' : 'decimal'
 }

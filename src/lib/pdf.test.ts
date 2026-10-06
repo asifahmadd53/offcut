@@ -250,7 +250,7 @@ describe('partSections', () => {
     expect(partSections(pages[0].blocks)).toEqual([
       {
         title: 'Cutting pieces',
-        note: 'W × H, inches',
+        note: 'width × height',
         rows: [
           { name: 'Piece 1', size: '23 × 77' },
           { name: 'Piece 2', size: '23 × 77' },
@@ -432,16 +432,16 @@ describe('Print screen pages are the saved PDF pages', () => {
 })
 
 describe('sizes on the PDF are written the way they were typed', () => {
-  it('shows W 10.5 / H 38.6, never 10 1/2, and carries a W/H legend', async () => {
+  it('shows 10.5 × 38.6, never 10 1/2, no W/H letters, and says what the sizes are', async () => {
     const ps: Piece[] = [{ id: 'a', w: 10.5, h: 38.6, qty: 2, wText: '10.5', hText: '38.6' }]
     const sheets = packJob(ps, [], opts).sheets
     const cut: CutDoc = { ...cutFrom(ps, sheets), clientName: 'Asif' }
     const boxes: TextBox[] = []
     await buildPrintPdf(buildPrintPages(cut, deriveStock([cut]), DEFAULT_SETTINGS), 'A4', recorder(boxes) as unknown as typeof jsPDF, cut)
     const all = boxes.map((b) => b.text)
-    expect(all).toContain('W 10.5')
-    expect(all).toContain('H 38.6')
-    expect(all).toContain('W = width, H = height, inches')
+    expect(all.join('|')).toContain('10.5 × 38.6')
+    expect(all.some((t) => /^[WH] \d/.test(t))).toBe(false)
+    expect(all).toContain('Sizes are width × height, in inches')
     expect(all.join('|')).not.toContain('10 1/2')
     // Worked-out sizes follow the same style: the leftover strip is a decimal here too.
     expect(all.join('|')).not.toMatch(/\d \d+\/\d+/)

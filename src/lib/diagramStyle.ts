@@ -38,7 +38,7 @@ export const dgLightDeclarations = () =>
     .map(([k, v]) => `${k}: ${v};`)
     .join(' ')
 
-const DEFAULT_FORMAT = sizeFormatter('fraction')
+const DEFAULT_FORMAT = sizeFormatter('decimal')
 
 export type BlockTier = 'full' | 'medium' | 'line' | 'small' | 'tiny'
 
@@ -51,7 +51,7 @@ export function blockTier(pw: number, ph: number): BlockTier {
 }
 
 export interface BlockLabel {
-  /** One line, or for a piece that has room the three lines "#15", "W 10.5", "H 38.6". */
+  /** The piece number and its size on two lines, or both on one line. */
   lines: string[]
   size: number
   /** True when a single line is written up the block (reading bottom to top) because it does not fit across. */
@@ -65,20 +65,21 @@ function splitDims(text: string): { w: string; h: string } | null {
 
 /**
  * What a block can write on itself, in the user's own words: a piece writes its number and
- * its width and height on three short lines when it has room ("#15" / "W 10.5" / "H 38.6"),
- * else one line "#9 · 4w × 27.6h" across the block or up it. Returns null when neither fits
- * and the size has to go in a note with a line to the block instead.
+ * its size ("#15" over "10.5 × 38.6") when there is room across, else one line "#9 · 4 × 27.6"
+ * across the block or up it. Returns null when neither fits and the size has to go in a note
+ * with a line to the block instead.
  */
 export function blockLabel(b: Block, pw: number, ph: number, f: Formatter = DEFAULT_FORMAT): BlockLabel | null {
   if (b.kind === 'cut') {
     const d = splitDims(b.label ?? f.fmtDims(b.w, b.h)) ?? { w: f.fmt(b.w), h: f.fmt(b.h) }
     const n = `#${b.n ?? ''}`
-    const three = [n, `W ${d.w}`, `H ${d.h}`]
-    const widest = Math.max(...three.map((l) => l.length))
-    for (const size of [22, 20, 18, 16, 14, 13, 12]) {
-      if (widest * 0.6 * size <= pw - 8 && three.length * size * 1.25 <= ph - 8) return { lines: three, size, rotated: false }
+    const size = `${d.w} × ${d.h}`
+    const two = [n, size]
+    const widest = Math.max(...two.map((l) => l.length))
+    for (const s of [22, 20, 18, 16, 14, 13, 12, 11, 10]) {
+      if (widest * 0.6 * s <= pw - 8 && two.length * s * 1.25 <= ph - 8) return { lines: two, size: s, rotated: false }
     }
-    return oneLine(`${n} · ${d.w}w × ${d.h}h`, pw, ph, [12, 11, 10, 9, 8])
+    return oneLine(`${n} · ${size}`, pw, ph, [12, 11, 10, 9, 8])
   }
   if (b.kind === 'earlier') return oneLine(f.fmtDims(b.w, b.h), pw, ph, [11, 10, 9, 8])
   return null

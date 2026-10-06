@@ -60,15 +60,17 @@ describe('blockTier and smallBlockCallouts', () => {
     expect(smallBlockCallouts(blocks, 5.9)).toEqual([])
   })
 
-  it('a piece writes #n / W / H on three lines, then one line across or up the block, then a note', () => {
+  it('a piece writes #n over its size, then one line across or up the block, then a note', () => {
+    const wide: Block = { kind: 'cut', x: 0, y: 0, w: 20, h: 10, label: '20 × 10', n: 3 }
+    expect(blockLabel(wide, 20 * 6, 10 * 6)).toEqual({ lines: ['#3', '20 × 10'], size: 20, rotated: false })
     const tall: Block = { kind: 'cut', x: 0, y: 0, w: 10.5, h: 38.6, label: '10.5 × 38.6', n: 15 }
-    expect(blockLabel(tall, 10.5 * 6, 38.6 * 6)).toEqual({ lines: ['#15', 'W 10.5', 'H 38.6'], size: 14, rotated: false })
+    expect(blockLabel(tall, 10.5 * 6, 38.6 * 6)).toEqual({ lines: ['#15 · 10.5 × 38.6'], size: 12, rotated: true })
     expect(blockTierFor(tall, 6)).toBe('line')
     expect(smallBlockCallouts([tall], 6)).toEqual([])
     const flat: Block = { kind: 'cut', x: 0, y: 0, w: 27.6, h: 4, label: '4 × 27.6', n: 12, rotated: true }
-    expect(blockLabel(flat, 27.6 * 6, 4 * 6)).toEqual({ lines: ['#12 · 4w × 27.6h'], size: 12, rotated: false })
+    expect(blockLabel(flat, 27.6 * 6, 4 * 6)).toEqual({ lines: ['#12 · 4 × 27.6'], size: 12, rotated: false })
     const column: Block = { kind: 'cut', x: 0, y: 0, w: 4, h: 27.6, label: '4 × 27.6', n: 9 }
-    expect(blockLabel(column, 4 * 6, 27.6 * 6)).toEqual({ lines: ['#9 · 4w × 27.6h'], size: 12, rotated: true })
+    expect(blockLabel(column, 4 * 6, 27.6 * 6)).toEqual({ lines: ['#9 · 4 × 27.6'], size: 12, rotated: true })
     const sliver: Block = { kind: 'cut', x: 0, y: 0, w: 1.5, h: 4, label: '1.5 × 4', n: 9 }
     expect(blockLabel(sliver, 1.5 * 6, 4 * 6)).toBeNull()
   })

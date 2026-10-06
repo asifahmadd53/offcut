@@ -11,9 +11,10 @@ describe('sizes shown exactly as typed', () => {
     expect(cleanTyped('22-1/2')).toBe('22-1/2')
   })
 
-  it('a piece shows its typed text; older pieces without it fall back to the usual fractions', () => {
+  it('a piece shows its typed text, even a fraction; older pieces without it show plain decimals', () => {
     expect(pieceDims({ w: 10.5, h: 38.6, wText: '10.5', hText: '38.6' })).toBe('10.5 × 38.6')
-    expect(pieceDims({ w: 10.5, h: 38.6 })).toBe('10 1/2 × 38.6')
+    expect(pieceDims({ w: 22.5, h: 30, wText: '22 1/2', hText: '30' })).toBe('22 1/2 × 30')
+    expect(pieceDims({ w: 10.5, h: 38.6 })).toBe('10.5 × 38.6')
   })
 
   it('the plan, its labels and the job summary all carry the typed text', () => {
@@ -26,8 +27,8 @@ describe('sizes shown exactly as typed', () => {
   it('worked-out sizes follow the style the job was typed in', () => {
     expect(sizeStyleOf([{ wText: '10.5', hText: '38.6' }])).toBe('decimal')
     expect(sizeStyleOf([{ wText: '22 1/2', hText: '30' }])).toBe('fraction')
-    expect(sizeStyleOf([{}])).toBe('fraction')
-    expect(sizeStyleOf(undefined)).toBe('fraction')
+    expect(sizeStyleOf([{}])).toBe('decimal')
+    expect(sizeStyleOf(undefined)).toBe('decimal')
     const dec = sizeFormatter('decimal')
     expect(dec.fmt(15.9375)).toBe('15.94')
     expect(dec.fmtLeft(48, 3.75)).toBe('3.75 × 48')

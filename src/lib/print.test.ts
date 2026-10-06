@@ -106,6 +106,15 @@ describe('buildPrintPages', () => {
     const cut = cutFrom([piece(23, 40, 2)], r.sheets, 0.125)
     const derived = deriveStock([cut])
     const pages = buildPrintPages(cut, derived, DEFAULT_SETTINGS)
+    // Written like the job's own sizes: plain decimals unless a fraction was typed.
+    expect(pages[0].bladeText).toBe('Blade thickness 0.125 in included')
+  })
+
+  it('blade note is written as a fraction when the job was typed with fractions', () => {
+    const typed = [{ ...piece(23.5, 40, 2), wText: '23 1/2', hText: '40' }]
+    const r = packJob(typed, [], { ...opts, kerf: 0.125 })
+    const cut = cutFrom(typed, r.sheets, 0.125)
+    const pages = buildPrintPages(cut, deriveStock([cut]), DEFAULT_SETTINGS)
     expect(pages[0].bladeText).toBe('Blade thickness 1/8 in included')
   })
 

@@ -21,7 +21,7 @@ interface PlanSheetProps {
 }
 
 /** One physical sheet of a plan: the diagram, a side panel, and the cut order below. */
-export function PlanSheet({ sheet, blocks, highlightIndex, sizeStyle = 'fraction' }: PlanSheetProps) {
+export function PlanSheet({ sheet, blocks, highlightIndex, sizeStyle = 'decimal' }: PlanSheetProps) {
   const F = sizeFormatter(sizeStyle)
   const usedArea = sheet.placements.reduce((sum, p) => sum + p.w * p.h, 0)
   const regionArea = sheet.region.w * sheet.region.h
@@ -70,7 +70,7 @@ export function PlanSheet({ sheet, blocks, highlightIndex, sizeStyle = 'fraction
             <Legend swatch="free" label={sheet.isNew ? 'Saved leftover' : 'Free after this cut'} />
             <Legend swatch="path" label="Cut line" />
           </div>
-          <p className="mb-3 text-[12px] text-muted-foreground">W = width, H = height, inches</p>
+          <p className="mb-3 text-[12px] text-muted-foreground">Sizes are width × height, in inches</p>
           {anyTurned && (
             <span className="mb-3 mt-[-6px] inline-block rounded-full bg-muted px-2.5 py-0.5 text-[12px] text-muted-foreground">
               Turned to fit

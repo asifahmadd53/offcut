@@ -74,7 +74,7 @@ export function SheetDiagram({
   maxH = 288,
   cuts,
   highlightIndex,
-  sizeStyle = 'fraction',
+  sizeStyle = 'decimal',
   fill = false,
   autoHeight = false,
 }: SheetDiagramProps) {

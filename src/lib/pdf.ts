@@ -60,7 +60,7 @@ const PT = 0.3528 // mm per point
  * How the sizes the app works out itself (not the ones typed) are written on these pages;
  * set once per document in drawJob from how the job's sizes were typed.
  */
-let F: Formatter = sizeFormatter('fraction')
+let F: Formatter = sizeFormatter('decimal')
 
 const COL = {
   ink: [27, 26, 23] as RGB,
@@ -199,7 +199,7 @@ export function partSections(blocks: Block[]): PartSection[] {
     .filter((b) => b.kind === 'earlier')
     .map((b) => ({ name: 'Already cut', size: F.fmtDims(b.w, b.h) }))
   return [
-    { title: 'Cutting pieces', note: 'W × H, inches', rows: pieces },
+    { title: 'Cutting pieces', note: 'width × height', rows: pieces },
     { title: 'Already cut earlier', rows: earlier },
   ].filter((s) => s.rows.length > 0)
 }
@@ -333,17 +333,17 @@ interface LabelCandidate {
 }
 
 /**
- * What a block can carry, richest first: a piece writes "#15" / "W 10.5" / "H 38.6" on three
- * short lines when it has room, else "#9 · 4w × 27.6h" on one line across or up the block,
- * else just its number (its size then goes in a note with a line to the block).
+ * What a block can carry, richest first: a piece writes "#15" over "10.5 × 38.6" when it has
+ * room, else "#9 · 4 × 27.6" on one line across or up the block, else just its number (its
+ * size then goes in a note with a line to the block).
  */
 function labelCandidates(b: Block): LabelCandidate[] {
   const plain = F.fmtDims(b.w, b.h)
   if (b.kind === 'cut') {
-    const [w, h] = (b.label ?? plain).split(' × ')
+    const size = b.label ?? plain
     const n = `#${b.n ?? ''}`
-    const one = `${n} · ${w}w × ${h}h`
-    return [{ lines: [n, `W ${w}`, `H ${h}`] }, { lines: [one] }, { lines: [one], vertical: true }, { lines: [n] }]
+    const one = `${n} · ${size}`
+    return [{ lines: [n, size] }, { lines: [one] }, { lines: [one], vertical: true }, { lines: [n] }]
   }
   // A leftover shows just its letter (its size is not printed); too small for even that, it
   // gets a note with a line to it.
@@ -374,7 +374,9 @@ function fitBlockLabel(doc: DrawDoc, b: Block, pw: number, ph: number): LabelFit
   for (let ci = 0; ci < cands.length; ci++) {
     const { lines, vertical = false } = cands[ci]
     const tagOnly = ci === cands.length - 1 && cands.length > 1
-    for (let size = leftover ? 16 : 10; size >= (tagOnly ? 7 : 7.5); size -= 0.5) {
+    // The two-line form is only worth it at a comfortable size; smaller, writing up the block reads better.
+    const minSize = tagOnly ? 7 : ci === 0 && b.kind === 'cut' ? 9 : 7.5
+    for (let size = leftover ? 16 : 10; size >= minSize; size -= 0.5) {
       const lh = lineHeight(size)
       const totalH = lines.length * lh
       const maxW = Math.max(...lines.map((l, i) => widthOf(doc, l, size, i === 0)))
@@ -420,7 +422,7 @@ function drawLegend(doc: DrawDoc, sheet: SheetPlan, blocks: Block[], x: number, 
     put(doc, it.text, cx + 7, cy, { size, color: COL.muted })
     cx += itemW(it.text) + 5
   }
-  const note = 'W = width, H = height, inches'
+  const note = 'Sizes are width × height, in inches'
   if (cx > x && cx + widthOf(doc, note, size) > x + maxW) {
     cx = x
     cy += 5.5
