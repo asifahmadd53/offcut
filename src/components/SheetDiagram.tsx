@@ -446,34 +446,60 @@ function TapedEdges({ tape, x, y, w, h }: { tape: NonNullable<Block['tape']>; x:
   const endX = x + w - (tape.right ? t : gap)
   const startY = y + (tape.top ? t : gap)
   const endY = y + h - (tape.bottom ? t : gap)
+  // The dotted line stops either side of the word TAPE, so the letters never sit on the dots.
+  const WORD_HALF = 20
+  const across = (yy: number, withWord: boolean) => {
+    const mid = x + w / 2
+    return withWord ? (
+      <>
+        <line x1={startX} y1={yy} x2={mid - WORD_HALF} y2={yy} {...dots} />
+        <line x1={mid + WORD_HALF} y1={yy} x2={endX} y2={yy} {...dots} />
+      </>
+    ) : (
+      <line x1={startX} y1={yy} x2={endX} y2={yy} {...dots} />
+    )
+  }
+  const down = (xx: number, withWord: boolean) => {
+    const mid = y + h / 2
+    return withWord ? (
+      <>
+        <line x1={xx} y1={startY} x2={xx} y2={mid - WORD_HALF} {...dots} />
+        <line x1={xx} y1={mid + WORD_HALF} x2={xx} y2={endY} {...dots} />
+      </>
+    ) : (
+      <line x1={xx} y1={startY} x2={xx} y2={endY} {...dots} />
+    )
+  }
+  const wordAcross = word && w >= 90
+  const wordDown = word && h >= 90
   return (
     <g pointerEvents="none">
       {tape.top && (
         <g>
           <rect x={x} y={y} width={w} height={t} fill="var(--dg-tape)" />
-          <line x1={startX} y1={y + t / 2} x2={endX} y2={y + t / 2} {...dots} />
-          {word && w >= 90 && text(x + w / 2, y + t / 2, false)}
+          {across(y + t / 2, wordAcross)}
+          {wordAcross && text(x + w / 2, y + t / 2, false)}
         </g>
       )}
       {tape.bottom && (
         <g>
           <rect x={x} y={y + h - t} width={w} height={t} fill="var(--dg-tape)" />
-          <line x1={startX} y1={y + h - t / 2} x2={endX} y2={y + h - t / 2} {...dots} />
-          {word && w >= 90 && text(x + w / 2, y + h - t / 2, false)}
+          {across(y + h - t / 2, wordAcross)}
+          {wordAcross && text(x + w / 2, y + h - t / 2, false)}
         </g>
       )}
       {tape.left && (
         <g>
           <rect x={x} y={y} width={t} height={h} fill="var(--dg-tape)" />
-          <line x1={x + t / 2} y1={startY} x2={x + t / 2} y2={endY} {...dots} />
-          {word && h >= 90 && text(x + t / 2, y + h / 2, true)}
+          {down(x + t / 2, wordDown)}
+          {wordDown && text(x + t / 2, y + h / 2, true)}
         </g>
       )}
       {tape.right && (
         <g>
           <rect x={x + w - t} y={y} width={t} height={h} fill="var(--dg-tape)" />
-          <line x1={x + w - t / 2} y1={startY} x2={x + w - t / 2} y2={endY} {...dots} />
-          {word && h >= 90 && text(x + w - t / 2, y + h / 2, true)}
+          {down(x + w - t / 2, wordDown)}
+          {wordDown && text(x + w - t / 2, y + h / 2, true)}
         </g>
       )}
     </g>
