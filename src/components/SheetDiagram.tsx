@@ -58,7 +58,7 @@ const CALLOUT_GAP_1 = 15
 
 /** Largest font (up to `base`) that keeps `text` inside `maxPx`, using a rough glyph width. */
 const fitFont = (text: string, maxPx: number, base: number) =>
-  Math.max(9, Math.min(base, maxPx / (Math.max(text.length, 1) * 0.58)))
+  Math.max(9, Math.min(base, maxPx / (Math.max(text.length, 1) * 0.66)))
 
 /**
  * Draws a sheet as a to-scale cutting drawing on a grid-paper card: blue pieces, green
@@ -118,11 +118,11 @@ export function SheetDiagram({
       Math.min(Math.max(containerW - 2 * m, 20) / sheetW, Math.max(budgetH, 60) / sheetH) * (fill ? 1 : PAGE_SCALE)
     const baseMargin = RIGHT + 40
     const widestNumber = Math.max(...verticalTicks(blocks, sheetH, fitScale(baseMargin)).map((t) => fmt(t.value).length))
-    const rulerMargin = Math.max(baseMargin, SIDE_DIM + 19 + widestNumber * 6.8 + 8)
+    const rulerMargin = Math.max(baseMargin, SIDE_DIM + 19 + widestNumber * 7.6 + 8)
     // Blocks too small to write on get a note beside the sheet (right side) with a line to the
     // block, so the sheet is kept dead centre by widening both margins to fit the widest note.
     const noteMargin = (list: ReturnType<typeof smallBlockCallouts>) =>
-      list.length ? CALLOUT_LEAD + Math.max(...list.map((c) => Math.max(c.name.length, c.dims.length))) * 6.4 + 8 : 0
+      list.length ? CALLOUT_LEAD + Math.max(...list.map((c) => Math.max(c.name.length, c.dims.length))) * 7.2 + 8 : 0
     let margin = Math.max(rulerMargin, noteMargin(smallBlockCallouts(blocks, fitScale(rulerMargin), F)))
     margin = Math.max(margin, noteMargin(smallBlockCallouts(blocks, fitScale(margin), F)))
     const s = fitScale(margin)
@@ -141,7 +141,7 @@ export function SheetDiagram({
     const noteX = sheetLeft + sheetPxW + CALLOUT_LEAD
     const noteW = Math.max(containerW - noteX - 6, 20)
     const widest = Math.max(1, ...sorted.map((c) => (twoLine ? Math.max(c.name.length, c.dims.length) : c.name.length + c.dims.length + 2)))
-    const noteFont = Math.max(8, Math.min(11.5, noteW / (widest * 0.58)))
+    const noteFont = Math.max(8, Math.min(11.5, noteW / (widest * 0.66)))
     const svgW = containerW
     const svgH = TOP + sheetPxH + RULER + extraH
     return { s, sheetPxW, sheetPxH, sheetLeft, sorted, noteYs, twoLine, noteX, noteFont, svgW, svgH }
@@ -162,13 +162,13 @@ export function SheetDiagram({
   const ariaLabel = diagramAriaLabel(sheetW, sheetH, pieceCount, leftoverCount, cuts ? cuts.length : undefined)
 
   const calloutText = `${fmt(sheetW)}" Sheet Width`
-  const calloutW = calloutText.length * 7.2 + 50
+  const calloutW = calloutText.length * 8 + 50
   const calloutCx = sheetLeft + sheetPxW / 2
   const dimX = sheetLeft - SIDE_DIM
   const heightText = `${fmt(sheetH)}" Sheet Height`
-  const heightLong = heightText.length * 7.2 + 50
+  const heightLong = heightText.length * 8 + 50
   const heightPill = heightLong <= sheetPxH - 12 ? heightText : `${fmt(sheetH)}"`
-  const heightPillW = heightPill === heightText ? heightLong : heightPill.length * 7.2 + 50
+  const heightPillW = heightPill === heightText ? heightLong : heightPill.length * 8 + 50
   const showHeightPill = heightPillW <= sheetPxH - 12
   const midY = TOP + sheetPxH / 2
 
@@ -192,7 +192,7 @@ export function SheetDiagram({
           {label && <LabelText label={label} cx={cx} cy={cy} fill="var(--dg-on-blue)" />}
           {tier === 'small' && (
             <text x={cx} y={cy + 4} textAnchor="middle" fontSize="11" fontWeight="700" fill="var(--dg-on-blue)">
-              {bw >= (String(b.n).length + 1) * 6.8 + 2 ? `#${b.n}` : b.n}
+              {bw >= (String(b.n).length + 1) * 7.6 + 2 ? `#${b.n}` : b.n}
             </text>
           )}
         </>

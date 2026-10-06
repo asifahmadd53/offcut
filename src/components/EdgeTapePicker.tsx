@@ -67,7 +67,7 @@ export function EdgeTapePicker({ value, onChange, widthText, heightText, w, h }:
         aria-label={`${NAME[side]}${len ? `, ${len} inches` : ''}${on ? ', has tape' : ', no tape'}`}
         onClick={() => toggle(side)}
         className={cn(
-          'flex min-w-0 items-center justify-center gap-2 rounded-lg border px-2 font-mono text-[10px] font-bold uppercase tracking-wide transition-transform active:scale-[0.97] sm:text-[11px]',
+          'flex min-w-0 items-center justify-center gap-2 rounded-lg border px-2 text-[10px] font-bold uppercase tracking-wide transition-transform active:scale-[0.97] sm:text-[11px]',
           vertical ? 'w-11 flex-col px-1 py-3' : 'h-11',
           on ? 'border-brand bg-brand-tint text-brand-ink' : 'border-border-strong bg-card text-muted-foreground hover:bg-muted',
           className,

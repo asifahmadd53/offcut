@@ -291,7 +291,7 @@ function drawHeader(doc: DrawDoc, page: PrintPage, job: JobFacts, pageW: number)
   })
   y += 9
   const title = ellipsize(doc, job.client ? `Client name: ${job.client}` : page.jobTitle, innerW, 17, true)
-  put(doc, title, MARGIN, y, { size: 17, bold: true })
+  put(doc, title, MARGIN, y, { size: 14, bold: true })
   y += 6
   const details = [
     job.phone ? `Phone ${job.phone}` : '',

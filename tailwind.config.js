@@ -70,7 +70,7 @@ export default {
       },
       fontFamily: {
         sans: [
-          'Inter Variable',
+          'Poppins',
           'ui-sans-serif',
           'system-ui',
           '-apple-system',

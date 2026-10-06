@@ -79,7 +79,7 @@ export function blockLabel(b: Block, pw: number, ph: number, f: Formatter = DEFA
     const two = [n, size]
     const widest = Math.max(...two.map((l) => l.length))
     for (const s of [22, 20, 18, 16, 14, 13, 12, 11, 10]) {
-      if (widest * 0.6 * s <= pw - 8 && two.length * s * 1.25 <= ph - 8) return { lines: two, size: s, rotated: false }
+      if (widest * 0.68 * s <= pw - 8 && two.length * s * 1.25 <= ph - 8) return { lines: two, size: s, rotated: false }
     }
     return oneLine(`${n} · ${size}`, pw, ph, [12, 11, 10, 9, 8])
   }
@@ -89,7 +89,7 @@ export function blockLabel(b: Block, pw: number, ph: number, f: Formatter = DEFA
 
 function oneLine(text: string, pw: number, ph: number, sizes: number[]): BlockLabel | null {
   for (const size of sizes) {
-    const len = text.length * 0.6 * size
+    const len = text.length * 0.68 * size
     const thick = size * 1.2
     if (len <= pw - 4 && thick <= ph - 4) return { lines: [text], size, rotated: false }
     if (len <= ph - 6 && thick <= pw - 4) return { lines: [text], size, rotated: true }
@@ -105,7 +105,7 @@ export function blockTierFor(b: Block, pxPerInch: number, f: Formatter = DEFAULT
   const pw = b.w * pxPerInch
   const ph = b.h * pxPerInch
   const tier = blockTier(pw, ph)
-  if (b.kind === 'earlier' && (tier === 'full' || tier === 'medium') && f.fmtDims(b.w, b.h).length * 0.58 * 9 <= pw - 14) return tier
+  if (b.kind === 'earlier' && (tier === 'full' || tier === 'medium') && f.fmtDims(b.w, b.h).length * 0.66 * 9 <= pw - 14) return tier
   if (blockLabel(b, pw, ph, f)) return 'line'
   return tier === 'full' || tier === 'medium' ? 'small' : tier
 }

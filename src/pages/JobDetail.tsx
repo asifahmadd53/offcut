@@ -56,7 +56,7 @@ export default function JobDetail() {
         </div>
       }
     >
-      {cut.clientName && <p className="mb-1 text-[15px] font-semibold">{cut.clientName}</p>}
+      {cut.clientName && <p className="mb-1 text-[15px] font-semibold">Client Name: {cut.clientName}</p>}
       <p className="mb-3.5 text-[13px] text-muted-foreground">
         Cut on {dayMonth(cut.createdAt)} · {sourceSummary(cut.sheets)} · {bladeText}
       </p>
