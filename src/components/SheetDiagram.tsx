@@ -190,6 +190,7 @@ export function SheetDiagram({
         <>
           <rect x={bx} y={by} width={bw} height={bh} fill="var(--dg-blue)" />
           {label && <LabelText label={label} cx={cx} cy={cy} fill="var(--dg-on-blue)" />}
+          {b.tape && <TapedEdges tape={b.tape} x={bx} y={by} w={bw} h={bh} />}
           {tier === 'small' && (
             <text x={cx} y={cy + 4} textAnchor="middle" fontSize="11" fontWeight="700" fill="var(--dg-on-blue)">
               {bw >= (String(b.n).length + 1) * 6.8 + 2 ? `#${b.n}` : b.n}
@@ -423,3 +424,20 @@ function LabelText({ label, cx, cy, fill }: { label: BlockLabelShape; cx: number
 }
 
 type BlockLabelShape = { lines: string[]; size: number; rotated: boolean }
+
+/** Dotted line just inside every taped side of a piece (the legend says "Dotted edge = tape"). */
+function TapedEdges({ tape, x, y, w, h }: { tape: NonNullable<Block['tape']>; x: number; y: number; w: number; h: number }) {
+  const inset = Math.max(1.5, Math.min(4, w / 5, h / 5))
+  const lines: Array<[string, number, number, number, number]> = []
+  if (tape.top) lines.push(['top', x + inset, y + inset, x + w - inset, y + inset])
+  if (tape.right) lines.push(['right', x + w - inset, y + inset, x + w - inset, y + h - inset])
+  if (tape.bottom) lines.push(['bottom', x + inset, y + h - inset, x + w - inset, y + h - inset])
+  if (tape.left) lines.push(['left', x + inset, y + inset, x + inset, y + h - inset])
+  return (
+    <>
+      {lines.map(([side, x1, y1, x2, y2]) => (
+        <line key={side} x1={x1} y1={y1} x2={x2} y2={y2} stroke="var(--dg-on-blue)" strokeWidth="3" strokeDasharray="0.1 6" strokeLinecap="round" />
+      ))}
+    </>
+  )
+}

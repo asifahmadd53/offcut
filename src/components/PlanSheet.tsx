@@ -3,6 +3,7 @@ import { TransformComponent, TransformWrapper, type ReactZoomPanPinchRef } from 
 import { IconX } from '@tabler/icons-react'
 import { dayMonth } from '@/lib/format'
 import { sizeFormatter, type SizeStyle } from '@/lib/inches'
+import { tapeSummary, tapeTotalText } from '@/lib/tape'
 import { dgLightDeclarations } from '@/lib/diagramStyle'
 import { SheetDiagram } from './SheetDiagram'
 import { Dialog, DialogContent, DialogTitle } from './ui/dialog'
@@ -30,6 +31,7 @@ export function PlanSheet({ sheet, blocks, highlightIndex, sizeStyle = 'decimal'
   const hasEarlier = blocks.some((b) => b.kind === 'earlier')
 
   const pieces = blocks.filter((b) => b.kind === 'cut').sort((p, q) => (p.n ?? 0) - (q.n ?? 0))
+  const tape = tapeSummary(pieces.map((b) => ({ n: b.n ?? 0, w: b.w, h: b.h, tape: b.tape })))
 
   const [fullScreen, setFullScreen] = useState(false)
 
@@ -69,6 +71,7 @@ export function PlanSheet({ sheet, blocks, highlightIndex, sizeStyle = 'decimal'
             <Legend swatch="cut" label={sheet.isNew ? 'Cut pieces' : 'New piece'} />
             <Legend swatch="free" label={sheet.isNew ? 'Saved leftover' : 'Free after this cut'} />
             <Legend swatch="path" label="Cut line" />
+            {tape.rows.length > 0 && <Legend swatch="tape" label="Dotted edge = tape" />}
           </div>
           <p className="mb-3 text-[12px] text-muted-foreground">Sizes are width × height, in inches</p>
           {anyTurned && (
@@ -126,6 +129,21 @@ export function PlanSheet({ sheet, blocks, highlightIndex, sizeStyle = 'decimal'
           ))
         )}
       </div>
+
+      {tape.rows.length > 0 && (
+        <div className="mb-3.5 rounded-lg bg-muted p-3 text-[13px]">
+          <p className="mb-0.5 flex justify-between gap-3 text-muted-foreground">
+            <span>Edge tape ({tape.rows.length} {tape.rows.length === 1 ? 'piece' : 'pieces'})</span>
+            <span>total {tapeTotalText(tape.total, F.fmt)}</span>
+          </p>
+          {tape.rows.map((r) => (
+            <p key={r.n} className="mb-0 flex justify-between gap-3">
+              <span className="font-semibold">Piece {r.n}</span>
+              <span>{r.lengths.map((n) => F.fmt(n)).join(' + ')}</span>
+            </p>
+          ))}
+        </div>
+      )}
 
       <Dialog open={fullScreen} onOpenChange={setFullScreen}>
         <DialogContent className="h-[100dvh] max-h-[100dvh] w-[100vw] max-w-[100vw] rounded-none">
@@ -315,7 +333,15 @@ function SaveImageButton({ sheet }: { sheet: SheetPlan; blocks: Block[] }) {
   )
 }
 
-function Legend({ swatch, label }: { swatch: 'cut' | 'free' | 'old' | 'path'; label: string }) {
+function Legend({ swatch, label }: { swatch: 'cut' | 'free' | 'old' | 'path' | 'tape'; label: string }) {
+  if (swatch === 'tape') {
+    return (
+      <div className="flex items-center gap-2">
+        <span aria-hidden="true" className="h-0 w-3.5 flex-none border-t-[3px] border-dotted" style={{ borderColor: 'var(--dg-text)' }} />
+        {label}
+      </div>
+    )
+  }
   if (swatch === 'path') {
     return (
       <div className="flex items-center gap-2">

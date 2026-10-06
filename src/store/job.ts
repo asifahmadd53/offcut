@@ -2,7 +2,8 @@ import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 import { uid } from '@/lib/id'
 import { packJob, type Item } from '@/lib/packer'
-import type { Leftover, Piece, SheetPlan } from '@/lib/types'
+import type { EdgeTape, Leftover, Piece, SheetPlan } from '@/lib/types'
+import { cleanTape } from '@/lib/tape'
 import { useData } from './data'
 import { useSettings } from './settings'
 
@@ -47,7 +48,9 @@ interface JobState {
    * with an empty stock, so only new sheets are used even though a leftover would fit.
    */
   forceNewSheet: boolean
-  addPiece: (w: number, h: number, qty: number, wText?: string, hText?: string) => void
+  addPiece: (w: number, h: number, qty: number, wText?: string, hText?: string, tape?: EdgeTape) => void
+  /** Sets (or clears) the edge tape on a piece already in the job. */
+  setPieceTape: (id: string, tape?: EdgeTape) => void
   removePiece: (id: string) => void
   setPieces: (pieces: Piece[]) => void
   setClient: (clientId: string, clientName: string) => void
@@ -78,9 +81,15 @@ export const useJob = create<JobState>()(
       plan: null,
       onlyLeftoverId: null,
       forceNewSheet: false,
-      addPiece: (w, h, qty, wText, hText) =>
+      addPiece: (w, h, qty, wText, hText, tape) =>
         set((s) => ({
-          pieces: [...s.pieces, { id: uid(), w, h, qty, wText, hText }],
+          pieces: [...s.pieces, { id: uid(), w, h, qty, wText, hText, tape: cleanTape(tape) }],
+          plan: null,
+          forceNewSheet: false,
+        })),
+      setPieceTape: (id, tape) =>
+        set((s) => ({
+          pieces: s.pieces.map((p) => (p.id === id ? { ...p, tape: cleanTape(tape) } : p)),
           plan: null,
           forceNewSheet: false,
         })),

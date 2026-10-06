@@ -1,5 +1,10 @@
 /** All sizes are in inches. Sheets are `sheetW` wide (48) and `sheetH` tall (96). */
 
+export type TapeSide = 'top' | 'right' | 'bottom' | 'left'
+
+/** Which sides of a piece get edge tape. Missing or empty means none. */
+export type EdgeTape = Partial<Record<TapeSide, boolean>>
+
 export interface Piece {
   id: string
   w: number
@@ -8,6 +13,8 @@ export interface Piece {
   /** The width and height exactly as the user typed them (tidied), for display. Missing on older pieces. */
   wText?: string
   hText?: string
+  /** Edge tape on this piece, sides named as typed (top/bottom = width edges). Optional. */
+  tape?: EdgeTape
 }
 
 export interface Rect {
@@ -26,6 +33,8 @@ export interface Placed extends Rect {
   label: string
   /** True when the piece was turned 90 degrees to fit. */
   rotated: boolean
+  /** Edge tape, already turned to match how the piece sits on the sheet. Optional. */
+  tape?: EdgeTape
 }
 
 /** A free area that will be saved to stock after the cut is confirmed. */

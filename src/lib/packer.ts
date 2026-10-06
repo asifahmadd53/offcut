@@ -1,6 +1,7 @@
 import { fmt, pieceDims } from './inches'
+import { cleanTape, rotateTape } from './tape'
 import { uid } from './id'
-import type { Leftover, LeftoverRect, Piece, Placed, Rect, SheetPlan } from './types'
+import type { EdgeTape, Leftover, LeftoverRect, Piece, Placed, Rect, SheetPlan } from './types'
 
 /**
  * Cutting engine.
@@ -38,6 +39,7 @@ export interface Item {
   w: number
   h: number
   label: string
+  tape?: EdgeTape
 }
 
 export interface PackResult {
@@ -70,7 +72,7 @@ export function expandPieces(pieces: Piece[]): Item[] {
   for (const p of pieces) {
     for (let i = 0; i < p.qty; i++) {
       n += 1
-      items.push({ n, pieceId: p.id, w: p.w, h: p.h, label: pieceDims(p) })
+      items.push({ n, pieceId: p.id, w: p.w, h: p.h, label: pieceDims(p), tape: cleanTape(p.tape) })
     }
   }
   return items
@@ -126,6 +128,8 @@ function place(bin: Bin, idx: number, item: Item, rotated: boolean, kerf: number
     pieceId: item.pieceId,
     label: item.label,
     rotated,
+    // The tape turns with the piece, so the sheet drawing shows it on the right sides.
+    tape: rotated ? rotateTape(item.tape) : item.tape,
   })
 }
 

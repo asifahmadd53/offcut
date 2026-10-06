@@ -1,6 +1,7 @@
 import { computeWasteCells } from './diagramLayout'
 import { spreadPositions } from './diagramStyle'
 import { plural } from './format'
+import { tapeSummary } from './tape'
 import { fmt, sizeFormatter, sizeStyleOf, type Formatter } from './inches'
 import { SvgDoc, type DrawDoc, type RGB } from './svgDoc'
 import type { jsPDF as JsPdfDoc, jsPDFOptions } from 'jspdf'
@@ -183,7 +184,7 @@ export interface PartSection {
 }
 
 /**
- * The parts list: the pieces to cut, and what was cut earlier. Leftovers are not listed
+ * The parts list: the pieces to cut, which of them get edge tape, and what was cut earlier. Leftovers are not listed
  * here (they are drawn, labelled, and counted in "How much is used"). Pieces keep the size
  * as typed (R16).
  */
@@ -198,8 +199,12 @@ export function partSections(blocks: Block[]): PartSection[] {
   const earlier: PartRow[] = blocks
     .filter((b) => b.kind === 'earlier')
     .map((b) => ({ name: 'Already cut', size: F.fmtDims(b.w, b.h) }))
+  // Pieces that get edge tape, with the length of each taped side, and the total to buy.
+  const taped = tapeSummary(blocks.filter((b) => b.kind === 'cut').map((b) => ({ n: b.n ?? 0, w: b.w, h: b.h, tape: b.tape })))
+  const tapeRows: PartRow[] = taped.rows.map((r) => ({ name: `Piece ${r.n}`, size: r.lengths.map((n) => F.fmt(n)).join(' + ') }))
   return [
     { title: 'Cutting pieces', note: 'width × height', rows: pieces },
+    { title: 'Edge tape', note: `${F.fmt(taped.total)} in total`, rows: tapeRows },
     { title: 'Already cut earlier', rows: earlier },
   ].filter((s) => s.rows.length > 0)
 }
@@ -388,12 +393,13 @@ function fitBlockLabel(doc: DrawDoc, b: Block, pw: number, ph: number): LabelFit
 }
 
 function drawLegend(doc: DrawDoc, sheet: SheetPlan, blocks: Block[], x: number, y: number, maxW: number) {
-  const items: Array<{ key: 'blue' | 'green' | 'earlier' | 'cut'; text: string }> = [
+  const items: Array<{ key: 'blue' | 'green' | 'earlier' | 'cut' | 'tape'; text: string }> = [
     { key: 'blue', text: 'Piece to cut' },
     { key: 'green', text: 'Leftover' },
   ]
   if (blocks.some((b) => b.kind === 'earlier')) items.push({ key: 'earlier', text: 'Already cut' })
   if ((sheet.cuts ?? []).length > 0) items.push({ key: 'cut', text: 'Cut line' })
+  if (blocks.some((b) => b.kind === 'cut' && b.tape)) items.push({ key: 'tape', text: 'Dotted edge = tape' })
   const size = 8.5
   const itemW = (t: string) => 7 + widthOf(doc, t, size)
   let cx = x
@@ -403,7 +409,13 @@ function drawLegend(doc: DrawDoc, sheet: SheetPlan, blocks: Block[], x: number, 
       cx = x
       cy += 5.5
     }
-    if (it.key === 'cut') {
+    if (it.key === 'tape') {
+      doc.setDrawColor(...COL.blueInk)
+      doc.setLineWidth(0.6)
+      doc.setLineDashPattern([0.5, 0.9], 0)
+      doc.line(cx, cy - 1, cx + 5.4, cy - 1)
+      doc.setLineDashPattern([], 0)
+    } else if (it.key === 'cut') {
       doc.setDrawColor(...COL.cut)
       doc.setLineWidth(0.45)
       doc.setLineDashPattern([1.2, 0.8], 0)
@@ -529,6 +541,24 @@ function drawDiagram(doc: DrawDoc, page: PrintPage, box: Box) {
     doc.setLineWidth(0.35)
     doc.rect(X(b.x), Y(b.y), b.w * sc, b.h * sc, 'FD')
   }
+
+  // Edge tape: a dotted line just inside every taped side of a piece.
+  doc.setDrawColor(...COL.blueInk)
+  doc.setLineWidth(0.6)
+  doc.setLineDashPattern([0.5, 0.9], 0)
+  for (const b of blocks.filter((x) => x.kind === 'cut' && x.tape)) {
+    const t = b.tape!
+    const inset = Math.min(0.9, (b.w * sc) / 5, (b.h * sc) / 5)
+    const l = X(b.x) + inset
+    const r = X(b.x + b.w) - inset
+    const top = Y(b.y) + inset
+    const bot = Y(b.y + b.h) - inset
+    if (t.top) doc.line(l, top, r, top)
+    if (t.right) doc.line(r, top, r, bot)
+    if (t.bottom) doc.line(l, bot, r, bot)
+    if (t.left) doc.line(l, top, l, bot)
+  }
+  doc.setLineDashPattern([], 0)
 
   // Where the saw goes: the dashed cut lines (no order is printed).
   doc.setDrawColor(...COL.cut)

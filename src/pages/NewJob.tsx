@@ -1,6 +1,7 @@
 import { useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { AppShell } from '@/components/AppShell'
+import { EdgeTapePicker } from '@/components/EdgeTapePicker'
 import { Stepper } from '@/components/Stepper'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -8,6 +9,8 @@ import { Label } from '@/components/ui/label'
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from '@/components/ui/dialog'
 import { cleanTyped, fmtDims, fmtLeft, parseInches, pieceDims } from '@/lib/inches'
 import { plural } from '@/lib/format'
+import { cleanTape, describeSides, hasTape } from '@/lib/tape'
+import type { EdgeTape } from '@/lib/types'
 import { knownClients, newClient } from '@/lib/clients'
 import { useJob, type LeftoverFitCheck } from '@/store/job'
 import { useSettings } from '@/store/settings'
@@ -34,6 +37,7 @@ export default function NewJob() {
   const setSheetNumber = useJob((s) => s.setSheetNumber)
   const addPiece = useJob((s) => s.addPiece)
   const removePiece = useJob((s) => s.removePiece)
+  const setPieceTape = useJob((s) => s.setPieceTape)
   const buildPlan = useJob((s) => s.buildPlan)
   const checkLeftoverFit = useJob((s) => s.checkLeftoverFit)
   const buildPlanWithNewSheet = useJob((s) => s.buildPlanWithNewSheet)
@@ -68,6 +72,11 @@ export default function NewJob() {
   const [width, setWidth] = useState('')
   const [height, setHeight] = useState('')
   const [qty, setQty] = useState(1)
+  // Optional edge tape for the piece being typed, and which piece in the list is being edited.
+  const [tape, setTape] = useState<EdgeTape>({})
+  const [tapeOpen, setTapeOpen] = useState(false)
+  const [editTapeId, setEditTapeId] = useState<string | null>(null)
+  const editingPiece = editTapeId ? pieces.find((p) => p.id === editTapeId) : undefined
   const [touchedW, setTouchedW] = useState(false)
   const [touchedH, setTouchedH] = useState(false)
   const [triedAdd, setTriedAdd] = useState(false)
@@ -95,10 +104,12 @@ export default function NewJob() {
   function doAdd() {
     setTriedAdd(true)
     if (!bothValid || tooBig) return
-    addPiece(wVal!, hVal!, qty, cleanTyped(width), cleanTyped(height))
+    addPiece(wVal!, hVal!, qty, cleanTyped(width), cleanTyped(height), cleanTape(tape))
     setWidth('')
     setHeight('')
     setQty(1)
+    setTape({})
+    setTapeOpen(false)
     setTriedAdd(false)
     setTouchedW(false)
     setTouchedH(false)
@@ -114,7 +125,7 @@ export default function NewJob() {
 
     // If a valid piece is typed but not added yet, add it first.
     if (bothValid && !tooBig) {
-      addPiece(wVal!, hVal!, qty, cleanTyped(width), cleanTyped(height))
+      addPiece(wVal!, hVal!, qty, cleanTyped(width), cleanTyped(height), cleanTape(tape))
     }
 
     if (onlyLeftoverId) {
@@ -299,6 +310,28 @@ export default function NewJob() {
         <Stepper value={qty} onChange={setQty} />
       </div>
 
+      <div className="mb-3 rounded-lg border-hair border-border">
+        <button
+          type="button"
+          aria-expanded={tapeOpen}
+          onClick={() => setTapeOpen((v) => !v)}
+          className="flex min-h-[48px] w-full items-center justify-between px-3 text-left"
+        >
+          <span className="text-[15px] font-semibold">Edge tape (optional)</span>
+          <span className="text-[13px] text-muted-foreground">
+            {hasTape(tape) ? describeSides(tape) : tapeOpen ? 'Hide' : 'None'}
+          </span>
+        </button>
+        {tapeOpen && (
+          <div className="border-t border-hair border-border px-3 pb-3 pt-3">
+            <p className="mb-3 text-[13px] text-muted-foreground">
+              Tap the sides of this piece that get tape. Dotted sides are taped.
+            </p>
+            <EdgeTapePicker value={tape} onChange={setTape} widthText={cleanTyped(width) || undefined} heightText={cleanTyped(height) || undefined} w={wVal} h={hVal} />
+          </div>
+        )}
+      </div>
+
       <Button
         type="button"
         variant="outline"
@@ -318,10 +351,19 @@ export default function NewJob() {
       ) : (
         <div className="mb-4.5">
           {pieces.map((p) => (
-            <div key={p.id} className="flex items-center justify-between border-b border-hair border-border rounded-md px-2 py-1">
-              <span className="text-[16px] font-semibold">
-                {pieceDims(p)} <span className="font-normal text-muted-foreground">· {p.qty} pcs</span>
-              </span>
+            <div key={p.id} className="flex items-center justify-between gap-2 border-b border-hair border-border rounded-md px-2 py-1">
+              <div className="min-w-0">
+                <p className="mb-0 text-[16px] font-semibold">
+                  {pieceDims(p)} <span className="font-normal text-muted-foreground">· {p.qty} pcs</span>
+                </p>
+                <button
+                  type="button"
+                  onClick={() => setEditTapeId(p.id)}
+                  className="min-h-[36px] text-[13px] text-accent-text underline-offset-4 hover:underline"
+                >
+                  {hasTape(p.tape) ? `Tape: ${describeSides(p.tape)} · change` : '+ Add edge tape'}
+                </button>
+              </div>
               <button
                 type="button"
                 onClick={() => removePiece(p.id)}
@@ -356,6 +398,28 @@ export default function NewJob() {
       <Button size="lg" className="w-full" disabled={!canMakePlan} onClick={onMakePlan}>
         Make cutting plan
       </Button>
+
+      <Dialog open={!!editingPiece} onOpenChange={(open) => !open && setEditTapeId(null)}>
+        <DialogContent>
+          <DialogTitle>Edge tape</DialogTitle>
+          <DialogDescription>Tap the sides that get tape. Dotted sides are taped.</DialogDescription>
+          {editingPiece && (
+            <div className="mt-4">
+              <EdgeTapePicker
+                value={editingPiece.tape ?? {}}
+                onChange={(next) => setPieceTape(editingPiece.id, next)}
+                widthText={editingPiece.wText}
+                heightText={editingPiece.hText}
+                w={editingPiece.w}
+                h={editingPiece.h}
+              />
+              <Button className="mt-4 h-12 w-full" onClick={() => setEditTapeId(null)}>
+                Done
+              </Button>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
 
       <Dialog open={!!misfit} onOpenChange={(open) => !open && setMisfit(null)}>
         <DialogContent>

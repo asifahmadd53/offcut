@@ -1,5 +1,5 @@
 import type { Derived } from './stock'
-import type { Rect, SheetPlan } from './types'
+import type { EdgeTape, Rect, SheetPlan } from './types'
 
 export type BlockKind = 'cut' | 'earlier' | 'free' | 'freeNew' | 'focus' | 'waste'
 
@@ -11,6 +11,8 @@ export interface Block extends Rect {
   letter?: string
   n?: number
   rotated?: boolean
+  /** Edge tape on this piece, on the sides as drawn. */
+  tape?: EdgeTape
 }
 
 /**
@@ -68,6 +70,7 @@ export function buildBlocks(
       label: p.label,
       n: p.n,
       rotated: p.rotated,
+      tape: p.tape,
     })
   }
 
