@@ -1,4 +1,4 @@
-import { fmt } from './inches'
+import { pieceDims } from './inches'
 import { plural } from './format'
 import type { CutDoc, Piece, SheetPlan } from './types'
 
@@ -6,7 +6,7 @@ import type { CutDoc, Piece, SheetPlan } from './types'
 export function pieceSummary(pieces: Piece[] = []): string {
   if (pieces.length === 0) return 'No pieces'
   const first = pieces[0]
-  const text = `${fmt(first.w)} × ${fmt(first.h)}, ${plural(first.qty, 'pc')}`
+  const text = `${pieceDims(first)}, ${plural(first.qty, 'pc')}`
   return pieces.length > 1 ? `${text} +${pieces.length - 1} more` : text
 }
 

@@ -5,6 +5,7 @@ import { PlanSheet } from '@/components/PlanSheet'
 import { PrintOrPdfDialog } from '@/components/PrintOrPdfDialog'
 import { Button } from '@/components/ui/button'
 import { dayMonth } from '@/lib/format'
+import { sizeStyleOf } from '@/lib/inches'
 import { pieceSummary, sourceSummary } from '@/lib/summary'
 import { buildBlocks } from '@/lib/sheetView'
 import { useData } from '@/store/data'
@@ -70,7 +71,7 @@ export default function JobDetail() {
       )}
 
       {cut.sheets.map((sheet, i) => (
-        <PlanSheet key={sheet.sheetId + i} sheet={sheet} blocks={buildBlocks(sheet, derived, cut.id)} />
+        <PlanSheet key={sheet.sheetId + i} sheet={sheet} blocks={buildBlocks(sheet, derived, cut.id)} sizeStyle={sizeStyleOf(cut.pieces)} />
       ))}
 
       <PrintOrPdfDialog

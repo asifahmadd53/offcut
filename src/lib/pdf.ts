@@ -1,7 +1,7 @@
 import { computeWasteCells } from './diagramLayout'
 import { spreadPositions } from './diagramStyle'
 import { plural } from './format'
-import { fmt } from './inches'
+import { fmt, sizeFormatter, sizeStyleOf, type Formatter } from './inches'
 import { SvgDoc, type DrawDoc, type RGB } from './svgDoc'
 import type { jsPDF as JsPdfDoc, jsPDFOptions } from 'jspdf'
 import type { PrintPage } from './print'
@@ -55,6 +55,12 @@ const FOOTER_H = 8
 const INFO_W = 56
 const COL_GAP = 4
 const PT = 0.3528 // mm per point
+
+/**
+ * How the sizes the app works out itself (not the ones typed) are written on these pages;
+ * set once per document in drawJob from how the job's sizes were typed.
+ */
+let F: Formatter = sizeFormatter('fraction')
 
 const COL = {
   ink: [27, 26, 23] as RGB,
@@ -187,11 +193,11 @@ export function partSections(blocks: Block[]): PartSection[] {
     .sort((p, q) => (p.n ?? 0) - (q.n ?? 0))
     .map((b) => ({
       name: `Piece ${b.n ?? ''}${b.rotated ? ' (turned)' : ''}`,
-      size: b.label ?? `${fmt(b.w)} × ${fmt(b.h)}`,
+      size: b.label ?? F.fmtDims(b.w, b.h),
     }))
   const earlier: PartRow[] = blocks
     .filter((b) => b.kind === 'earlier')
-    .map((b) => ({ name: 'Already cut', size: `${fmt(b.w)} × ${fmt(b.h)}` }))
+    .map((b) => ({ name: 'Already cut', size: F.fmtDims(b.w, b.h) }))
   return [
     { title: 'Cutting pieces', note: 'W × H, inches', rows: pieces },
     { title: 'Already cut earlier', rows: earlier },
@@ -326,20 +332,18 @@ interface LabelCandidate {
   vertical?: boolean
 }
 
-/** What a block can carry, richest first; the last entry is the bare number/letter. */
+/**
+ * What a block can carry, richest first: a piece writes "#15" / "W 10.5" / "H 38.6" on three
+ * short lines when it has room, else "#9 · 4w × 27.6h" on one line across or up the block,
+ * else just its number (its size then goes in a note with a line to the block).
+ */
 function labelCandidates(b: Block): LabelCandidate[] {
-  const plain = `${fmt(b.w)} × ${fmt(b.h)}`
+  const plain = F.fmtDims(b.w, b.h)
   if (b.kind === 'cut') {
-    const d = b.label ?? plain
+    const [w, h] = (b.label ?? plain).split(' × ')
     const n = `#${b.n ?? ''}`
-    const full = [`Piece ${b.n ?? ''}`, d]
-    return [
-      { lines: b.rotated ? [...full, 'turned to fit'] : full },
-      { lines: full },
-      { lines: [`${n} · ${d}`] },
-      { lines: [`${n} · ${d}`], vertical: true },
-      { lines: [n] },
-    ]
+    const one = `${n} · ${w}w × ${h}h`
+    return [{ lines: [n, `W ${w}`, `H ${h}`] }, { lines: [one] }, { lines: [one], vertical: true }, { lines: [n] }]
   }
   // A leftover shows just its letter (its size is not printed); too small for even that, it
   // gets a note with a line to it.
@@ -416,6 +420,12 @@ function drawLegend(doc: DrawDoc, sheet: SheetPlan, blocks: Block[], x: number, 
     put(doc, it.text, cx + 7, cy, { size, color: COL.muted })
     cx += itemW(it.text) + 5
   }
+  const note = 'W = width, H = height, inches'
+  if (cx > x && cx + widthOf(doc, note, size) > x + maxW) {
+    cx = x
+    cy += 5.5
+  }
+  put(doc, note, cx, cy, { size, color: COL.muted })
 }
 
 interface BlockFit {
@@ -437,7 +447,7 @@ interface DiagramPlan {
 /** Works out scale and every label for one margin width — nothing is drawn yet. */
 function planDiagram(doc: DrawDoc, page: PrintPage, box: Box, zoneRight: number, wasteCells: ReturnType<typeof computeWasteCells>): DiagramPlan {
   const { sheet, blocks } = page
-  const zone = { top: 20, left: 21, bottom: 16 }
+  const zone = { top: 20, left: 21, bottom: 20 }
   const availW = box.w - zone.left - zoneRight
   const availH = box.h - zone.top - zone.bottom
   const sc = Math.min(availW / sheet.sheetW, availH / sheet.sheetH)
@@ -456,7 +466,7 @@ function planDiagram(doc: DrawDoc, page: PrintPage, box: Box, zoneRight: number,
     // A block that can only show its bare number or letter still gets its size in a note with a line to it.
     if ((!fit || fit.tag) && b.kind !== 'waste') {
       const name = b.kind === 'cut' ? `Piece ${b.n ?? ''}` : b.kind === 'earlier' ? 'Already cut' : `Leftover ${b.letter ?? ''}`
-      const dims = b.kind === 'cut' ? (b.label ?? `${fmt(b.w)} × ${fmt(b.h)}`) : b.kind === 'earlier' ? `${fmt(b.w)} × ${fmt(b.h)}` : ''
+      const dims = b.kind === 'cut' ? (b.label ?? F.fmtDims(b.w, b.h)) : b.kind === 'earlier' ? F.fmtDims(b.w, b.h) : ''
       callouts.push({ name, dims, ax: X(b.x + b.w), ay: Y(b.y + b.h / 2), ink: inkFor(b) })
     }
   }
@@ -584,16 +594,16 @@ function drawDiagram(doc: DrawDoc, page: PrintPage, box: Box) {
   doc.line(X0, dimY, X1, dimY)
   doc.line(X0, dimY - 1.4, X0, dimY + 1.4)
   doc.line(X1, dimY - 1.4, X1, dimY + 1.4)
-  put(doc, `${fmt(sheetW)} in wide`, (X0 + X1) / 2, dimY - 1.8, { size: 9.5, bold: true, align: 'center' })
+  put(doc, `${F.fmt(sheetW)} in wide`, (X0 + X1) / 2, dimY - 1.8, { size: 9.5, bold: true, align: 'center' })
   const dimX = X0 - 14.5
   doc.line(dimX, Y0, dimX, Y1)
   doc.line(dimX - 1.4, Y0, dimX + 1.4, Y0)
   doc.line(dimX - 1.4, Y1, dimX + 1.4, Y1)
-  const hText = `${fmt(sheetH)} in tall`
+  const hText = `${F.fmt(sheetH)} in tall`
   const hW = widthOf(doc, hText, 9.5, true)
   put(doc, hText, dimX - 1.8, (Y0 + Y1) / 2 + hW / 2, { size: 9.5, bold: true, angle: 90 })
 
-  drawLegend(doc, sheet, blocks, box.x, Y1 + 9, box.w)
+  drawLegend(doc, sheet, blocks, box.x, Y1 + 12, box.w)
 }
 
 // ---------- Information column ----------
@@ -734,6 +744,7 @@ function dryRun(doc: DrawDoc): DrawDoc {
 function drawJob(doc: DrawDoc, pages: PrintPage[], paperSize: Settings['paperSize'], cut?: CutDoc) {
   const size = PAGE_MM[paperSize]
   const job = jobFacts(pages, cut)
+  F = sizeFormatter(sizeStyleOf(cut?.pieces))
 
   pages.forEach((page, i) => {
     if (i > 0) doc.addPage()

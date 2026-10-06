@@ -6,7 +6,7 @@ import { PrintOrPdfDialog } from '@/components/PrintOrPdfDialog'
 import { Button } from '@/components/ui/button'
 import { buildBlocks } from '@/lib/sheetView'
 import { plural } from '@/lib/format'
-import { fmtDims } from '@/lib/inches'
+import { pieceDims, sizeStyleOf } from '@/lib/inches'
 import { forcedNewSheetNote, leftoverUseMessage, usingLeftoverToast, wouldUseLeftover } from '@/lib/leftoverAnnounce'
 import { saveCut } from '@/lib/db'
 import { getDeviceId, uid } from '@/lib/id'
@@ -19,7 +19,7 @@ import type { CutDoc, Piece, SheetPlan } from '@/lib/types'
 
 function subtitleFor(sheets: SheetPlan[], pieces: Piece[]): string {
   const newCount = sheets.filter((s) => s.isNew).length
-  const pieceText = pieces.map((p) => `${fmtDims(p.w, p.h)}, ${plural(p.qty, 'pc')}`).join(' + ')
+  const pieceText = pieces.map((p) => `${pieceDims(p)}, ${plural(p.qty, 'pc')}`).join(' + ')
   if (newCount === sheets.length && newCount > 0) {
     const first = sheets[0]
     const sheetLabel = newCount > 1 ? `${newCount} new sheets` : 'New sheet'
@@ -263,7 +263,7 @@ export default function Plan() {
                 Sheet {i + 1} of {sheets.length}
               </p>
             )}
-            <PlanSheet sheet={s} blocks={buildBlocks(s, derived, pendingDoc?.id)} />
+            <PlanSheet sheet={s} blocks={buildBlocks(s, derived, pendingDoc?.id)} sizeStyle={sizeStyleOf(pieces)} />
           </div>
         ))}
       </div>

@@ -10,7 +10,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog'
 import { dayMonth } from '@/lib/format'
-import { fmt } from '@/lib/inches'
+import { fmt, sizeStyleOf } from '@/lib/inches'
 import { saveCut } from '@/lib/db'
 import { getDeviceId, uid } from '@/lib/id'
 import { buildBlocks } from '@/lib/sheetView'
@@ -122,7 +122,7 @@ export default function LeftoverDetail() {
         )}
       </div>
 
-      <PlanSheet sheet={sheet} blocks={blocks} highlightIndex={highlightIndex >= 0 ? highlightIndex : undefined} />
+      <PlanSheet sheet={sheet} blocks={blocks} highlightIndex={highlightIndex >= 0 ? highlightIndex : undefined} sizeStyle={sizeStyleOf(sourceCut.pieces)} />
 
       <Button size="lg" className="mb-2.5 h-[52px] w-full" onClick={useInNewJob}>
         Use this in a new job

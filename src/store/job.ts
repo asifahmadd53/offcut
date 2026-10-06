@@ -47,7 +47,7 @@ interface JobState {
    * with an empty stock, so only new sheets are used even though a leftover would fit.
    */
   forceNewSheet: boolean
-  addPiece: (w: number, h: number, qty: number) => void
+  addPiece: (w: number, h: number, qty: number, wText?: string, hText?: string) => void
   removePiece: (id: string) => void
   setPieces: (pieces: Piece[]) => void
   setClient: (clientId: string, clientName: string) => void
@@ -78,9 +78,9 @@ export const useJob = create<JobState>()(
       plan: null,
       onlyLeftoverId: null,
       forceNewSheet: false,
-      addPiece: (w, h, qty) =>
+      addPiece: (w, h, qty, wText, hText) =>
         set((s) => ({
-          pieces: [...s.pieces, { id: uid(), w, h, qty }],
+          pieces: [...s.pieces, { id: uid(), w, h, qty, wText, hText }],
           plan: null,
           forceNewSheet: false,
         })),

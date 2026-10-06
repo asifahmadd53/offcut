@@ -1,16 +1,15 @@
 import { useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { diagramAriaLabel } from '@/lib/diagramLayout'
 import {
+  blockLabel,
   blockTierFor,
-  CHIP_MIN_H,
   horizontalTicks,
   rulerLabel,
   smallBlockCallouts,
   spreadPositions,
-  lineText,
   verticalTicks,
 } from '@/lib/diagramStyle'
-import { fmt } from '@/lib/inches'
+import { sizeFormatter, type SizeStyle } from '@/lib/inches'
 import type { Block } from '@/lib/sheetView'
 import type { SheetPlan } from '@/lib/types'
 
@@ -28,6 +27,8 @@ interface SheetDiagramProps {
    * rendering overlay — it never changes geometry, scale or which label a block gets.
    */
   highlightIndex?: number
+  /** How the sizes the app works out itself are written: fractions or decimals (follows how the job was typed). */
+  sizeStyle?: SizeStyle
   /**
    * When true, the diagram measures its container's actual width AND height and fits the
    * whole drawing inside both (print pages, full screen). The caller must give the
@@ -73,9 +74,12 @@ export function SheetDiagram({
   maxH = 288,
   cuts,
   highlightIndex,
+  sizeStyle = 'fraction',
   fill = false,
   autoHeight = false,
 }: SheetDiagramProps) {
+  const F = useMemo(() => sizeFormatter(sizeStyle), [sizeStyle])
+  const fmt = F.fmt
   const containerRef = useRef<HTMLDivElement>(null)
   const [containerW, setContainerW] = useState(maxW + LEFT + RIGHT)
   const [containerH, setContainerH] = useState(maxH + TOP + RULER)
@@ -119,13 +123,13 @@ export function SheetDiagram({
     // block, so the sheet is kept dead centre by widening both margins to fit the widest note.
     const noteMargin = (list: ReturnType<typeof smallBlockCallouts>) =>
       list.length ? CALLOUT_LEAD + Math.max(...list.map((c) => Math.max(c.name.length, c.dims.length))) * 6.4 + 8 : 0
-    let margin = Math.max(rulerMargin, noteMargin(smallBlockCallouts(blocks, fitScale(rulerMargin))))
-    margin = Math.max(margin, noteMargin(smallBlockCallouts(blocks, fitScale(margin))))
+    let margin = Math.max(rulerMargin, noteMargin(smallBlockCallouts(blocks, fitScale(rulerMargin), F)))
+    margin = Math.max(margin, noteMargin(smallBlockCallouts(blocks, fitScale(margin), F)))
     const s = fitScale(margin)
     const sheetPxW = sheetW * s
     const sheetPxH = sheetH * s
     const sheetLeft = (containerW - sheetPxW) / 2
-    const callouts = smallBlockCallouts(blocks, s)
+    const callouts = smallBlockCallouts(blocks, s, F)
     const twoLine = callouts.length * CALLOUT_GAP_2 <= sheetPxH - 12
     const gap = twoLine ? CALLOUT_GAP_2 : CALLOUT_GAP_1
     const sorted = [...callouts].sort((p, q) => p.ay - q.ay)
@@ -141,7 +145,7 @@ export function SheetDiagram({
     const svgW = containerW
     const svgH = TOP + sheetPxH + RULER + extraH
     return { s, sheetPxW, sheetPxH, sheetLeft, sorted, noteYs, twoLine, noteX, noteFont, svgW, svgH }
-  }, [autoHeight, blocks, containerH, containerW, fill, maxH, sheetH, sheetW, vh])
+  }, [F, autoHeight, blocks, containerH, containerW, fill, fmt, maxH, sheetH, sheetW, vh])
 
   const { s, sheetPxW, sheetPxH, sheetLeft, sorted, noteYs, twoLine, noteX, noteFont, svgW, svgH } = g
   const X = (x: number) => sheetLeft + x * s
@@ -173,59 +177,19 @@ export function SheetDiagram({
     const by = Y(b.y)
     const bw = b.w * s
     const bh = b.h * s
-    const tier = blockTierFor(b, s)
+    const tier = blockTierFor(b, s, F)
     const cx = bx + bw / 2
     const cy = by + bh / 2
     const highlighted = highlightIndex === i
-    const line = tier === 'line' ? lineText(b, bw, bh) : null
+    const label = tier === 'line' ? blockLabel(b, bw, bh, F) : null
     const isLeftover = b.kind === 'free' || b.kind === 'freeNew' || b.kind === 'focus'
 
     let body: JSX.Element
     if (b.kind === 'cut') {
-      const sizeText = b.label ?? `${fmt(b.w)} × ${fmt(b.h)}`
-      // Medium blocks keep the "#n" tag above the size when tall enough, else it joins the size.
-      const tagged = tier === 'medium' && bh >= CHIP_MIN_H
-      const shown = tier === 'medium' && !tagged ? `#${b.n} · ${sizeText}` : sizeText
-      const fs = fitFont(shown, bw - 14, tier === 'full' ? 22 : 15)
-      const textY = tier === 'full' ? cy + 2 : tagged ? by + 22 + (bh - 22) / 2 + 5 : cy + 5
       body = (
         <>
           <rect x={bx} y={by} width={bw} height={bh} fill="var(--dg-blue)" />
-          {tier === 'full' && (
-            <>
-              <rect x={bx + 8} y={by + 8} width={52} height={22} rx={6} fill="black" fillOpacity={0.3} />
-              <text x={bx + 34} y={by + 23} textAnchor="middle" fontSize="11.5" fontWeight="700" fill="var(--dg-on-blue)">
-                Piece
-              </text>
-              <text x={bx + 12} y={by + 46} fontSize="12" fontWeight="700" fill="var(--dg-on-blue)">
-                {b.n}
-              </text>
-              <text x={bx + bw - 10} y={by + 22} textAnchor="end" fontSize="12.5" fontWeight="700" fill="var(--dg-on-blue)">
-                {fmt(b.w)}"
-              </text>
-              <text x={bx + 10} y={by + bh - 10} fontSize="12.5" fontWeight="700" fill="var(--dg-on-blue)">
-                {fmt(b.h)}"
-              </text>
-            </>
-          )}
-          {tagged && (
-            <text x={bx + 8} y={by + 18} fontSize="11.5" fontWeight="700" fill="var(--dg-on-blue)">
-              #{b.n}
-            </text>
-          )}
-          {(tier === 'full' || tier === 'medium') && (
-            <>
-              <text x={cx} y={textY} textAnchor="middle" fontSize={fs} fontWeight="800" fill="var(--dg-on-blue)">
-                {shown}
-              </text>
-              {tier === 'full' && (
-                <text x={cx} y={cy + 22} textAnchor="middle" fontSize="10" fontWeight="600" letterSpacing="1.4" fill="var(--dg-on-blue)" opacity={0.85}>
-                  REQUIRED CUT
-                </text>
-              )}
-            </>
-          )}
-          {line && <LineLabel line={line} cx={cx} cy={cy} fill="var(--dg-on-blue)" />}
+          {label && <LabelText label={label} cx={cx} cy={cy} fill="var(--dg-on-blue)" />}
           {tier === 'small' && (
             <text x={cx} y={cy + 4} textAnchor="middle" fontSize="11" fontWeight="700" fill="var(--dg-on-blue)">
               {bw >= (String(b.n).length + 1) * 6.8 + 2 ? `#${b.n}` : b.n}
@@ -264,7 +228,7 @@ export function SheetDiagram({
       body = (
         <>
           <rect x={bx} y={by} width={bw} height={bh} fill="var(--dg-earlier)" />
-          {line && <LineLabel line={line} cx={cx} cy={cy} fill="var(--dg-muted)" />}
+          {label && <LabelText label={label} cx={cx} cy={cy} fill="var(--dg-muted)" />}
           {(tier === 'full' || tier === 'medium') && (
             <>
               <text x={cx} y={cy + 4} textAnchor="middle" fontSize={fitFont(sizeText, bw - 14, 15)} fontWeight="700" fill="var(--dg-muted)">
@@ -435,17 +399,27 @@ export function SheetDiagram({
   )
 }
 
-/** A piece's number and size as one line inside its block, across it or (when narrow) up it. */
-function LineLabel({ line, cx, cy, fill }: { line: LineTextShape; cx: number; cy: number; fill: string }) {
-  return line.rotated ? (
-    <text transform={`translate(${cx} ${cy}) rotate(-90)`} y={line.size * 0.35} textAnchor="middle" fontSize={line.size} fontWeight={800} fill={fill}>
-      {line.text}
-    </text>
-  ) : (
-    <text x={cx} y={cy + line.size * 0.35} textAnchor="middle" fontSize={line.size} fontWeight={800} fill={fill}>
-      {line.text}
-    </text>
+/** A block's label: three short lines, or one line across it or (when narrow) up it. */
+function LabelText({ label, cx, cy, fill }: { label: BlockLabelShape; cx: number; cy: number; fill: string }) {
+  const { lines, size, rotated } = label
+  if (rotated) {
+    return (
+      <text transform={`translate(${cx} ${cy}) rotate(-90)`} y={size * 0.35} textAnchor="middle" fontSize={size} fontWeight={800} fill={fill}>
+        {lines[0]}
+      </text>
+    )
+  }
+  const lh = size * 1.25
+  const top = cy - (lines.length * lh) / 2
+  return (
+    <>
+      {lines.map((line, i) => (
+        <text key={i} x={cx} y={top + i * lh + size * 0.95} textAnchor="middle" fontSize={size} fontWeight={i === 0 ? 800 : 700} fill={fill}>
+          {line}
+        </text>
+      ))}
+    </>
   )
 }
 
-type LineTextShape = { text: string; size: number; rotated: boolean }
+type BlockLabelShape = { lines: string[]; size: number; rotated: boolean }

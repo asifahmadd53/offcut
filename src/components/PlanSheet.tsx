@@ -2,7 +2,7 @@ import { useRef, useState } from 'react'
 import { TransformComponent, TransformWrapper, type ReactZoomPanPinchRef } from 'react-zoom-pan-pinch'
 import { IconX } from '@tabler/icons-react'
 import { dayMonth } from '@/lib/format'
-import { fmt, fmtLeft } from '@/lib/inches'
+import { sizeFormatter, type SizeStyle } from '@/lib/inches'
 import { dgLightDeclarations } from '@/lib/diagramStyle'
 import { SheetDiagram } from './SheetDiagram'
 import { Dialog, DialogContent, DialogTitle } from './ui/dialog'
@@ -16,10 +16,13 @@ interface PlanSheetProps {
    *  leftover Leftover detail opened. Purely a rendering overlay (SheetDiagram's own
    *  highlightIndex prop) — never changes geometry, scale, or any label. */
   highlightIndex?: number
+  /** Fractions or decimals for the sizes the app works out itself; follows how the job was typed. */
+  sizeStyle?: SizeStyle
 }
 
 /** One physical sheet of a plan: the diagram, a side panel, and the cut order below. */
-export function PlanSheet({ sheet, blocks, highlightIndex }: PlanSheetProps) {
+export function PlanSheet({ sheet, blocks, highlightIndex, sizeStyle = 'fraction' }: PlanSheetProps) {
+  const F = sizeFormatter(sizeStyle)
   const usedArea = sheet.placements.reduce((sum, p) => sum + p.w * p.h, 0)
   const regionArea = sheet.region.w * sheet.region.h
   const pct = regionArea > 0 ? Math.round((usedArea / regionArea) * 100) : 0
@@ -43,6 +46,7 @@ export function PlanSheet({ sheet, blocks, highlightIndex }: PlanSheetProps) {
             blocks={blocks}
             cuts={sheet.cuts}
             highlightIndex={highlightIndex}
+            sizeStyle={sizeStyle}
             autoHeight
           />
         </div>
@@ -52,7 +56,7 @@ export function PlanSheet({ sheet, blocks, highlightIndex }: PlanSheetProps) {
             <>
               <p className="mb-0.5 text-muted-foreground">Use this leftover</p>
               <p className="mb-0.5 text-[16px] font-semibold">
-                {sheet.usedLetter} · {fmtLeft(sheet.region.w, sheet.region.h)}
+                {sheet.usedLetter} · {F.fmtLeft(sheet.region.w, sheet.region.h)}
               </p>
               <p className="mb-3 text-muted-foreground">
                 From the sheet cut on {dayMonth(sheet.sheetDate)}
@@ -66,6 +70,7 @@ export function PlanSheet({ sheet, blocks, highlightIndex }: PlanSheetProps) {
             <Legend swatch="free" label={sheet.isNew ? 'Saved leftover' : 'Free after this cut'} />
             <Legend swatch="path" label="Cut line" />
           </div>
+          <p className="mb-3 text-[12px] text-muted-foreground">W = width, H = height, inches</p>
           {anyTurned && (
             <span className="mb-3 mt-[-6px] inline-block rounded-full bg-muted px-2.5 py-0.5 text-[12px] text-muted-foreground">
               Turned to fit
@@ -90,7 +95,7 @@ export function PlanSheet({ sheet, blocks, highlightIndex }: PlanSheetProps) {
                     Piece {b.n}
                     {b.rotated ? ' (turned)' : ''}
                   </span>
-                  <span>{b.label ?? `${fmt(b.w)} × ${fmt(b.h)}`}</span>
+                  <span>{b.label ?? F.fmtDims(b.w, b.h)}</span>
                 </p>
               ))}
             </>
@@ -116,7 +121,7 @@ export function PlanSheet({ sheet, blocks, highlightIndex }: PlanSheetProps) {
         ) : (
           sheet.newLeftovers.map((l) => (
             <p key={l.id} className="mb-0">
-              {l.letter}: {fmtLeft(l.w, l.h)}
+              {l.letter}: {F.fmtLeft(l.w, l.h)}
             </p>
           ))
         )}
@@ -128,6 +133,7 @@ export function PlanSheet({ sheet, blocks, highlightIndex }: PlanSheetProps) {
           <FullScreenDiagram
             sheet={sheet}
             blocks={blocks}
+            sizeStyle={sizeStyle}
             onClose={() => setFullScreen(false)}
           />
         </DialogContent>
@@ -136,7 +142,7 @@ export function PlanSheet({ sheet, blocks, highlightIndex }: PlanSheetProps) {
   )
 }
 
-function FullScreenDiagram({ sheet, blocks, onClose }: { sheet: SheetPlan; blocks: Block[]; onClose: () => void }) {
+function FullScreenDiagram({ sheet, blocks, sizeStyle, onClose }: { sheet: SheetPlan; blocks: Block[]; sizeStyle: SizeStyle; onClose: () => void }) {
   const wrapperRef = useRef<ReactZoomPanPinchRef | null>(null)
   const [zoomed, setZoomed] = useState(false)
 
@@ -173,6 +179,7 @@ function FullScreenDiagram({ sheet, blocks, onClose }: { sheet: SheetPlan; block
               sheetH={sheet.sheetH}
               blocks={blocks}
               cuts={sheet.cuts}
+              sizeStyle={sizeStyle}
               fill
             />
           </TransformComponent>

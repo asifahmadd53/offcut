@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from '@/components/ui/dialog'
-import { parseInches, fmtDims, fmtLeft } from '@/lib/inches'
+import { cleanTyped, fmtDims, fmtLeft, parseInches, pieceDims } from '@/lib/inches'
 import { plural } from '@/lib/format'
 import { knownClients, newClient } from '@/lib/clients'
 import { useJob, type LeftoverFitCheck } from '@/store/job'
@@ -95,7 +95,7 @@ export default function NewJob() {
   function doAdd() {
     setTriedAdd(true)
     if (!bothValid || tooBig) return
-    addPiece(wVal!, hVal!, qty)
+    addPiece(wVal!, hVal!, qty, cleanTyped(width), cleanTyped(height))
     setWidth('')
     setHeight('')
     setQty(1)
@@ -114,7 +114,7 @@ export default function NewJob() {
 
     // If a valid piece is typed but not added yet, add it first.
     if (bothValid && !tooBig) {
-      addPiece(wVal!, hVal!, qty)
+      addPiece(wVal!, hVal!, qty, cleanTyped(width), cleanTyped(height))
     }
 
     if (onlyLeftoverId) {
@@ -320,12 +320,12 @@ export default function NewJob() {
           {pieces.map((p) => (
             <div key={p.id} className="flex items-center justify-between border-b border-hair border-border rounded-md px-2 py-1">
               <span className="text-[16px] font-semibold">
-                {fmtDims(p.w, p.h)} <span className="font-normal text-muted-foreground">· {p.qty} pcs</span>
+                {pieceDims(p)} <span className="font-normal text-muted-foreground">· {p.qty} pcs</span>
               </span>
               <button
                 type="button"
                 onClick={() => removePiece(p.id)}
-                aria-label={`Remove ${fmtDims(p.w, p.h)}`}
+                aria-label={`Remove ${pieceDims(p)}`}
                 className="flex h-9 w-9 items-center justify-center text-muted-foreground"
               >
                 ✕

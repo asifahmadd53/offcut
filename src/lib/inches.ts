@@ -55,3 +55,50 @@ export const fmtDims = (w: number, h: number) => `${fmt(w)} × ${fmt(h)}`
 /** Leftovers are always shown short side first: 19 × 48, 2 × 77. */
 export const fmtLeft = (w: number, h: number) =>
   `${fmt(Math.min(w, h))} × ${fmt(Math.max(w, h))}`
+
+/**
+ * What the user typed for one side of a piece, tidied for display: units and extra spaces
+ * dropped, nothing converted or rounded ("10.5" stays "10.5", "22 1/2" stays "22 1/2").
+ */
+export function cleanTyped(input: string): string {
+  return input
+    .trim()
+    .replace(/\s*(["”″]|inches|inch|in)\s*$/i, '')
+    .replace(/\s+/g, ' ')
+}
+
+/** A piece's size as it was typed (width × height), or the usual fractions for older pieces. */
+export const pieceDims = (p: { w: number; h: number; wText?: string; hText?: string }) =>
+  `${p.wText ?? fmt(p.w)} × ${p.hText ?? fmt(p.h)}`
+
+export type SizeStyle = 'fraction' | 'decimal'
+
+export interface Formatter {
+  fmt: (n: number) => string
+  fmtDims: (w: number, h: number) => string
+  fmtLeft: (w: number, h: number) => string
+}
+
+/**
+ * How the sizes the app works out itself (leftovers, rulers, gaps) are written next to the
+ * ones the user typed: fractions (10 1/2) or plain decimals (10.5, up to two places).
+ */
+export function sizeFormatter(style: SizeStyle = 'fraction'): Formatter {
+  const f = style === 'decimal' ? (n: number) => String(Math.round(n * 100) / 100) : fmt
+  return {
+    fmt: f,
+    fmtDims: (w, h) => `${f(w)} × ${f(h)}`,
+    fmtLeft: (w, h) => `${f(Math.min(w, h))} × ${f(Math.max(w, h))}`,
+  }
+}
+
+/**
+ * Decimals when the user typed this job's sizes as decimals (10.5, 38.6), fractions when any
+ * was typed as a fraction (22 1/2) or when nothing was recorded (older jobs): the worked-out
+ * sizes follow the way the job itself was written, so one page never mixes the two.
+ */
+export function sizeStyleOf(pieces?: Array<{ wText?: string; hText?: string }>): SizeStyle {
+  const texts = (pieces ?? []).flatMap((p) => [p.wText, p.hText]).filter((t): t is string => !!t)
+  if (texts.length === 0) return 'fraction'
+  return texts.some((t) => t.includes('/')) ? 'fraction' : 'decimal'
+}

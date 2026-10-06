@@ -5,6 +5,9 @@ export interface Piece {
   w: number
   h: number
   qty: number
+  /** The width and height exactly as the user typed them (tidied), for display. Missing on older pieces. */
+  wText?: string
+  hText?: string
 }
 
 export interface Rect {

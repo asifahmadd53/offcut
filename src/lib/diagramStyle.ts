@@ -1,4 +1,4 @@
-import { fmt, fmtDims, fmtLeft } from './inches'
+import { sizeFormatter, type Formatter } from './inches'
 import type { Block } from './sheetView'
 
 /**
@@ -38,8 +38,7 @@ export const dgLightDeclarations = () =>
     .map(([k, v]) => `${k}: ${v};`)
     .join(' ')
 
-/** Shortest medium block (px) that can hold its chip/number tag above its size text. */
-export const CHIP_MIN_H = 58
+const DEFAULT_FORMAT = sizeFormatter('fraction')
 
 export type BlockTier = 'full' | 'medium' | 'line' | 'small' | 'tiny'
 
@@ -51,58 +50,60 @@ export function blockTier(pw: number, ph: number): BlockTier {
   return 'tiny'
 }
 
-/** A block's size split into the parts a narrow block can stack on separate lines. */
-function sizeParts(b: Block): { top: string; w: string; h: string } {
-  const split = (text: string, fallbackW: number, fallbackH: number) => {
-    const [w, h] = text.split(' × ')
-    return { w: w ?? fmt(fallbackW), h: h ?? fmt(fallbackH) }
-  }
-  if (b.kind === 'cut') return { top: `#${b.n ?? ''}`, ...split(b.label ?? fmtDims(b.w, b.h), b.w, b.h) }
-  return { top: '', w: fmt(b.w), h: fmt(b.h) }
-}
-
-export interface LineText {
-  text: string
+export interface BlockLabel {
+  /** One line, or for a piece that has room the three lines "#15", "W 10.5", "H 38.6". */
+  lines: string[]
   size: number
-  /** True when the line is written up the block (reading bottom to top) because it does not fit across. */
+  /** True when a single line is written up the block (reading bottom to top) because it does not fit across. */
   rotated: boolean
 }
 
+function splitDims(text: string): { w: string; h: string } | null {
+  const parts = text.split(' × ')
+  return parts.length === 2 ? { w: parts[0], h: parts[1] } : null
+}
+
 /**
- * A block too narrow for its size across can still carry it as one line written along it:
- * "#15 · 10 1/2 × 38.6" (piece number, then width × height). Returns the largest type that
- * fits, across or up the block, or null when neither does and the size has to go in a note
- * with a line to the block instead.
+ * What a block can write on itself, in the user's own words: a piece writes its number and
+ * its width and height on three short lines when it has room ("#15" / "W 10.5" / "H 38.6"),
+ * else one line "#9 · 4w × 27.6h" across the block or up it. Returns null when neither fits
+ * and the size has to go in a note with a line to the block instead.
  */
-export function lineText(b: Block, pw: number, ph: number): LineText | null {
-  if (b.kind !== 'cut' && b.kind !== 'earlier') return null
-  const { top, w, h } = sizeParts(b)
-  const text = top ? `${top} · ${w} × ${h}` : `${w} × ${h}`
-  for (const size of [11, 10, 9, 8]) {
+export function blockLabel(b: Block, pw: number, ph: number, f: Formatter = DEFAULT_FORMAT): BlockLabel | null {
+  if (b.kind === 'cut') {
+    const d = splitDims(b.label ?? f.fmtDims(b.w, b.h)) ?? { w: f.fmt(b.w), h: f.fmt(b.h) }
+    const n = `#${b.n ?? ''}`
+    const three = [n, `W ${d.w}`, `H ${d.h}`]
+    const widest = Math.max(...three.map((l) => l.length))
+    for (const size of [22, 20, 18, 16, 14, 13, 12]) {
+      if (widest * 0.6 * size <= pw - 8 && three.length * size * 1.25 <= ph - 8) return { lines: three, size, rotated: false }
+    }
+    return oneLine(`${n} · ${d.w}w × ${d.h}h`, pw, ph, [12, 11, 10, 9, 8])
+  }
+  if (b.kind === 'earlier') return oneLine(f.fmtDims(b.w, b.h), pw, ph, [11, 10, 9, 8])
+  return null
+}
+
+function oneLine(text: string, pw: number, ph: number, sizes: number[]): BlockLabel | null {
+  for (const size of sizes) {
     const len = text.length * 0.6 * size
     const thick = size * 1.2
-    if (len <= pw - 4 && thick <= ph - 4) return { text, size, rotated: false }
-    if (len <= ph - 6 && thick <= pw - 4) return { text, size, rotated: true }
+    if (len <= pw - 4 && thick <= ph - 4) return { lines: [text], size, rotated: false }
+    if (len <= ph - 6 && thick <= pw - 4) return { lines: [text], size, rotated: true }
   }
   return null
 }
 
 /**
- * The tier a block really gets: a block wide enough for text in principle but too narrow for
- * its own size at the smallest readable font first tries one line along the block (across or
- * up it), and only then drops to 'small' (number only) with its size in a note beside the sheet.
+ * The tier a block really gets: a piece writes its label ('line') whenever any form of it
+ * fits, otherwise it shows just its number ('small') with its size in a note beside the sheet.
  */
-export function blockTierFor(b: Block, pxPerInch: number): BlockTier {
+export function blockTierFor(b: Block, pxPerInch: number, f: Formatter = DEFAULT_FORMAT): BlockTier {
   const pw = b.w * pxPerInch
   const ph = b.h * pxPerInch
   const tier = blockTier(pw, ph)
-  if (tier === 'full' || tier === 'medium') {
-    let text = b.kind === 'cut' ? (b.label ?? fmtDims(b.w, b.h)) : b.kind === 'earlier' ? fmtDims(b.w, b.h) : fmtLeft(b.w, b.h)
-    // A short medium block has no room for its chip, so the letter/number joins the size text.
-    if (tier === 'medium' && ph < CHIP_MIN_H && b.kind !== 'earlier') text = `${b.kind === 'cut' ? `#${b.n ?? ''}` : (b.letter ?? '')} · ${text}`
-    if (text.length * 0.58 * 9 <= pw - 14) return tier
-  }
-  if (lineText(b, pw, ph)) return 'line'
+  if (b.kind === 'earlier' && (tier === 'full' || tier === 'medium') && f.fmtDims(b.w, b.h).length * 0.58 * 9 <= pw - 14) return tier
+  if (blockLabel(b, pw, ph, f)) return 'line'
   return tier === 'full' || tier === 'medium' ? 'small' : tier
 }
 
@@ -177,7 +178,7 @@ export interface SmallCallout {
  * (R15): each gets a note beside the sheet with a line pointing at the block, however tiny
  * the block is.
  */
-export function smallBlockCallouts(blocks: Block[], pxPerInch: number): SmallCallout[] {
+export function smallBlockCallouts(blocks: Block[], pxPerInch: number, f: Formatter = DEFAULT_FORMAT): SmallCallout[] {
   const out: SmallCallout[] = []
   blocks.forEach((b, i) => {
     const at = { ax: b.x + b.w, ay: b.y + b.h / 2 }
@@ -187,12 +188,12 @@ export function smallBlockCallouts(blocks: Block[], pxPerInch: number): SmallCal
       if (b.w * pxPerInch < 12 || b.h * pxPerInch < 14) out.push({ key: `n${i}`, name: b.letter ?? 'Leftover', dims: '', ...at })
       return
     }
-    const tier = blockTierFor(b, pxPerInch)
+    const tier = blockTierFor(b, pxPerInch, f)
     if (tier !== 'small' && tier !== 'tiny') return
     if (b.kind === 'cut') {
-      out.push({ key: `n${i}`, name: `Piece ${b.n ?? ''}`.trim(), dims: b.label ?? fmtDims(b.w, b.h), ...at })
+      out.push({ key: `n${i}`, name: `Piece ${b.n ?? ''}`.trim(), dims: b.label ?? f.fmtDims(b.w, b.h), ...at })
     } else if (b.kind === 'earlier') {
-      out.push({ key: `n${i}`, name: 'Already cut', dims: fmtDims(b.w, b.h), ...at })
+      out.push({ key: `n${i}`, name: 'Already cut', dims: f.fmtDims(b.w, b.h), ...at })
     }
   })
   return out

@@ -430,3 +430,20 @@ describe('Print screen pages are the saved PDF pages', () => {
     for (const svg of svgs) expect(svg.startsWith('<svg')).toBe(true)
   })
 })
+
+describe('sizes on the PDF are written the way they were typed', () => {
+  it('shows W 10.5 / H 38.6, never 10 1/2, and carries a W/H legend', async () => {
+    const ps: Piece[] = [{ id: 'a', w: 10.5, h: 38.6, qty: 2, wText: '10.5', hText: '38.6' }]
+    const sheets = packJob(ps, [], opts).sheets
+    const cut: CutDoc = { ...cutFrom(ps, sheets), clientName: 'Asif' }
+    const boxes: TextBox[] = []
+    await buildPrintPdf(buildPrintPages(cut, deriveStock([cut]), DEFAULT_SETTINGS), 'A4', recorder(boxes) as unknown as typeof jsPDF, cut)
+    const all = boxes.map((b) => b.text)
+    expect(all).toContain('W 10.5')
+    expect(all).toContain('H 38.6')
+    expect(all).toContain('W = width, H = height, inches')
+    expect(all.join('|')).not.toContain('10 1/2')
+    // Worked-out sizes follow the same style: the leftover strip is a decimal here too.
+    expect(all.join('|')).not.toMatch(/\d \d+\/\d+/)
+  })
+})

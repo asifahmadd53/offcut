@@ -1,4 +1,4 @@
-import { fmt } from './inches'
+import { fmt, pieceDims } from './inches'
 import { uid } from './id'
 import type { Leftover, LeftoverRect, Piece, Placed, Rect, SheetPlan } from './types'
 
@@ -70,7 +70,7 @@ export function expandPieces(pieces: Piece[]): Item[] {
   for (const p of pieces) {
     for (let i = 0; i < p.qty; i++) {
       n += 1
-      items.push({ n, pieceId: p.id, w: p.w, h: p.h, label: `${fmt(p.w)} × ${fmt(p.h)}` })
+      items.push({ n, pieceId: p.id, w: p.w, h: p.h, label: pieceDims(p) })
     }
   }
   return items

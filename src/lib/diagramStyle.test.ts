@@ -7,7 +7,7 @@ import {
   rulerLabel,
   blockTierFor,
   smallBlockCallouts,
-  lineText,
+  blockLabel,
   spreadPositions,
   verticalTicks,
 } from './diagramStyle'
@@ -60,15 +60,17 @@ describe('blockTier and smallBlockCallouts', () => {
     expect(smallBlockCallouts(blocks, 5.9)).toEqual([])
   })
 
-  it('a narrow block writes its size up the block before falling back to a note', () => {
-    const narrow: Block = { kind: 'cut', x: 0, y: 0, w: 10.5, h: 38.6, label: '10 1/2 × 38.6', n: 15 }
-    expect(lineText(narrow, 10.5 * 6, 38.6 * 6)).toEqual({ text: '#15 · 10 1/2 × 38.6', size: 11, rotated: true })
-    expect(blockTierFor(narrow, 6)).toBe('line')
-    expect(smallBlockCallouts([narrow], 6)).toEqual([])
+  it('a piece writes #n / W / H on three lines, then one line across or up the block, then a note', () => {
+    const tall: Block = { kind: 'cut', x: 0, y: 0, w: 10.5, h: 38.6, label: '10.5 × 38.6', n: 15 }
+    expect(blockLabel(tall, 10.5 * 6, 38.6 * 6)).toEqual({ lines: ['#15', 'W 10.5', 'H 38.6'], size: 14, rotated: false })
+    expect(blockTierFor(tall, 6)).toBe('line')
+    expect(smallBlockCallouts([tall], 6)).toEqual([])
     const flat: Block = { kind: 'cut', x: 0, y: 0, w: 27.6, h: 4, label: '4 × 27.6', n: 12, rotated: true }
-    expect(lineText(flat, 27.6 * 6, 4 * 6)).toEqual({ text: '#12 · 4 × 27.6', size: 11, rotated: false })
+    expect(blockLabel(flat, 27.6 * 6, 4 * 6)).toEqual({ lines: ['#12 · 4w × 27.6h'], size: 12, rotated: false })
+    const column: Block = { kind: 'cut', x: 0, y: 0, w: 4, h: 27.6, label: '4 × 27.6', n: 9 }
+    expect(blockLabel(column, 4 * 6, 27.6 * 6)).toEqual({ lines: ['#9 · 4w × 27.6h'], size: 12, rotated: true })
     const sliver: Block = { kind: 'cut', x: 0, y: 0, w: 1.5, h: 4, label: '1.5 × 4', n: 9 }
-    expect(lineText(sliver, 1.5 * 6, 4 * 6)).toBeNull()
+    expect(blockLabel(sliver, 1.5 * 6, 4 * 6)).toBeNull()
   })
 
   it('even a 2 x 2 piece gets one', () => {
