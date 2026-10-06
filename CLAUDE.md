@@ -208,6 +208,8 @@ offcut/
 
 - **C86.** Edge tape picker: the four edge buttons now have exactly the same thickness. Top and bottom were `min-h-[44px]` (they grew with their content, about 54 px) while the left and right columns were 42 px; top and bottom are now `h-11` and the side columns and pills `w-11`, so top/bottom height = left/right width = 44 px (measured at 280, 320, 390 and 1100 px wide; no sideways page scroll). Only `EdgeTapePicker.tsx` changed; the picture and everything else are as in C85. Checked in a temporary headless New job page (deleted afterwards), not in the logged-in app. `npm run typecheck` verified clean.
 
+- **C87.** Edge tape picker made compact on wide screens: the card is at most 420 px wide and centred, the edge grid at most 320 px, and the piece picture at most 200 px wide (it was stretching to about 300 px wide and 255 px tall on a laptop, making the whole picker about 540 px tall; now about 370 px). Phone sizes are unchanged in practice (picture 124 × 125 at 320 px, 194 × 165 at 390 px) and nothing leaves the card or scrolls sideways. Only `EdgeTapePicker.tsx` changed. Checked in a temporary headless New job page at 320, 390 and 1280 px (deleted afterwards), not in the logged-in app. `npm run typecheck` and `npm test` (165) verified clean.
+
 ## Working agreements
 - Be brief in chat: at most 12 lines per stage — what was done, commands run and results, what to check, what's needed from the user.
 - Ask before: adding a dependency outside the stack table, changing a rule in R1–R16, or deviating from an approved screen.

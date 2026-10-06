@@ -99,12 +99,12 @@ export function EdgeTapePicker({ value, onChange, widthText, heightText, w, h }:
   const fmt = sizeFormatter('decimal').fmt
 
   return (
-    <div className="rounded-lg border-hair border-border bg-card p-3" style={GRID}>
-      <div className="mx-auto grid w-full max-w-[380px] grid-cols-[44px_minmax(0,1fr)_44px] grid-rows-[auto_auto_auto] items-stretch gap-2">
+    <div className="mx-auto w-full max-w-[420px] rounded-lg border-hair border-border bg-card p-3" style={GRID}>
+      <div className="mx-auto grid w-full max-w-[320px] grid-cols-[44px_minmax(0,1fr)_44px] grid-rows-[auto_auto_auto] items-stretch gap-2">
         {pill('top', 'col-span-3 col-start-1 row-start-1')}
         {pill('left', 'col-start-1 row-start-2', true, true)}
         <svg
-          className="col-start-2 row-start-2 h-auto w-full"
+          className="col-start-2 row-start-2 h-auto w-full max-w-[200px] justify-self-center"
           viewBox={`0 0 ${PICTURE_W} ${pictureH}`}
           role="img"
           aria-label={hasTape(value) ? `Piece with tape on ${describeSides(value)}` : 'Piece with no tape'}
