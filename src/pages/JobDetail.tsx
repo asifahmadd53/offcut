@@ -17,6 +17,8 @@ export default function JobDetail() {
   const derived = useData((s) => s.derived)
   const setPieces = useJob((s) => s.setPieces)
   const setClient = useJob((s) => s.setClient)
+  const setClientPhone = useJob((s) => s.setClientPhone)
+  const setSheetNumber = useJob((s) => s.setSheetNumber)
   const [printOpen, setPrintOpen] = useState(false)
 
   const job = derived.jobs.find((j) => j.cut.id === id)
@@ -38,6 +40,9 @@ export default function JobDetail() {
   function cutAgain() {
     if (cut.pieces) setPieces(cut.pieces)
     if (cut.clientId) setClient(cut.clientId, cut.clientName ?? '')
+    // Same job again: bring its phone number and sheet number too (blank if it had none).
+    setClientPhone(cut.clientPhone ?? '')
+    setSheetNumber(cut.sheetNumber ?? '')
     navigate('/new')
   }
 

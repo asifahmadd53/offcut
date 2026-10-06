@@ -441,9 +441,10 @@ function TapedEdges({ tape, x: bx, y: by, w: bw, h: bh }: { tape: NonNullable<Bl
   const h = bh - 2 * m
   const t = Math.max(2.5, Math.min(6, Math.min(w, h) / 12))
   const dots = { stroke: 'var(--dg-tape-ink)', strokeWidth: Math.max(1, t / 3), strokeDasharray: '0.1 4', strokeLinecap: 'round' as const }
-  const word = t >= 5.5
+  const word = t >= 3.5
+  const fs = Math.min(6.5, t * 1.1)
   const text = (cx: number, cy: number, rotate: boolean) => (
-    <text x={cx} y={cy} textAnchor="middle" dominantBaseline="central" fontSize="6.5" fontWeight="800" letterSpacing="1" fill="var(--dg-tape-ink)" transform={rotate ? `rotate(-90 ${cx} ${cy})` : undefined}>
+    <text x={cx} y={cy} textAnchor="middle" dominantBaseline="central" fontSize={fs} fontWeight="800" letterSpacing="1" fill="var(--dg-tape-ink)" transform={rotate ? `rotate(-90 ${cx} ${cy})` : undefined}>
       TAPE
     </text>
   )
@@ -453,7 +454,7 @@ function TapedEdges({ tape, x: bx, y: by, w: bw, h: bh }: { tape: NonNullable<Bl
   const startY = y + (tape.top ? t : gap)
   const endY = y + h - (tape.bottom ? t : gap)
   // The dotted line stops either side of the word TAPE, so the letters never sit on the dots.
-  const WORD_HALF = 20
+  const WORD_HALF = fs * 3.1
   const across = (yy: number, withWord: boolean) => {
     const mid = x + w / 2
     return withWord ? (
@@ -476,8 +477,8 @@ function TapedEdges({ tape, x: bx, y: by, w: bw, h: bh }: { tape: NonNullable<Bl
       <line x1={xx} y1={startY} x2={xx} y2={endY} {...dots} />
     )
   }
-  const wordAcross = word && w >= 90
-  const wordDown = word && h >= 90
+  const wordAcross = word && bw >= 70
+  const wordDown = word && bh >= 70
   return (
     <g pointerEvents="none">
       {tape.top && (

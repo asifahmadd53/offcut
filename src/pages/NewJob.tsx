@@ -404,10 +404,10 @@ export default function NewJob() {
                   <button
                     type="button"
                     onClick={() => setEditTapeId(p.id)}
-                    className="my-1 inline-flex min-h-[24px] items-center gap-2 rounded-full px-3 text-[13px] font-bold"
+                    className="my-1 inline-flex min-h-[22px] items-center gap-2 rounded-full px-3 text-[11px] font-bold"
                     style={{ background: 'var(--dg-tape)', color: 'var(--dg-tape-ink)' }}
                   >
-                    <span aria-hidden="true" className="h-0 w-4 border-t-[3px] border-dotted" style={{ borderColor: 'var(--dg-tape-ink)' }} />
+                    <span aria-hidden="true" className="w-4 border-t-[3px] border-dotted" style={{ borderColor: 'var(--dg-tape-ink)' }} />
                     Tape: {describeSides(p.tape)} · change
                   </button>
                 ) : (

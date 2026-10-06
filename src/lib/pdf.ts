@@ -398,7 +398,7 @@ function drawLegend(doc: DrawDoc, sheet: SheetPlan, blocks: Block[], x: number, 
   ]
   if (blocks.some((b) => b.kind === 'earlier')) items.push({ key: 'earlier', text: 'Already cut' })
   if ((sheet.cuts ?? []).length > 0) items.push({ key: 'cut', text: 'Cut line' })
-  if (blocks.some((b) => b.kind === 'cut' && b.tape)) items.push({ key: 'tape', text: 'Dotted edge = tape' })
+  if (blocks.some((b) => b.kind === 'cut' && b.tape)) items.push({ key: 'tape', text: 'Tape' })
   const size = 8.5
   const itemW = (t: string) => 7 + widthOf(doc, t, size)
   let cx = x
