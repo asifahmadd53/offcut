@@ -10,7 +10,7 @@ interface EdgeTapePickerProps {
   /** The piece's typed width and height, shown on the picture and on the edges when known. */
   widthText?: string
   heightText?: string
-  /** Numeric sizes: the picture's proportions, the tape length, and "Long sides" / "Short sides". */
+  /** Numeric sizes: the tape length, and "Long sides" / "Short sides". */
   w?: number | null
   h?: number | null
 }
@@ -18,6 +18,8 @@ interface EdgeTapePickerProps {
 const NAME: Record<TapeSide, string> = { top: 'Top edge', right: 'Right edge', bottom: 'Bottom edge', left: 'Left edge' }
 
 const PICTURE_W = 200
+/** The piece picture is always the same size, whatever sizes were typed. */
+const PICTURE_H = 140
 const BAND = 12
 const PAD = 8
 
@@ -27,8 +29,8 @@ const GRID: CSSProperties = {
 }
 
 /**
- * Edge tape for one piece, as a drafting-board card: the piece drawn to its own proportions in
- * the middle, with a tape band in the primary colour on every side that gets tape, and one pill
+ * Edge tape for one piece, as a drafting-board card: the piece drawn in the middle (always the
+ * same size), with a tape band in the primary colour on every side that gets tape, and one pill
  * per edge around it ("TOP EDGE: 22.5"" with a TAPED or RAW badge). Tap a pill to switch that
  * edge. A taped edge is never colour alone: it says TAPED, its band is dotted and its pill is filled.
  */
@@ -36,8 +38,7 @@ export function EdgeTapePicker({ value, onChange, widthText, heightText, w, h }:
   const toggle = (side: TapeSide) => onChange({ ...value, [side]: !value[side] })
   const known = typeof w === 'number' && typeof h === 'number' && w > 0 && h > 0
 
-  const ratio = known ? Math.min(1.1, Math.max(0.55, h! / w!)) : 0.7
-  const pictureH = Math.round(PICTURE_W * ratio)
+  const pictureH = PICTURE_H
   const lengthText = (side: TapeSide) => (side === 'top' || side === 'bottom' ? widthText : heightText)
 
   const pill = (side: TapeSide, className: string, vertical = false, flip = false) => {
@@ -66,7 +67,7 @@ export function EdgeTapePicker({ value, onChange, widthText, heightText, w, h }:
         onClick={() => toggle(side)}
         className={cn(
           'flex items-center justify-center gap-2 rounded-lg border px-2 font-mono text-[11px] font-bold uppercase tracking-wide transition-transform active:scale-[0.97]',
-          vertical ? 'min-w-[44px] flex-col py-3 [writing-mode:vertical-rl]' : 'min-h-[44px]',
+          vertical ? 'min-w-[44px] py-3 [writing-mode:vertical-rl]' : 'min-h-[44px]',
           flip && 'rotate-180',
           on ? 'border-brand bg-brand-tint text-brand-ink' : 'border-border-strong bg-card text-muted-foreground hover:bg-muted',
           className,

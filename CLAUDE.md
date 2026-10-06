@@ -198,6 +198,8 @@ offcut/
 
 - **C81.** The word TAPE on a taped side no longer sits on top of the dots: the dotted line is now drawn in two pieces that stop 20 px either side of the word (all four sides), so the letters always have clear space. Only `TapedEdges` in `SheetDiagram.tsx` changed. Checked in a temporary headless Job detail page (dark mode, all four sides taped; page deleted afterwards), not in the logged-in app. `npm run typecheck` verified clean.
 
+- **C82.** Edge tape picker fixes. (1) The "This piece" picture is always the same size (200 × 140 viewBox) instead of changing its proportions with the typed width and height; the typed size is still written inside it. (2) The left/right edge pills put their dot, text and badge outside the pill: a column flex inside a vertical writing mode runs sideways, so the pills now use the default row flex (which is vertical there) and keep their contents inside, reading up (left) or down (right). (3) "Done" moved out of the Edge tape header (which now shows only "+ Add tape" / "Change" while closed and no button while open) to a full-width primary "Done" button at the bottom of the open panel, under the chips. Checked in a temporary headless New job page at laptop and phone width (picture height identical for 23 × 80, 10 × 10 and 40 × 12; pills correct; 0 console errors; page deleted afterwards), not in the logged-in app. `npm run typecheck` verified clean.
+
 ## Working agreements
 - Be brief in chat: at most 12 lines per stage — what was done, commands run and results, what to check, what's needed from the user.
 - Ask before: adding a dependency outside the stack table, changing a rule in R1–R16, or deviating from an approved screen.

@@ -337,9 +337,11 @@ export default function NewJob() {
               {hasTape(tape) ? `Tape on ${describeSides(tape)}` : 'Optional · choose which sides get tape'}
             </span>
           </span>
-          <span className="flex-none rounded-full bg-brand px-3.5 py-2 text-[13px] font-bold text-brand-fg">
-            {tapeOpen ? 'Done' : hasTape(tape) ? 'Change' : '+ Add tape'}
-          </span>
+          {!tapeOpen && (
+            <span className="flex-none rounded-full bg-brand px-3.5 py-2 text-[13px] font-bold text-brand-fg">
+              {hasTape(tape) ? 'Change' : '+ Add tape'}
+            </span>
+          )}
         </button>
         {tapeOpen && (
           <div className="border-t-2 border-brand bg-background px-3 pb-3 pt-3">
@@ -347,6 +349,9 @@ export default function NewJob() {
               Tap the edges of this piece that get tape. Taped edges are dotted.
             </p>
             <EdgeTapePicker value={tape} onChange={setTape} widthText={cleanTyped(width) || undefined} heightText={cleanTyped(height) || undefined} w={wVal} h={hVal} />
+            <Button className="mt-4 h-12 w-full" onClick={() => setTapeOpen(false)}>
+              Done
+            </Button>
           </div>
         )}
       </div>
