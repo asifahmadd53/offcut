@@ -318,22 +318,33 @@ export default function NewJob() {
         <Stepper value={qty} onChange={setQty} />
       </div>
 
-      <div className="mb-3 rounded-lg border-hair border-border">
+      <div className="mb-3 overflow-hidden rounded-xl border-2 border-brand bg-brand-tint">
         <button
           type="button"
           aria-expanded={tapeOpen}
           onClick={() => setTapeOpen((v) => !v)}
-          className="flex min-h-[48px] w-full items-center justify-between px-3 text-left"
+          className="flex min-h-[68px] w-full items-center gap-3 px-3 py-2 text-left"
         >
-          <span className="text-[15px] font-semibold">Edge tape (optional)</span>
-          <span className="text-[13px] text-muted-foreground">
-            {hasTape(tape) ? describeSides(tape) : tapeOpen ? 'Hide' : 'None'}
+          <span aria-hidden="true" className="flex h-11 w-11 flex-none items-center justify-center rounded-lg bg-brand text-brand-fg">
+            <svg width="26" height="26" viewBox="0 0 24 24" fill="none">
+              <rect x="2" y="7" width="20" height="10" rx="2" fill="currentColor" opacity="0.28" />
+              <line x1="4.5" y1="12" x2="19.5" y2="12" stroke="currentColor" strokeWidth="2.6" strokeDasharray="0.1 4.3" strokeLinecap="round" />
+            </svg>
+          </span>
+          <span className="min-w-0 flex-1">
+            <span className="block text-[17px] font-extrabold text-brand-ink">Edge tape</span>
+            <span className="block text-[13px] text-brand-ink">
+              {hasTape(tape) ? `Tape on ${describeSides(tape)}` : 'Optional · choose which sides get tape'}
+            </span>
+          </span>
+          <span className="flex-none rounded-full bg-brand px-3.5 py-2 text-[13px] font-bold text-brand-fg">
+            {tapeOpen ? 'Done' : hasTape(tape) ? 'Change' : '+ Add tape'}
           </span>
         </button>
         {tapeOpen && (
-          <div className="border-t border-hair border-border px-3 pb-3 pt-3">
+          <div className="border-t-2 border-brand bg-background px-3 pb-3 pt-3">
             <p className="mb-3 text-[13px] text-muted-foreground">
-              Tap the sides of this piece that get tape. Dotted sides are taped.
+              Tap the edges of this piece that get tape. Taped edges are dotted.
             </p>
             <EdgeTapePicker value={tape} onChange={setTape} widthText={cleanTyped(width) || undefined} heightText={cleanTyped(height) || undefined} w={wVal} h={hVal} />
           </div>

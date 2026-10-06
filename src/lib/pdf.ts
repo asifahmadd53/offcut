@@ -82,7 +82,8 @@ const COL = {
   wasteFill: [246, 243, 238] as RGB,
   wasteInk: [125, 119, 107] as RGB,
   cut: [234, 110, 0] as RGB,
-  tape: [194, 65, 12] as RGB,
+  // A touch darker than the on-screen primary so edge tape still reads clearly in a black-and-white print.
+  tape: [160, 48, 6] as RGB,
   tapeInk: [255, 255, 255] as RGB,
   sheetEdge: [50, 48, 44] as RGB,
 }
@@ -546,33 +547,6 @@ function drawDiagram(doc: DrawDoc, page: PrintPage, box: Box) {
     doc.rect(X(b.x), Y(b.y), b.w * sc, b.h * sc, 'FD')
   }
 
-  // Edge tape: a band in the primary colour along every taped side of a piece with a dotted line down its middle.
-  for (const b of blocks.filter((x) => x.kind === 'cut' && x.tape)) {
-    const t = b.tape!
-    const bw = b.w * sc
-    const bh = b.h * sc
-    const th = Math.max(0.9, Math.min(1.8, bw / 6, bh / 6))
-    const l = X(b.x)
-    const r = X(b.x + b.w)
-    const top = Y(b.y)
-    const bot = Y(b.y + b.h)
-    const bands: Array<[number, number, number, number]> = []
-    if (t.top) bands.push([l, top, bw, th])
-    if (t.bottom) bands.push([l, bot - th, bw, th])
-    if (t.left) bands.push([l, top, th, bh])
-    if (t.right) bands.push([r - th, top, th, bh])
-    for (const [x, y, w, h] of bands) {
-      doc.setFillColor(...COL.tape)
-      doc.rect(x, y, w, h, 'F')
-      doc.setDrawColor(...COL.tapeInk)
-      doc.setLineWidth(Math.max(0.25, th / 4))
-      doc.setLineDashPattern([0.3, 0.7], 0)
-      if (w >= h) doc.line(x + 0.5, y + h / 2, x + w - 0.5, y + h / 2)
-      else doc.line(x + w / 2, y + 0.5, x + w / 2, y + h - 0.5)
-    }
-    doc.setLineDashPattern([], 0)
-  }
-
   // Where the saw goes: the dashed cut lines (no order is printed).
   doc.setDrawColor(...COL.cut)
   doc.setLineWidth(0.45)
@@ -582,6 +556,38 @@ function drawDiagram(doc: DrawDoc, page: PrintPage, box: Box) {
     else doc.line(X(c.pos), Y(c.from), X(c.pos), Y(c.to))
   }
   doc.setLineDashPattern([], 0)
+
+  // Edge tape, drawn above the cut lines so the two never muddle each other: a band in the primary
+  // colour inside every taped side of a piece, with a white dotted line down its middle (shortened
+  // where two taped sides meet). Dark enough to stay clear when printed in black and white.
+  for (const b of blocks.filter((x) => x.kind === 'cut' && x.tape)) {
+    const t = b.tape!
+    const bw = b.w * sc
+    const bh = b.h * sc
+    const th = Math.max(1, Math.min(1.8, Math.min(bw, bh) / 8))
+    const l = X(b.x)
+    const r = X(b.x + b.w)
+    const top = Y(b.y)
+    const bot = Y(b.y + b.h)
+    const gap = 0.5
+    const x1 = l + (t.left ? th : gap)
+    const x2 = r - (t.right ? th : gap)
+    const y1 = top + (t.top ? th : gap)
+    const y2 = bot - (t.bottom ? th : gap)
+    doc.setFillColor(...COL.tape)
+    if (t.top) doc.rect(l, top, bw, th, 'F')
+    if (t.bottom) doc.rect(l, bot - th, bw, th, 'F')
+    if (t.left) doc.rect(l, top, th, bh, 'F')
+    if (t.right) doc.rect(r - th, top, th, bh, 'F')
+    doc.setDrawColor(...COL.tapeInk)
+    doc.setLineWidth(Math.max(0.3, th / 3.2))
+    doc.setLineDashPattern([0.35, 0.65], 0)
+    if (t.top) doc.line(x1, top + th / 2, x2, top + th / 2)
+    if (t.bottom) doc.line(x1, bot - th / 2, x2, bot - th / 2)
+    if (t.left) doc.line(l + th / 2, y1, l + th / 2, y2)
+    if (t.right) doc.line(r - th / 2, y1, r - th / 2, y2)
+    doc.setLineDashPattern([], 0)
+  }
 
   doc.setDrawColor(...COL.sheetEdge)
   doc.setLineWidth(0.5)
