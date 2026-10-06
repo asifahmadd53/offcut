@@ -320,19 +320,32 @@ interface Box {
 /** Text lines a block can carry, richest first; the last entry is the bare letter/number. */
 function labelCandidates(b: Block): string[][] {
   const plain = `${fmt(b.w)} × ${fmt(b.h)}`
+  const split = (text: string) => {
+    const [w, h] = text.split(' × ')
+    return { w: w ?? fmt(b.w), h: h ?? fmt(b.h) }
+  }
   if (b.kind === 'cut') {
     const d = b.label ?? plain
     const n = `${b.n ?? ''}`
     const full = [`Piece ${n}`, d]
-    return [b.rotated ? [...full, 'turned to fit'] : full, full, [`${n}  ${d}`], [n]]
+    const { w, h } = split(d)
+    return [b.rotated ? [...full, 'turned to fit'] : full, full, [`${n}  ${d}`], [n, w, `× ${h}`], [n, w, '×', h], [n]]
   }
   if (b.kind === 'free' || b.kind === 'freeNew' || b.kind === 'focus') {
     const d = fmtLeft(b.w, b.h)
     const name = b.letter ?? ''
     const full = [`Leftover ${name}`, d]
-    return [[...full, b.kind === 'freeNew' ? 'saved to stock' : 'already in stock'], full, [`${name}  ${d}`], [name]]
+    const { w, h } = split(d)
+    return [
+      [...full, b.kind === 'freeNew' ? 'saved to stock' : 'already in stock'],
+      full,
+      [`${name}  ${d}`],
+      [name, w, `× ${h}`],
+      [name, w, '×', h],
+      [name],
+    ]
   }
-  if (b.kind === 'earlier') return [['Already cut', plain], [plain]]
+  if (b.kind === 'earlier') return [['Already cut', plain], [plain], [fmt(b.w), `× ${fmt(b.h)}`], [fmt(b.w), '×', fmt(b.h)]]
   return [['Waste']]
 }
 
@@ -343,7 +356,7 @@ function inkFor(b: Block): RGB {
   return COL.greenInk
 }
 
-function fitBlockLabel(doc: DrawDoc, b: Block, pw: number, ph: number): { lines: string[]; size: number } | null {
+function fitBlockLabel(doc: DrawDoc, b: Block, pw: number, ph: number): { lines: string[]; size: number; tag: boolean } | null {
   const pad = 1.2
   const cands = labelCandidates(b)
   for (let ci = 0; ci < cands.length; ci++) {
@@ -354,7 +367,7 @@ function fitBlockLabel(doc: DrawDoc, b: Block, pw: number, ph: number): { lines:
       const totalH = lines.length * lh
       const maxW = Math.max(...lines.map((l, i) => widthOf(doc, l, size, i === 0)))
       if (maxW > pw - pad * 2 || totalH > ph - pad * 2) continue
-      return { lines, size }
+      return { lines, size, tag: tagOnly }
     }
   }
   return null
@@ -399,7 +412,7 @@ function drawLegend(doc: DrawDoc, sheet: SheetPlan, blocks: Block[], x: number, 
 
 interface BlockFit {
   block: Block
-  fit: { lines: string[]; size: number } | null
+  fit: { lines: string[]; size: number; tag: boolean } | null
 }
 
 interface DiagramPlan {
@@ -409,7 +422,7 @@ interface DiagramPlan {
   X1: number
   Y1: number
   fits: BlockFit[]
-  wasteFits: Array<{ cell: { x: number; y: number; w: number; h: number }; fit: { lines: string[]; size: number } }>
+  wasteFits: Array<{ cell: { x: number; y: number; w: number; h: number }; fit: { lines: string[]; size: number; tag: boolean } }>
   callouts: Array<{ name: string; dims: string; ax: number; ay: number; ink: RGB }>
 }
 
@@ -432,7 +445,8 @@ function planDiagram(doc: DrawDoc, page: PrintPage, box: Box, zoneRight: number,
   for (const b of blocks) {
     const fit = fitBlockLabel(doc, b, b.w * sc, b.h * sc)
     fits.push({ block: b, fit })
-    if (!fit && b.kind !== 'waste') {
+    // A block that can only show its bare number or letter still gets its size in a note with a line to it.
+    if ((!fit || fit.tag) && b.kind !== 'waste') {
       const name = b.kind === 'cut' ? `Piece ${b.n ?? ''}` : b.kind === 'earlier' ? 'Already cut' : `Leftover ${b.letter ?? ''}`
       const dims = b.kind === 'cut' ? (b.label ?? `${fmt(b.w)} × ${fmt(b.h)}`) : b.kind === 'earlier' ? `${fmt(b.w)} × ${fmt(b.h)}` : fmtLeft(b.w, b.h)
       callouts.push({ name, dims, ax: X(b.x + b.w), ay: Y(b.y + b.h / 2), ink: inkFor(b) })
@@ -597,48 +611,22 @@ function heading(doc: DrawDoc, text: string, x: number, y: number, w: number): n
   return y + 5.5
 }
 
-function drawStats(doc: DrawDoc, stats: SheetStats, isNew: boolean, x: number, y: number, w: number, compact = false): number {
+function drawStats(doc: DrawDoc, stats: SheetStats, isNew: boolean, x: number, y: number, w: number): number {
   y = heading(doc, 'How much is used', x, y, w)
   put(doc, `${stats.usedPct}%`, x, y + 5, { size: 24, bold: true })
   put(doc, isNew ? 'of this sheet is used' : 'of this leftover is used', x + widthOf(doc, `${stats.usedPct}%`, 24, true) + 2, y + 5, { size: 9, color: COL.muted })
-  y += 8
-  // One bar split into pieces / leftovers kept / waste.
-  doc.setDrawColor(...COL.rule)
-  doc.setFillColor(...COL.wasteFill)
-  doc.setLineWidth(0.25)
-  doc.rect(x, y, w, 3.4, 'FD')
-  const usedW = (w * stats.usedPct) / 100
-  const savedW = (w * stats.savedPct) / 100
-  if (usedW > 0) {
-    doc.setFillColor(...COL.blue)
-    doc.rect(x, y, usedW, 3.4, 'F')
-  }
-  if (savedW > 0) {
-    doc.setFillColor(...COL.green)
-    doc.rect(x + usedW, y, savedW, 3.4, 'F')
-  }
-  y += 7
-  const sq = (n: number) => `${n.toLocaleString('en-US')} sq in`
-  const row = (swatch: RGB, label: string, pct: number, detail: string) => {
+  y += 11
+  const row = (swatch: RGB, label: string, pct: number) => {
     doc.setFillColor(...swatch)
     doc.rect(x, y - 2.4, 2.6, 2.6, 'F')
-    if (compact) {
-      put(doc, label, x + 4, y, { size: 8.5, bold: true })
-      put(doc, `${detail} · ${pct}%`, x + w, y, { size: 8.5, align: 'right' })
-      y += lineHeight(8.5) + 0.6
-      return
-    }
     put(doc, label, x + 4, y, { size: 9, bold: true })
     put(doc, `${pct}%`, x + w, y, { size: 9, bold: true, align: 'right' })
-    y += lineHeight(9)
-    put(doc, detail, x + 4, y, { size: 8, color: COL.muted })
-    y += lineHeight(8) + 1.2
+    y += lineHeight(9) + 0.8
   }
-  row(COL.blue, 'Pieces cut', stats.usedPct, compact ? sq(stats.used) : `${sq(stats.used)} · ${plural(stats.pieces, 'piece')}`)
-  row(COL.green, 'Leftovers kept', stats.savedPct, compact ? sq(stats.saved) : `${sq(stats.saved)} · ${plural(stats.leftovers, 'leftover')}`)
-  row(COL.faint, 'Waste', stats.wastePct, compact ? sq(stats.waste) : `${sq(stats.waste)} · saw cuts and scraps`)
-  put(doc, `${isNew ? 'Whole sheet' : 'Leftover area'}: ${sq(stats.regionArea)}`, x, y, { size: 8, color: COL.muted })
-  return y + 5
+  row(COL.blue, 'Pieces cut', stats.usedPct)
+  row(COL.green, 'Leftovers kept', stats.savedPct)
+  row(COL.faint, 'Waste', stats.wastePct)
+  return y + 2
 }
 
 // ---------- Parts layout: always fits the page ----------
@@ -712,7 +700,7 @@ function drawInfoColumn(doc: DrawDoc, page: PrintPage, box: Box, compact: boolea
   const w = box.w
   const maxY = box.y + box.h
   let y = box.y + 3
-  y = drawStats(doc, sheetStats(page.sheet), page.sheet.isNew, x, y, w, compact)
+  y = drawStats(doc, sheetStats(page.sheet), page.sheet.isNew, x, y, w)
 
   y = heading(doc, 'Cut from', x, y + 1, w)
   for (const line of wrap(doc, page.sourceText, w, 9)) {

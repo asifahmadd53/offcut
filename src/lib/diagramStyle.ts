@@ -1,4 +1,4 @@
-import { fmtDims, fmtLeft } from './inches'
+import { fmt, fmtDims, fmtLeft } from './inches'
 import type { Block } from './sheetView'
 
 /**
@@ -41,7 +41,7 @@ export const dgLightDeclarations = () =>
 /** Shortest medium block (px) that can hold its chip/number tag above its size text. */
 export const CHIP_MIN_H = 58
 
-export type BlockTier = 'full' | 'medium' | 'small' | 'tiny'
+export type BlockTier = 'full' | 'medium' | 'stacked' | 'small' | 'tiny'
 
 /** How much text a block of this on-screen size (px) can honestly carry. */
 export function blockTier(pw: number, ph: number): BlockTier {
@@ -51,20 +51,58 @@ export function blockTier(pw: number, ph: number): BlockTier {
   return 'tiny'
 }
 
+/** A block's size split into the parts a narrow block can stack on separate lines. */
+function sizeParts(b: Block): { top: string; w: string; h: string } {
+  const split = (text: string, fallbackW: number, fallbackH: number) => {
+    const [w, h] = text.split(' × ')
+    return { w: w ?? fmt(fallbackW), h: h ?? fmt(fallbackH) }
+  }
+  if (b.kind === 'cut') return { top: `${b.n ?? ''}`, ...split(b.label ?? fmtDims(b.w, b.h), b.w, b.h) }
+  if (b.kind === 'free' || b.kind === 'freeNew' || b.kind === 'focus') return { top: b.letter ?? '', ...split(fmtLeft(b.w, b.h), b.w, b.h) }
+  return { top: '', w: fmt(b.w), h: fmt(b.h) }
+}
+
+export interface StackedText {
+  lines: string[]
+  size: number
+}
+
+/**
+ * A narrow block can still carry its size by stacking it: "15" / "10 1/2" / "× 38.6". Returns
+ * the largest stacking that fits inside the block (px), or null when none does and the size
+ * has to go in a note with a line to the block instead.
+ */
+export function stackedText(b: Block, pw: number, ph: number): StackedText | null {
+  if (b.kind === 'waste') return null
+  const { top, w, h } = sizeParts(b)
+  // One line when the block is wide enough (a flat strip), else stacked on separate lines.
+  const variants = [[`${top}  ${w} × ${h}`.trim()], [top, w, `× ${h}`], [top, w, '×', h]].map((v) => v.filter((x) => x !== ''))
+  for (const size of [10, 9, 8]) {
+    for (const lines of variants) {
+      const widest = Math.max(...lines.map((l) => l.length)) * 0.6 * size
+      if (widest <= pw - 4 && lines.length * size * 1.2 <= ph - 4) return { lines, size }
+    }
+  }
+  return null
+}
+
 /**
  * The tier a block really gets: a block wide enough for text in principle but too narrow for
- * its own size at the smallest readable font drops to 'small' (letter/number only) and is
- * listed under the drawing instead, so text never spills out of its block.
+ * its own size at the smallest readable font first tries stacking the size on separate lines,
+ * and only then drops to 'small' (letter/number only) with its size in a note beside the sheet.
  */
 export function blockTierFor(b: Block, pxPerInch: number): BlockTier {
   const pw = b.w * pxPerInch
-  const tier = blockTier(pw, b.h * pxPerInch)
-  if (tier !== 'full' && tier !== 'medium') return tier
-  let text = b.kind === 'cut' ? (b.label ?? fmtDims(b.w, b.h)) : b.kind === 'earlier' ? fmtDims(b.w, b.h) : fmtLeft(b.w, b.h)
-  // A short medium block has no room for its chip, so the letter/number joins the size text.
-  if (tier === 'medium' && b.h * pxPerInch < CHIP_MIN_H && b.kind !== 'earlier') text = `${b.kind === 'cut' ? `#${b.n ?? ''}` : (b.letter ?? '')} · ${text}`
-  const fits = text.length * 0.58 * 9 <= pw - 14
-  return fits ? tier : 'small'
+  const ph = b.h * pxPerInch
+  const tier = blockTier(pw, ph)
+  if (tier === 'full' || tier === 'medium') {
+    let text = b.kind === 'cut' ? (b.label ?? fmtDims(b.w, b.h)) : b.kind === 'earlier' ? fmtDims(b.w, b.h) : fmtLeft(b.w, b.h)
+    // A short medium block has no room for its chip, so the letter/number joins the size text.
+    if (tier === 'medium' && ph < CHIP_MIN_H && b.kind !== 'earlier') text = `${b.kind === 'cut' ? `#${b.n ?? ''}` : (b.letter ?? '')} · ${text}`
+    if (text.length * 0.58 * 9 <= pw - 14) return tier
+  }
+  if (stackedText(b, pw, ph)) return 'stacked'
+  return tier === 'full' || tier === 'medium' ? 'small' : tier
 }
 
 export interface YTick {

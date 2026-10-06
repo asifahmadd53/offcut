@@ -7,6 +7,7 @@ import {
   rulerLabel,
   smallBlockCallouts,
   spreadPositions,
+  stackedText,
   verticalTicks,
 } from '@/lib/diagramStyle'
 import { fmt, fmtLeft } from '@/lib/inches'
@@ -176,6 +177,7 @@ export function SheetDiagram({
     const cx = bx + bw / 2
     const cy = by + bh / 2
     const highlighted = highlightIndex === i
+    const stacked = tier === 'stacked' ? stackedText(b, bw, bh) : null
     const isLeftover = b.kind === 'free' || b.kind === 'freeNew' || b.kind === 'focus'
 
     let body: JSX.Element
@@ -223,6 +225,7 @@ export function SheetDiagram({
               )}
             </>
           )}
+          {stacked && <StackedLines lines={stacked.lines} size={stacked.size} cx={cx} cy={cy} fill="var(--dg-on-blue)" />}
           {tier === 'small' && (
             <text x={cx} y={cy + 4} textAnchor="middle" fontSize="11" fontWeight="700" fill="var(--dg-on-blue)">
               {b.n}
@@ -297,6 +300,7 @@ export function SheetDiagram({
               )}
             </>
           )}
+          {stacked && <StackedLines lines={stacked.lines} size={stacked.size} cx={cx} cy={cy} fill="var(--dg-green)" />}
           {tier === 'small' && (
             <text x={cx} y={cy + 4} textAnchor="middle" fontSize="11" fontWeight="700" fill="var(--dg-green)">
               {b.letter}
@@ -310,6 +314,7 @@ export function SheetDiagram({
       body = (
         <>
           <rect x={bx} y={by} width={bw} height={bh} fill="var(--dg-earlier)" />
+          {stacked && <StackedLines lines={stacked.lines} size={stacked.size} cx={cx} cy={cy} fill="var(--dg-muted)" />}
           {(tier === 'full' || tier === 'medium') && (
             <>
               <text x={cx} y={cy + 4} textAnchor="middle" fontSize={fitFont(sizeText, bw - 14, 15)} fontWeight="700" fill="var(--dg-muted)">
@@ -476,5 +481,20 @@ export function SheetDiagram({
         })}
       </svg>
     </div>
+  )
+}
+
+/** A size written on separate lines inside a narrow block, centred. */
+function StackedLines({ lines, size, cx, cy, fill }: { lines: string[]; size: number; cx: number; cy: number; fill: string }) {
+  const lh = size * 1.2
+  const top = cy - (lines.length * lh) / 2
+  return (
+    <>
+      {lines.map((line, i) => (
+        <text key={i} x={cx} y={top + i * lh + size * 0.95} textAnchor="middle" fontSize={size} fontWeight={i === 0 ? 800 : 700} fill={fill}>
+          {line}
+        </text>
+      ))}
+    </>
   )
 }

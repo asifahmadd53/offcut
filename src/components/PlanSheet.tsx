@@ -2,9 +2,8 @@ import { useRef, useState } from 'react'
 import { TransformComponent, TransformWrapper, type ReactZoomPanPinchRef } from 'react-zoom-pan-pinch'
 import { IconX } from '@tabler/icons-react'
 import { dayMonth } from '@/lib/format'
-import { fmtLeft } from '@/lib/inches'
+import { fmt, fmtLeft } from '@/lib/inches'
 import { dgLightDeclarations } from '@/lib/diagramStyle'
-import { badgedLeftovers } from '@/lib/labelChoice'
 import { SheetDiagram } from './SheetDiagram'
 import { Dialog, DialogContent, DialogTitle } from './ui/dialog'
 import type { Block } from '@/lib/sheetView'
@@ -19,9 +18,6 @@ interface PlanSheetProps {
   highlightIndex?: number
 }
 
-const DIAGRAM_MAX_W = 144
-const DIAGRAM_MAX_H = 288
-
 /** One physical sheet of a plan: the diagram, a side panel, and the cut order below. */
 export function PlanSheet({ sheet, blocks, highlightIndex }: PlanSheetProps) {
   const usedArea = sheet.placements.reduce((sum, p) => sum + p.w * p.h, 0)
@@ -30,9 +26,7 @@ export function PlanSheet({ sheet, blocks, highlightIndex }: PlanSheetProps) {
   const anyTurned = sheet.placements.some((p) => p.rotated)
   const hasEarlier = blocks.some((b) => b.kind === 'earlier')
 
-  // Blocks too small to carry their own label still owe their size to the legend (R15).
-  const scale = Math.min(DIAGRAM_MAX_W / sheet.sheetW, DIAGRAM_MAX_H / sheet.sheetH)
-  const badged = badgedLeftovers(blocks, scale)
+  const pieces = blocks.filter((b) => b.kind === 'cut')
 
   const [fullScreen, setFullScreen] = useState(false)
 
@@ -94,6 +88,21 @@ export function PlanSheet({ sheet, blocks, highlightIndex }: PlanSheetProps) {
               </p>
             ))
           )}
+
+          {pieces.length > 0 && (
+            <>
+              <p className="mb-1 mt-3 text-muted-foreground">Cutting pieces ({pieces.length})</p>
+              {pieces.map((b) => (
+                <p key={b.n} className="mb-0 flex justify-between gap-3">
+                  <span className="font-semibold">
+                    Piece {b.n}
+                    {b.rotated ? ' (turned)' : ''}
+                  </span>
+                  <span>{b.label ?? `${fmt(b.w)} × ${fmt(b.h)}`}</span>
+                </p>
+              ))}
+            </>
+          )}
         </div>
       </div>
 
@@ -107,16 +116,6 @@ export function PlanSheet({ sheet, blocks, highlightIndex }: PlanSheetProps) {
         </button>
         <SaveImageButton sheet={sheet} blocks={blocks} />
       </div>
-
-      {badged.length > 0 && (
-        <div className="mb-3.5 rounded-lg bg-muted p-3 text-[13px]">
-          {badged.map((b, i) => (
-            <p key={i} className="mb-0 text-muted-foreground">
-              {b.letter}: {b.dims}
-            </p>
-          ))}
-        </div>
-      )}
 
       <Dialog open={fullScreen} onOpenChange={setFullScreen}>
         <DialogContent className="h-[100dvh] max-h-[100dvh] w-[100vw] max-w-[100vw] rounded-none">
