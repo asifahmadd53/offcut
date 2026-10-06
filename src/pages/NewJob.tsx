@@ -349,9 +349,11 @@ export default function NewJob() {
               Tap the edges of this piece that get tape. Taped edges are dotted.
             </p>
             <EdgeTapePicker value={tape} onChange={setTape} widthText={cleanTyped(width) || undefined} heightText={cleanTyped(height) || undefined} w={wVal} h={hVal} />
-            <Button className="mt-4 h-12 w-full" onClick={() => setTapeOpen(false)}>
-              Done
-            </Button>
+            <div className="mt-3 flex justify-end">
+              <Button className="h-10 px-8" onClick={() => setTapeOpen(false)}>
+                Done
+              </Button>
+            </div>
           </div>
         )}
       </div>

@@ -45,8 +45,9 @@ export function EdgeTapePicker({ value, onChange, widthText, heightText, w, h }:
     const on = !!value[side]
     const len = lengthText(side)
     const dot = <span key="dot" aria-hidden="true" className={cn('h-2 w-2 flex-none rounded-full', on ? 'bg-brand' : 'bg-faint')} />
+    // On the side pills only the words turn (up the left pill, down the right); the dot and the badge stay upright and readable.
     const text = (
-      <span key="text" className="whitespace-nowrap">
+      <span key="text" className={cn('whitespace-nowrap', vertical && '[writing-mode:vertical-rl]', flip && 'rotate-180')}>
         {NAME[side]}
         {len ? `: ${len}"` : ''}
       </span>
@@ -54,7 +55,7 @@ export function EdgeTapePicker({ value, onChange, widthText, heightText, w, h }:
     const badge = (
       <span
         key="badge"
-        className={cn('flex-none rounded px-1.5 py-0.5 text-[10px] font-extrabold tracking-wider', on ? 'bg-brand text-brand-fg' : 'bg-muted text-muted-foreground')}
+        className={cn('flex-none rounded px-1.5 py-0.5 text-[10px] font-extrabold tracking-wide', on ? 'bg-brand text-brand-fg' : 'bg-muted text-muted-foreground')}
       >
         {on ? 'TAPED' : 'RAW'}
       </span>
@@ -67,13 +68,12 @@ export function EdgeTapePicker({ value, onChange, widthText, heightText, w, h }:
         onClick={() => toggle(side)}
         className={cn(
           'flex items-center justify-center gap-2 rounded-lg border px-2 font-mono text-[11px] font-bold uppercase tracking-wide transition-transform active:scale-[0.97]',
-          vertical ? 'min-w-[44px] py-3 [writing-mode:vertical-rl]' : 'min-h-[44px]',
-          flip && 'rotate-180',
+          vertical ? 'min-w-[44px] flex-col py-3' : 'min-h-[44px]',
           on ? 'border-brand bg-brand-tint text-brand-ink' : 'border-border-strong bg-card text-muted-foreground hover:bg-muted',
           className,
         )}
       >
-        {flip ? [badge, text, dot] : [dot, text, badge]}
+        {[dot, text, badge]}
       </button>
     )
   }
@@ -100,7 +100,7 @@ export function EdgeTapePicker({ value, onChange, widthText, heightText, w, h }:
 
   return (
     <div className="rounded-xl border-hair border-border bg-card p-3" style={GRID}>
-      <div className="mx-auto grid w-full max-w-[380px] grid-cols-[48px_1fr_48px] grid-rows-[auto_auto_auto] items-stretch gap-2">
+      <div className="mx-auto grid w-full max-w-[380px] grid-cols-[60px_1fr_60px] grid-rows-[auto_auto_auto] items-stretch gap-2">
         {pill('top', 'col-start-2 row-start-1')}
         {pill('left', 'col-start-1 row-start-2', true, true)}
         <svg
