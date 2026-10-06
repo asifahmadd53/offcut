@@ -41,7 +41,7 @@ export const dgLightDeclarations = () =>
 /** Shortest medium block (px) that can hold its chip/number tag above its size text. */
 export const CHIP_MIN_H = 58
 
-export type BlockTier = 'full' | 'medium' | 'stacked' | 'small' | 'tiny'
+export type BlockTier = 'full' | 'medium' | 'line' | 'small' | 'tiny'
 
 /** How much text a block of this on-screen size (px) can honestly carry. */
 export function blockTier(pw: number, ph: number): BlockTier {
@@ -61,34 +61,36 @@ function sizeParts(b: Block): { top: string; w: string; h: string } {
   return { top: '', w: fmt(b.w), h: fmt(b.h) }
 }
 
-export interface StackedText {
-  lines: string[]
+export interface LineText {
+  text: string
   size: number
+  /** True when the line is written up the block (reading bottom to top) because it does not fit across. */
+  rotated: boolean
 }
 
 /**
- * A narrow block can still carry its size by stacking it: "#15" / "10 1/2" / "× 38.6". Returns
- * the largest stacking that fits inside the block (px), or null when none does and the size
- * has to go in a note with a line to the block instead.
+ * A block too narrow for its size across can still carry it as one line written along it:
+ * "#15 · 10 1/2 × 38.6" (piece number, then width × height). Returns the largest type that
+ * fits, across or up the block, or null when neither does and the size has to go in a note
+ * with a line to the block instead.
  */
-export function stackedText(b: Block, pw: number, ph: number): StackedText | null {
+export function lineText(b: Block, pw: number, ph: number): LineText | null {
   if (b.kind !== 'cut' && b.kind !== 'earlier') return null
   const { top, w, h } = sizeParts(b)
-  // One line when the block is wide enough (a flat strip), else stacked on separate lines.
-  const variants = [[top ? `${top} · ${w} × ${h}` : `${w} × ${h}`], [top, w, `× ${h}`], [top, w, '×', h]].map((v) => v.filter((x) => x !== ''))
-  for (const size of [10, 9, 8]) {
-    for (const lines of variants) {
-      const widest = Math.max(...lines.map((l) => l.length)) * 0.6 * size
-      if (widest <= pw - 4 && lines.length * size * 1.2 <= ph - 4) return { lines, size }
-    }
+  const text = top ? `${top} · ${w} × ${h}` : `${w} × ${h}`
+  for (const size of [11, 10, 9, 8]) {
+    const len = text.length * 0.6 * size
+    const thick = size * 1.2
+    if (len <= pw - 4 && thick <= ph - 4) return { text, size, rotated: false }
+    if (len <= ph - 6 && thick <= pw - 4) return { text, size, rotated: true }
   }
   return null
 }
 
 /**
  * The tier a block really gets: a block wide enough for text in principle but too narrow for
- * its own size at the smallest readable font first tries stacking the size on separate lines,
- * and only then drops to 'small' (letter/number only) with its size in a note beside the sheet.
+ * its own size at the smallest readable font first tries one line along the block (across or
+ * up it), and only then drops to 'small' (number only) with its size in a note beside the sheet.
  */
 export function blockTierFor(b: Block, pxPerInch: number): BlockTier {
   const pw = b.w * pxPerInch
@@ -100,7 +102,7 @@ export function blockTierFor(b: Block, pxPerInch: number): BlockTier {
     if (tier === 'medium' && ph < CHIP_MIN_H && b.kind !== 'earlier') text = `${b.kind === 'cut' ? `#${b.n ?? ''}` : (b.letter ?? '')} · ${text}`
     if (text.length * 0.58 * 9 <= pw - 14) return tier
   }
-  if (stackedText(b, pw, ph)) return 'stacked'
+  if (lineText(b, pw, ph)) return 'line'
   return tier === 'full' || tier === 'medium' ? 'small' : tier
 }
 

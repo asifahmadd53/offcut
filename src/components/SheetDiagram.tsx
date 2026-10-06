@@ -7,7 +7,7 @@ import {
   rulerLabel,
   smallBlockCallouts,
   spreadPositions,
-  stackedText,
+  lineText,
   verticalTicks,
 } from '@/lib/diagramStyle'
 import { fmt } from '@/lib/inches'
@@ -177,7 +177,7 @@ export function SheetDiagram({
     const cx = bx + bw / 2
     const cy = by + bh / 2
     const highlighted = highlightIndex === i
-    const stacked = tier === 'stacked' ? stackedText(b, bw, bh) : null
+    const line = tier === 'line' ? lineText(b, bw, bh) : null
     const isLeftover = b.kind === 'free' || b.kind === 'freeNew' || b.kind === 'focus'
 
     let body: JSX.Element
@@ -225,10 +225,10 @@ export function SheetDiagram({
               )}
             </>
           )}
-          {stacked && <StackedLines lines={stacked.lines} size={stacked.size} cx={cx} cy={cy} fill="var(--dg-on-blue)" />}
+          {line && <LineLabel line={line} cx={cx} cy={cy} fill="var(--dg-on-blue)" />}
           {tier === 'small' && (
             <text x={cx} y={cy + 4} textAnchor="middle" fontSize="11" fontWeight="700" fill="var(--dg-on-blue)">
-              {b.n}
+              {bw >= (String(b.n).length + 1) * 6.8 + 2 ? `#${b.n}` : b.n}
             </text>
           )}
         </>
@@ -264,7 +264,7 @@ export function SheetDiagram({
       body = (
         <>
           <rect x={bx} y={by} width={bw} height={bh} fill="var(--dg-earlier)" />
-          {stacked && <StackedLines lines={stacked.lines} size={stacked.size} cx={cx} cy={cy} fill="var(--dg-muted)" />}
+          {line && <LineLabel line={line} cx={cx} cy={cy} fill="var(--dg-muted)" />}
           {(tier === 'full' || tier === 'medium') && (
             <>
               <text x={cx} y={cy + 4} textAnchor="middle" fontSize={fitFont(sizeText, bw - 14, 15)} fontWeight="700" fill="var(--dg-muted)">
@@ -435,17 +435,17 @@ export function SheetDiagram({
   )
 }
 
-/** A size written on separate lines inside a narrow block, centred. */
-function StackedLines({ lines, size, cx, cy, fill }: { lines: string[]; size: number; cx: number; cy: number; fill: string }) {
-  const lh = size * 1.2
-  const top = cy - (lines.length * lh) / 2
-  return (
-    <>
-      {lines.map((line, i) => (
-        <text key={i} x={cx} y={top + i * lh + size * 0.95} textAnchor="middle" fontSize={size} fontWeight={i === 0 ? 800 : 700} fill={fill}>
-          {line}
-        </text>
-      ))}
-    </>
+/** A piece's number and size as one line inside its block, across it or (when narrow) up it. */
+function LineLabel({ line, cx, cy, fill }: { line: LineTextShape; cx: number; cy: number; fill: string }) {
+  return line.rotated ? (
+    <text transform={`translate(${cx} ${cy}) rotate(-90)`} y={line.size * 0.35} textAnchor="middle" fontSize={line.size} fontWeight={800} fill={fill}>
+      {line.text}
+    </text>
+  ) : (
+    <text x={cx} y={cy + line.size * 0.35} textAnchor="middle" fontSize={line.size} fontWeight={800} fill={fill}>
+      {line.text}
+    </text>
   )
 }
+
+type LineTextShape = { text: string; size: number; rotated: boolean }

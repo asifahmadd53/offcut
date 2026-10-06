@@ -320,25 +320,32 @@ interface Box {
   h: number
 }
 
-/** Text lines a block can carry, richest first; the last entry is the bare number/letter. */
-function labelCandidates(b: Block): string[][] {
+interface LabelCandidate {
+  lines: string[]
+  /** One line written up the block (bottom to top) instead of across it. */
+  vertical?: boolean
+}
+
+/** What a block can carry, richest first; the last entry is the bare number/letter. */
+function labelCandidates(b: Block): LabelCandidate[] {
   const plain = `${fmt(b.w)} × ${fmt(b.h)}`
-  const split = (text: string) => {
-    const [w, h] = text.split(' × ')
-    return { w: w ?? fmt(b.w), h: h ?? fmt(b.h) }
-  }
   if (b.kind === 'cut') {
     const d = b.label ?? plain
     const n = `#${b.n ?? ''}`
     const full = [`Piece ${b.n ?? ''}`, d]
-    const { w, h } = split(d)
-    return [b.rotated ? [...full, 'turned to fit'] : full, full, [`${n} · ${d}`], [n, w, `× ${h}`], [n, w, '×', h], [n]]
+    return [
+      { lines: b.rotated ? [...full, 'turned to fit'] : full },
+      { lines: full },
+      { lines: [`${n} · ${d}`] },
+      { lines: [`${n} · ${d}`], vertical: true },
+      { lines: [n] },
+    ]
   }
   // A leftover shows just its letter (its size is not printed); too small for even that, it
   // gets a note with a line to it.
-  if (b.kind === 'free' || b.kind === 'freeNew' || b.kind === 'focus') return [[b.letter ?? '']]
-  if (b.kind === 'earlier') return [['Already cut', plain], [plain], [fmt(b.w), `× ${fmt(b.h)}`], [fmt(b.w), '×', fmt(b.h)]]
-  return [['Waste']]
+  if (b.kind === 'free' || b.kind === 'freeNew' || b.kind === 'focus') return [{ lines: [b.letter ?? ''] }]
+  if (b.kind === 'earlier') return [{ lines: ['Already cut', plain] }, { lines: [plain] }, { lines: [plain], vertical: true }]
+  return [{ lines: ['Waste'] }]
 }
 
 function inkFor(b: Block): RGB {
@@ -348,19 +355,27 @@ function inkFor(b: Block): RGB {
   return COL.greenInk
 }
 
-function fitBlockLabel(doc: DrawDoc, b: Block, pw: number, ph: number): { lines: string[]; size: number; tag: boolean } | null {
+interface LabelFit {
+  lines: string[]
+  size: number
+  /** Only the bare number/letter fits, so the size still goes in a note with a line. */
+  tag: boolean
+  vertical: boolean
+}
+
+function fitBlockLabel(doc: DrawDoc, b: Block, pw: number, ph: number): LabelFit | null {
   const pad = 1.2
   const cands = labelCandidates(b)
+  const leftover = b.kind === 'free' || b.kind === 'freeNew' || b.kind === 'focus'
   for (let ci = 0; ci < cands.length; ci++) {
-    const lines = cands[ci]
+    const { lines, vertical = false } = cands[ci]
     const tagOnly = ci === cands.length - 1 && cands.length > 1
-    const leftover = b.kind === 'free' || b.kind === 'freeNew' || b.kind === 'focus'
     for (let size = leftover ? 16 : 10; size >= (tagOnly ? 7 : 7.5); size -= 0.5) {
       const lh = lineHeight(size)
       const totalH = lines.length * lh
       const maxW = Math.max(...lines.map((l, i) => widthOf(doc, l, size, i === 0)))
-      if (maxW > pw - pad * 2 || totalH > ph - pad * 2) continue
-      return { lines, size, tag: tagOnly }
+      const fits = vertical ? maxW <= ph - pad * 2 && lh <= pw - pad * 2 : maxW <= pw - pad * 2 && totalH <= ph - pad * 2
+      if (fits) return { lines, size, tag: tagOnly, vertical }
     }
   }
   return null
@@ -405,7 +420,7 @@ function drawLegend(doc: DrawDoc, sheet: SheetPlan, blocks: Block[], x: number, 
 
 interface BlockFit {
   block: Block
-  fit: { lines: string[]; size: number; tag: boolean } | null
+  fit: LabelFit | null
 }
 
 interface DiagramPlan {
@@ -415,7 +430,7 @@ interface DiagramPlan {
   X1: number
   Y1: number
   fits: BlockFit[]
-  wasteFits: Array<{ cell: { x: number; y: number; w: number; h: number }; fit: { lines: string[]; size: number; tag: boolean } }>
+  wasteFits: Array<{ cell: { x: number; y: number; w: number; h: number }; fit: LabelFit }>
   callouts: Array<{ name: string; dims: string; ax: number; ay: number; ink: RGB }>
 }
 
@@ -522,6 +537,11 @@ function drawDiagram(doc: DrawDoc, page: PrintPage, box: Box) {
     if (!fit) continue
     const cx = X(b.x) + (b.w * sc) / 2
     const cy = Y(b.y) + (b.h * sc) / 2
+    if (fit.vertical) {
+      const text = fit.lines[0]
+      put(doc, text, cx + fit.size * PT * 0.3, cy + widthOf(doc, text, fit.size) / 2, { size: fit.size, color: inkFor(b), angle: 90 })
+      continue
+    }
     const lh = lineHeight(fit.size)
     const top = cy - (fit.lines.length * lh) / 2
     fit.lines.forEach((line, i) => {
