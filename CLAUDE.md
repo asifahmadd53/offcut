@@ -206,6 +206,8 @@ offcut/
 
 - **C85.** Edge tape picker proportions: the "This piece" picture is taller (`PICTURE_H` 140 → 170, still the same size whatever is typed) and wider, because the left and right edge pills are narrower (side columns 52 → 42 px, `min-w-[38px]`, tighter padding, 9 px TAPED / RAW badge). At a 390 px phone width the picture went from about 148 × 105 to 198 × 168 px; at 320 px it is 128 × 125 px; nothing leaves the picker card and the page does not scroll sideways. Only `EdgeTapePicker.tsx` changed. Checked in a temporary headless New job page (page deleted afterwards), not in the logged-in app. `npm run typecheck` and `npm test` (165) verified clean.
 
+- **C86.** Edge tape picker: the four edge buttons now have exactly the same thickness. Top and bottom were `min-h-[44px]` (they grew with their content, about 54 px) while the left and right columns were 42 px; top and bottom are now `h-11` and the side columns and pills `w-11`, so top/bottom height = left/right width = 44 px (measured at 280, 320, 390 and 1100 px wide; no sideways page scroll). Only `EdgeTapePicker.tsx` changed; the picture and everything else are as in C85. Checked in a temporary headless New job page (deleted afterwards), not in the logged-in app. `npm run typecheck` verified clean.
+
 ## Working agreements
 - Be brief in chat: at most 12 lines per stage — what was done, commands run and results, what to check, what's needed from the user.
 - Ask before: adding a dependency outside the stack table, changing a rule in R1–R16, or deviating from an approved screen.

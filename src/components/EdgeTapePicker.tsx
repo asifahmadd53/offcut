@@ -68,7 +68,7 @@ export function EdgeTapePicker({ value, onChange, widthText, heightText, w, h }:
         onClick={() => toggle(side)}
         className={cn(
           'flex min-w-0 items-center justify-center gap-2 rounded-lg border px-2 font-mono text-[10px] font-bold uppercase tracking-wide transition-transform active:scale-[0.97] sm:text-[11px]',
-          vertical ? 'min-w-[38px] flex-col px-1 py-3' : 'min-h-[44px]',
+          vertical ? 'w-11 flex-col px-1 py-3' : 'h-11',
           on ? 'border-brand bg-brand-tint text-brand-ink' : 'border-border-strong bg-card text-muted-foreground hover:bg-muted',
           className,
         )}
@@ -100,7 +100,7 @@ export function EdgeTapePicker({ value, onChange, widthText, heightText, w, h }:
 
   return (
     <div className="rounded-lg border-hair border-border bg-card p-3" style={GRID}>
-      <div className="mx-auto grid w-full max-w-[380px] grid-cols-[42px_minmax(0,1fr)_42px] grid-rows-[auto_auto_auto] items-stretch gap-2">
+      <div className="mx-auto grid w-full max-w-[380px] grid-cols-[44px_minmax(0,1fr)_44px] grid-rows-[auto_auto_auto] items-stretch gap-2">
         {pill('top', 'col-span-3 col-start-1 row-start-1')}
         {pill('left', 'col-start-1 row-start-2', true, true)}
         <svg
