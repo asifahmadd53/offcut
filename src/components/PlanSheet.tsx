@@ -71,7 +71,7 @@ export function PlanSheet({ sheet, blocks, highlightIndex, sizeStyle = 'decimal'
             <Legend swatch="cut" label={sheet.isNew ? 'Cut pieces' : 'New piece'} />
             <Legend swatch="free" label={sheet.isNew ? 'Saved leftover' : 'Free after this cut'} />
             <Legend swatch="path" label="Cut line" />
-            {tape.rows.length > 0 && <Legend swatch="tape" label="Dotted edge = tape" />}
+            {tape.rows.length > 0 && <Legend swatch="tape" label="Yellow dotted edge = tape" />}
           </div>
           <p className="mb-3 text-[12px] text-muted-foreground">Sizes are width × height, in inches</p>
           {anyTurned && (
@@ -131,10 +131,12 @@ export function PlanSheet({ sheet, blocks, highlightIndex, sizeStyle = 'decimal'
       </div>
 
       {tape.rows.length > 0 && (
-        <div className="mb-3.5 rounded-lg bg-muted p-3 text-[13px]">
-          <p className="mb-0.5 flex justify-between gap-3 text-muted-foreground">
-            <span>Edge tape ({tape.rows.length} {tape.rows.length === 1 ? 'piece' : 'pieces'})</span>
-            <span>total {tapeTotalText(tape.total, F.fmt)}</span>
+        <div className="mb-3.5 rounded-lg bg-muted p-3 text-[13px]" style={{ borderLeft: '6px solid var(--dg-tape)' }}>
+          <p className="mb-1 flex justify-between gap-3">
+            <span className="text-[14px] font-bold">
+              Edge tape ({tape.rows.length} {tape.rows.length === 1 ? 'piece' : 'pieces'})
+            </span>
+            <span className="font-semibold">total {tapeTotalText(tape.total, F.fmt)}</span>
           </p>
           {tape.rows.map((r) => (
             <p key={r.n} className="mb-0 flex justify-between gap-3">
@@ -337,7 +339,9 @@ function Legend({ swatch, label }: { swatch: 'cut' | 'free' | 'old' | 'path' | '
   if (swatch === 'tape') {
     return (
       <div className="flex items-center gap-2">
-        <span aria-hidden="true" className="h-0 w-3.5 flex-none border-t-[3px] border-dotted" style={{ borderColor: 'var(--dg-text)' }} />
+        <span aria-hidden="true" className="flex h-3.5 w-3.5 flex-none items-center justify-center rounded-sm" style={{ background: 'var(--dg-tape)' }}>
+          <span className="h-0 w-2.5 border-t-2 border-dotted" style={{ borderColor: 'var(--dg-tape-ink)' }} />
+        </span>
         {label}
       </div>
     )

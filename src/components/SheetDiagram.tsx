@@ -425,19 +425,49 @@ function LabelText({ label, cx, cy, fill }: { label: BlockLabelShape; cx: number
 
 type BlockLabelShape = { lines: string[]; size: number; rotated: boolean }
 
-/** Dotted line just inside every taped side of a piece (the legend says "Dotted edge = tape"). */
+/**
+ * Edge tape on a piece: a yellow band along each taped side with a dotted line down its middle
+ * and, when the side is long enough, the word TAPE (the legend says "Dotted edge = tape").
+ */
 function TapedEdges({ tape, x, y, w, h }: { tape: NonNullable<Block['tape']>; x: number; y: number; w: number; h: number }) {
-  const inset = Math.max(1.5, Math.min(4, w / 5, h / 5))
-  const lines: Array<[string, number, number, number, number]> = []
-  if (tape.top) lines.push(['top', x + inset, y + inset, x + w - inset, y + inset])
-  if (tape.right) lines.push(['right', x + w - inset, y + inset, x + w - inset, y + h - inset])
-  if (tape.bottom) lines.push(['bottom', x + inset, y + h - inset, x + w - inset, y + h - inset])
-  if (tape.left) lines.push(['left', x + inset, y + inset, x + inset, y + h - inset])
+  const t = Math.max(3, Math.min(10, w / 6, h / 6))
+  const dots = { stroke: 'var(--dg-tape-ink)', strokeWidth: Math.max(1.4, t / 4), strokeDasharray: '0.1 5', strokeLinecap: 'round' as const }
+  const word = t >= 8
+  const text = (cx: number, cy: number, rotate: boolean) => (
+    <text x={cx} y={cy} textAnchor="middle" dominantBaseline="central" fontSize="7" fontWeight="800" letterSpacing="1" fill="var(--dg-tape-ink)" transform={rotate ? `rotate(-90 ${cx} ${cy})` : undefined}>
+      TAPE
+    </text>
+  )
   return (
     <>
-      {lines.map(([side, x1, y1, x2, y2]) => (
-        <line key={side} x1={x1} y1={y1} x2={x2} y2={y2} stroke="var(--dg-on-blue)" strokeWidth="3" strokeDasharray="0.1 6" strokeLinecap="round" />
-      ))}
+      {tape.top && (
+        <g>
+          <rect x={x} y={y} width={w} height={t} fill="var(--dg-tape)" />
+          <line x1={x + 2} y1={y + t / 2} x2={x + w - 2} y2={y + t / 2} {...dots} />
+          {word && w >= 64 && text(x + w / 2, y + t / 2, false)}
+        </g>
+      )}
+      {tape.bottom && (
+        <g>
+          <rect x={x} y={y + h - t} width={w} height={t} fill="var(--dg-tape)" />
+          <line x1={x + 2} y1={y + h - t / 2} x2={x + w - 2} y2={y + h - t / 2} {...dots} />
+          {word && w >= 64 && text(x + w / 2, y + h - t / 2, false)}
+        </g>
+      )}
+      {tape.left && (
+        <g>
+          <rect x={x} y={y} width={t} height={h} fill="var(--dg-tape)" />
+          <line x1={x + t / 2} y1={y + 2} x2={x + t / 2} y2={y + h - 2} {...dots} />
+          {word && h >= 64 && text(x + t / 2, y + h / 2, true)}
+        </g>
+      )}
+      {tape.right && (
+        <g>
+          <rect x={x + w - t} y={y} width={t} height={h} fill="var(--dg-tape)" />
+          <line x1={x + w - t / 2} y1={y + 2} x2={x + w - t / 2} y2={y + h - 2} {...dots} />
+          {word && h >= 64 && text(x + w - t / 2, y + h / 2, true)}
+        </g>
+      )}
     </>
   )
 }

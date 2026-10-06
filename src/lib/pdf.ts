@@ -82,6 +82,8 @@ const COL = {
   wasteFill: [246, 243, 238] as RGB,
   wasteInk: [125, 119, 107] as RGB,
   cut: [234, 110, 0] as RGB,
+  tape: [250, 204, 21] as RGB,
+  tapeInk: [59, 42, 5] as RGB,
   sheetEdge: [50, 48, 44] as RGB,
 }
 
@@ -399,7 +401,7 @@ function drawLegend(doc: DrawDoc, sheet: SheetPlan, blocks: Block[], x: number, 
   ]
   if (blocks.some((b) => b.kind === 'earlier')) items.push({ key: 'earlier', text: 'Already cut' })
   if ((sheet.cuts ?? []).length > 0) items.push({ key: 'cut', text: 'Cut line' })
-  if (blocks.some((b) => b.kind === 'cut' && b.tape)) items.push({ key: 'tape', text: 'Dotted edge = tape' })
+  if (blocks.some((b) => b.kind === 'cut' && b.tape)) items.push({ key: 'tape', text: 'Yellow dotted edge = tape' })
   const size = 8.5
   const itemW = (t: string) => 7 + widthOf(doc, t, size)
   let cx = x
@@ -410,10 +412,12 @@ function drawLegend(doc: DrawDoc, sheet: SheetPlan, blocks: Block[], x: number, 
       cy += 5.5
     }
     if (it.key === 'tape') {
-      doc.setDrawColor(...COL.blueInk)
-      doc.setLineWidth(0.6)
-      doc.setLineDashPattern([0.5, 0.9], 0)
-      doc.line(cx, cy - 1, cx + 5.4, cy - 1)
+      doc.setFillColor(...COL.tape)
+      doc.rect(cx, cy - 2.4, 5.4, 2.4, 'F')
+      doc.setDrawColor(...COL.tapeInk)
+      doc.setLineWidth(0.3)
+      doc.setLineDashPattern([0.3, 0.7], 0)
+      doc.line(cx + 0.4, cy - 1.2, cx + 5, cy - 1.2)
       doc.setLineDashPattern([], 0)
     } else if (it.key === 'cut') {
       doc.setDrawColor(...COL.cut)
@@ -542,23 +546,32 @@ function drawDiagram(doc: DrawDoc, page: PrintPage, box: Box) {
     doc.rect(X(b.x), Y(b.y), b.w * sc, b.h * sc, 'FD')
   }
 
-  // Edge tape: a dotted line just inside every taped side of a piece.
-  doc.setDrawColor(...COL.blueInk)
-  doc.setLineWidth(0.6)
-  doc.setLineDashPattern([0.5, 0.9], 0)
+  // Edge tape: a yellow band along every taped side of a piece with a dotted line down its middle.
   for (const b of blocks.filter((x) => x.kind === 'cut' && x.tape)) {
     const t = b.tape!
-    const inset = Math.min(0.9, (b.w * sc) / 5, (b.h * sc) / 5)
-    const l = X(b.x) + inset
-    const r = X(b.x + b.w) - inset
-    const top = Y(b.y) + inset
-    const bot = Y(b.y + b.h) - inset
-    if (t.top) doc.line(l, top, r, top)
-    if (t.right) doc.line(r, top, r, bot)
-    if (t.bottom) doc.line(l, bot, r, bot)
-    if (t.left) doc.line(l, top, l, bot)
+    const bw = b.w * sc
+    const bh = b.h * sc
+    const th = Math.max(0.9, Math.min(1.8, bw / 6, bh / 6))
+    const l = X(b.x)
+    const r = X(b.x + b.w)
+    const top = Y(b.y)
+    const bot = Y(b.y + b.h)
+    const bands: Array<[number, number, number, number]> = []
+    if (t.top) bands.push([l, top, bw, th])
+    if (t.bottom) bands.push([l, bot - th, bw, th])
+    if (t.left) bands.push([l, top, th, bh])
+    if (t.right) bands.push([r - th, top, th, bh])
+    for (const [x, y, w, h] of bands) {
+      doc.setFillColor(...COL.tape)
+      doc.rect(x, y, w, h, 'F')
+      doc.setDrawColor(...COL.tapeInk)
+      doc.setLineWidth(Math.max(0.25, th / 4))
+      doc.setLineDashPattern([0.3, 0.7], 0)
+      if (w >= h) doc.line(x + 0.5, y + h / 2, x + w - 0.5, y + h / 2)
+      else doc.line(x + w / 2, y + 0.5, x + w / 2, y + h - 0.5)
+    }
+    doc.setLineDashPattern([], 0)
   }
-  doc.setLineDashPattern([], 0)
 
   // Where the saw goes: the dashed cut lines (no order is printed).
   doc.setDrawColor(...COL.cut)

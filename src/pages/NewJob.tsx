@@ -356,13 +356,25 @@ export default function NewJob() {
                 <p className="mb-0 text-[16px] font-semibold">
                   {pieceDims(p)} <span className="font-normal text-muted-foreground">· {p.qty} pcs</span>
                 </p>
-                <button
-                  type="button"
-                  onClick={() => setEditTapeId(p.id)}
-                  className="min-h-[36px] text-[13px] text-accent-text underline-offset-4 hover:underline"
-                >
-                  {hasTape(p.tape) ? `Tape: ${describeSides(p.tape)} · change` : '+ Add edge tape'}
-                </button>
+                {hasTape(p.tape) ? (
+                  <button
+                    type="button"
+                    onClick={() => setEditTapeId(p.id)}
+                    className="my-1 inline-flex min-h-[34px] items-center gap-2 rounded-full px-3 text-[13px] font-bold"
+                    style={{ background: 'var(--dg-tape)', color: 'var(--dg-tape-ink)' }}
+                  >
+                    <span aria-hidden="true" className="h-0 w-4 border-t-[3px] border-dotted" style={{ borderColor: 'var(--dg-tape-ink)' }} />
+                    Tape: {describeSides(p.tape)} · change
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => setEditTapeId(p.id)}
+                    className="min-h-[36px] text-[13px] text-accent-text underline-offset-4 hover:underline"
+                  >
+                    + Add edge tape
+                  </button>
+                )}
               </div>
               <button
                 type="button"

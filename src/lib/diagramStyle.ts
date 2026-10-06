@@ -30,6 +30,8 @@ export const DG_LIGHT: Record<string, string> = {
   '--dg-sheet': '#eef1f6',
   '--dg-sheet-edge': '#c3cbd8',
   '--dg-earlier': '#d5dbe5',
+  '--dg-tape': '#facc15',
+  '--dg-tape-ink': '#3b2a05',
 }
 
 /** `--dg-x: #fff; …` declarations for a style block. */
