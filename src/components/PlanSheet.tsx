@@ -34,12 +34,7 @@ export function PlanSheet({ sheet, blocks, highlightIndex }: PlanSheetProps) {
   const scale = Math.min(DIAGRAM_MAX_W / sheet.sheetW, DIAGRAM_MAX_H / sheet.sheetH)
   const badged = badgedLeftovers(blocks, scale)
 
-  const [activeCut, setActiveCut] = useState<number | null>(null)
   const [fullScreen, setFullScreen] = useState(false)
-
-  function toggleCut(n: number) {
-    setActiveCut((cur) => (cur === n ? null : n))
-  }
 
   return (
     <div>
@@ -53,8 +48,6 @@ export function PlanSheet({ sheet, blocks, highlightIndex }: PlanSheetProps) {
             sheetH={sheet.sheetH}
             blocks={blocks}
             cuts={sheet.cuts}
-            activeCut={activeCut}
-            onCutToggle={toggleCut}
             highlightIndex={highlightIndex}
             autoHeight
           />
@@ -77,7 +70,7 @@ export function PlanSheet({ sheet, blocks, highlightIndex }: PlanSheetProps) {
             {hasEarlier && <Legend swatch="old" label="Already cut" />}
             <Legend swatch="cut" label={sheet.isNew ? 'Cut pieces' : 'New piece'} />
             <Legend swatch="free" label={sheet.isNew ? 'Saved leftover' : 'Free after this cut'} />
-            <Legend swatch="path" label="Cut path" />
+            <Legend swatch="path" label="Cut line" />
           </div>
           {anyTurned && (
             <span className="mb-3 mt-[-6px] inline-block rounded-full bg-muted px-2.5 py-0.5 text-[12px] text-muted-foreground">
@@ -125,53 +118,12 @@ export function PlanSheet({ sheet, blocks, highlightIndex }: PlanSheetProps) {
         </div>
       )}
 
-      <div className="mb-3.5 rounded-lg bg-muted p-3 text-[13px]">
-        <p className="mb-0.5 text-muted-foreground">Cut order</p>
-        {sheet.steps.length === 0 ? (
-          <p>Nothing to cut on this sheet.</p>
-        ) : (
-          sheet.steps.map((s, i) => {
-            const n = i + 1
-            const active = activeCut === n
-            const hasCutData = !!sheet.cuts?.[i]
-            return (
-              <div
-                key={i}
-                role={hasCutData ? 'button' : undefined}
-                tabIndex={hasCutData ? 0 : undefined}
-                aria-pressed={hasCutData ? active : undefined}
-                onClick={hasCutData ? () => toggleCut(n) : undefined}
-                onKeyDown={
-                  hasCutData
-                    ? (e) => {
-                        if (e.key === 'Enter' || e.key === ' ') {
-                          e.preventDefault()
-                          toggleCut(n)
-                        }
-                      }
-                    : undefined
-                }
-                className={
-                  hasCutData
-                    ? `min-h-[44px] cursor-pointer content-center rounded px-1 ${active ? 'bg-accent-bg font-semibold text-accent-text' : ''}`
-                    : undefined
-                }
-              >
-                {n}. {s}
-              </div>
-            )
-          })
-        )}
-      </div>
-
       <Dialog open={fullScreen} onOpenChange={setFullScreen}>
         <DialogContent className="h-[100dvh] max-h-[100dvh] w-[100vw] max-w-[100vw] rounded-none">
           <DialogTitle className="sr-only">Sheet diagram, full screen</DialogTitle>
           <FullScreenDiagram
             sheet={sheet}
             blocks={blocks}
-            activeCut={activeCut}
-            onCutToggle={toggleCut}
             onClose={() => setFullScreen(false)}
           />
         </DialogContent>
@@ -180,19 +132,7 @@ export function PlanSheet({ sheet, blocks, highlightIndex }: PlanSheetProps) {
   )
 }
 
-function FullScreenDiagram({
-  sheet,
-  blocks,
-  activeCut,
-  onCutToggle,
-  onClose,
-}: {
-  sheet: SheetPlan
-  blocks: Block[]
-  activeCut: number | null
-  onCutToggle: (n: number) => void
-  onClose: () => void
-}) {
+function FullScreenDiagram({ sheet, blocks, onClose }: { sheet: SheetPlan; blocks: Block[]; onClose: () => void }) {
   const wrapperRef = useRef<ReactZoomPanPinchRef | null>(null)
   const [zoomed, setZoomed] = useState(false)
 
@@ -229,8 +169,6 @@ function FullScreenDiagram({
               sheetH={sheet.sheetH}
               blocks={blocks}
               cuts={sheet.cuts}
-              activeCut={activeCut}
-              onCutToggle={onCutToggle}
               fill
             />
           </TransformComponent>
@@ -372,11 +310,9 @@ function Legend({ swatch, label }: { swatch: 'cut' | 'free' | 'old' | 'path'; la
       <div className="flex items-center gap-2">
         <span
           aria-hidden="true"
-          className="flex h-3.5 w-3.5 flex-none items-center justify-center rounded-full text-[9px] font-bold leading-none"
-          style={{ background: 'var(--dg-orange)', color: 'var(--dg-on-orange)' }}
-        >
-          #
-        </span>
+          className="h-0 w-3.5 flex-none border-t-2 border-dashed"
+          style={{ borderColor: 'var(--dg-orange)' }}
+        />
         {label}
       </div>
     )

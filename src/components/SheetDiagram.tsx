@@ -1,12 +1,12 @@
-import { useEffect, useId, useLayoutEffect, useMemo, useRef, useState, type KeyboardEvent } from 'react'
+import { useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { diagramAriaLabel } from '@/lib/diagramLayout'
 import {
   blockTierFor,
   CHIP_MIN_H,
   horizontalTicks,
-  placeBadges,
   rulerLabel,
-  smallBlockNotes,
+  smallBlockCallouts,
+  spreadPositions,
   verticalTicks,
 } from '@/lib/diagramStyle'
 import { fmt, fmtLeft } from '@/lib/inches'
@@ -21,9 +21,6 @@ interface SheetDiagramProps {
   maxH?: number
   /** Structured cut-line data (sheet.cuts). Older records without it draw no cut lines. */
   cuts?: SheetPlan['cuts']
-  /** Which cut step (1-based) is highlighted, controlled by the Cut order list. */
-  activeCut?: number | null
-  onCutToggle?: (n: number) => void
   /**
    * Index into `blocks` of the one block to draw with a solid highlight border instead of
    * its normal stroke (used by Leftover detail to point at the chosen leftover). Purely a
@@ -52,7 +49,10 @@ const SIDE_DIM = 28
 const PAGE_SCALE = 0.8
 const TOP = 60
 const RULER = 48
-const NOTE_LINE = 16
+/** Gap between the sheet's right edge and a small block's note, and the room one note line takes. */
+const CALLOUT_LEAD = 18
+const CALLOUT_GAP_2 = 28
+const CALLOUT_GAP_1 = 15
 
 /** Largest font (up to `base`) that keeps `text` inside `maxPx`, using a rough glyph width. */
 const fitFont = (text: string, maxPx: number, base: number) =>
@@ -60,8 +60,7 @@ const fitFont = (text: string, maxPx: number, base: number) =>
 
 /**
  * Draws a sheet as a to-scale cutting drawing on a grid-paper card: blue pieces, green
- * hatched leftovers, a dashed orange cut path with numbered badges (the engine's own cut
- * numbers), rulers numbered from the bottom. (The colour key lives beside the drawing in PlanSheet.) Colour is never the only signal
+ * hatched leftovers, a dashed orange cut path, rulers numbered from the bottom. (The colour key lives beside the drawing in PlanSheet.) Colour is never the only signal
  * (R15): every block carries text, and any block too small for its own text is listed under
  * the sheet. One SVG, so print and Save image keep working.
  */
@@ -72,8 +71,6 @@ export function SheetDiagram({
   maxW = 144,
   maxH = 288,
   cuts,
-  activeCut = null,
-  onCutToggle,
   highlightIndex,
   fill = false,
   autoHeight = false,
@@ -116,31 +113,40 @@ export function SheetDiagram({
       Math.min(Math.max(containerW - 2 * m, 20) / sheetW, Math.max(budgetH, 60) / sheetH) * (fill ? 1 : PAGE_SCALE)
     const baseMargin = RIGHT + 40
     const widestNumber = Math.max(...verticalTicks(blocks, sheetH, fitScale(baseMargin)).map((t) => fmt(t.value).length))
-    const margin = Math.max(baseMargin, SIDE_DIM + 19 + widestNumber * 6.8 + 8)
+    const rulerMargin = Math.max(baseMargin, SIDE_DIM + 19 + widestNumber * 6.8 + 8)
+    // Blocks too small to write on get a note beside the sheet (right side) with a line to the
+    // block, so the sheet is kept dead centre by widening both margins to fit the widest note.
+    const noteMargin = (list: ReturnType<typeof smallBlockCallouts>) =>
+      list.length ? CALLOUT_LEAD + Math.max(...list.map((c) => Math.max(c.name.length, c.dims.length))) * 6.4 + 8 : 0
+    let margin = Math.max(rulerMargin, noteMargin(smallBlockCallouts(blocks, fitScale(rulerMargin))))
+    margin = Math.max(margin, noteMargin(smallBlockCallouts(blocks, fitScale(margin))))
     const s = fitScale(margin)
     const sheetPxW = sheetW * s
     const sheetPxH = sheetH * s
     const sheetLeft = (containerW - sheetPxW) / 2
-    const notes = smallBlockNotes(blocks, s)
-    const notesH = notes.length ? notes.length * NOTE_LINE + 10 : 0
+    const callouts = smallBlockCallouts(blocks, s)
+    const twoLine = callouts.length * CALLOUT_GAP_2 <= sheetPxH - 12
+    const gap = twoLine ? CALLOUT_GAP_2 : CALLOUT_GAP_1
+    const sorted = [...callouts].sort((p, q) => p.ay - q.ay)
+    const lo = TOP + 8
+    const hi = Math.max(TOP + sheetPxH, lo + Math.max(sorted.length - 1, 0) * gap)
+    const noteYs = spreadPositions(sorted.map((c) => TOP + c.ay * s), gap, lo, hi)
+    const lastNote = noteYs.length ? noteYs[noteYs.length - 1] + (twoLine ? 22 : 8) : 0
+    const extraH = Math.max(0, lastNote - (TOP + sheetPxH + RULER))
+    const noteX = sheetLeft + sheetPxW + CALLOUT_LEAD
+    const noteW = Math.max(containerW - noteX - 6, 20)
+    const widest = Math.max(1, ...sorted.map((c) => (twoLine ? Math.max(c.name.length, c.dims.length) : c.name.length + c.dims.length + 2)))
+    const noteFont = Math.max(8, Math.min(11.5, noteW / (widest * 0.58)))
     const svgW = containerW
-    const svgH = TOP + sheetPxH + RULER + notesH
-    return { s, sheetPxW, sheetPxH, sheetLeft, notes, svgW, svgH }
+    const svgH = TOP + sheetPxH + RULER + extraH
+    return { s, sheetPxW, sheetPxH, sheetLeft, sorted, noteYs, twoLine, noteX, noteFont, svgW, svgH }
   }, [autoHeight, blocks, containerH, containerW, fill, maxH, sheetH, sheetW, vh])
 
-  const { s, sheetPxW, sheetPxH, sheetLeft, notes, svgW, svgH } = g
+  const { s, sheetPxW, sheetPxH, sheetLeft, sorted, noteYs, twoLine, noteX, noteFont, svgW, svgH } = g
   const X = (x: number) => sheetLeft + x * s
   const Y = (y: number) => TOP + y * s
 
   const cutLines = cuts ?? []
-  const badges = placeBadges(
-    cutLines.map((c) =>
-      c.kind === 'across'
-        ? { n: c.n, x: X(c.to) + 5, y: Y(c.pos), axis: 'y' as const }
-        : { n: c.n, x: X(c.pos), y: Y(c.from) - 2, axis: 'x' as const },
-    ),
-  )
-
   const yTicks = verticalTicks(blocks, sheetH, s)
   const xTicks = horizontalTicks(sheetW)
   const hatchId = `hatch-${uid}`
@@ -376,41 +382,21 @@ export function SheetDiagram({
         {blocks.map(renderBlock)}
         <rect x={sheetLeft} y={TOP} width={sheetPxW} height={sheetPxH} rx={3} fill="none" stroke="var(--dg-sheet-edge)" strokeWidth="2" pointerEvents="none" />
 
-        {/* Cut path: dashed orange lines with numbered badges, from sheet.cuts (the engine's own numbering) */}
+        {/* Cut path: dashed orange lines showing where the saw goes, from sheet.cuts */}
         {cutLines.map((c) => {
-          const active = activeCut === c.n
-          const dim = activeCut != null && !active
           const across = c.kind === 'across'
-          const x1 = across ? X(c.from) : X(c.pos)
-          const y1 = across ? Y(c.pos) : Y(c.from)
-          const x2 = across ? X(c.to) : X(c.pos)
-          const y2 = across ? Y(c.pos) : Y(c.to)
           return (
             <line
               key={`cut-line-${c.n}`}
-              x1={x1}
-              y1={y1}
-              x2={x2}
-              y2={y2}
+              x1={across ? X(c.from) : X(c.pos)}
+              y1={across ? Y(c.pos) : Y(c.from)}
+              x2={across ? X(c.to) : X(c.pos)}
+              y2={across ? Y(c.pos) : Y(c.to)}
               stroke="var(--dg-orange)"
-              strokeWidth={active ? 3 : 2}
+              strokeWidth={2}
               strokeDasharray="7 4"
-              opacity={dim ? 0.4 : 1}
               pointerEvents="none"
             />
-          )
-        })}
-        {badges.map((b) => {
-          const active = activeCut === b.n
-          const dim = activeCut != null && !active
-          const moved = Math.abs(b.x - b.ox) > 0.5 || Math.abs(b.y - b.oy) > 0.5
-          return (
-            <g key={`cut-badge-${b.n}`}>
-              {moved && (
-                <line x1={b.ox} y1={b.oy} x2={b.x} y2={b.y} stroke="var(--dg-orange)" strokeWidth="1.5" opacity={dim ? 0.4 : 1} pointerEvents="none" />
-              )}
-              <CutBadge cx={b.x} cy={b.y} n={b.n} active={active} dim={dim} onToggle={() => onCutToggle?.(b.n)} />
-            </g>
           )
         })}
 
@@ -459,64 +445,36 @@ export function SheetDiagram({
           </g>
         ))}
 
-        {/* Blocks too small to hold their own size are listed here, so none is left unlabelled */}
-        {notes.map((n, i) => (
-          <text key={n.key} x={sheetLeft} y={TOP + sheetPxH + RULER + 12 + i * NOTE_LINE} fontSize="11.5" fill="var(--dg-muted)">
-            • {n.text}
-          </text>
-        ))}
+        {/* Blocks too small to hold their own size: a note beside the sheet with a line to the block */}
+        {sorted.map((c, i) => {
+          const y = noteYs[i]
+          if (y === undefined) return null
+          return (
+            <g key={c.key}>
+              <line x1={X(c.ax)} y1={Y(c.ay)} x2={noteX - 5} y2={y - 4} stroke="var(--dg-faint)" strokeWidth="1" strokeDasharray="2 2" />
+              <circle cx={X(c.ax)} cy={Y(c.ay)} r={1.8} fill="var(--dg-faint)" />
+              {twoLine ? (
+                <>
+                  <text x={noteX} y={y} fontSize={noteFont} fontWeight="700" fill="var(--dg-text)">
+                    {c.name}
+                  </text>
+                  <text x={noteX} y={y + noteFont + 2} fontSize={noteFont} fill="var(--dg-muted)">
+                    {c.dims}
+                  </text>
+                </>
+              ) : (
+                <text x={noteX} y={y} fontSize={noteFont} fill="var(--dg-muted)">
+                  <tspan fontWeight="700" fill="var(--dg-text)">
+                    {c.name}
+                  </tspan>
+                  {'  '}
+                  {c.dims}
+                </text>
+              )}
+            </g>
+          )
+        })}
       </svg>
     </div>
-  )
-}
-
-function CutBadge({
-  cx,
-  cy,
-  n,
-  active,
-  dim,
-  onToggle,
-}: {
-  cx: number
-  cy: number
-  n: number
-  active: boolean
-  dim: boolean
-  onToggle: () => void
-}) {
-  const onKey = (e: KeyboardEvent<SVGGElement>) => {
-    if (e.key === 'Enter' || e.key === ' ') {
-      e.preventDefault()
-      onToggle()
-    }
-  }
-  return (
-    <g
-      role="button"
-      tabIndex={0}
-      aria-label={`Cut ${n}`}
-      aria-pressed={active}
-      onClick={onToggle}
-      onKeyDown={onKey}
-      style={{ cursor: 'pointer', outline: 'none' }}
-      className="focus-visible:opacity-90"
-    >
-      {/* Generous invisible hit target keeps the >=44px tap-target rule without changing the
-          drawn circle's size. */}
-      <circle cx={cx} cy={cy} r={22} fill="transparent" />
-      <circle
-        cx={cx}
-        cy={cy}
-        r={active ? 13 : 11.5}
-        fill="var(--dg-orange)"
-        stroke="var(--dg-card)"
-        strokeWidth={active ? 3 : 2}
-        opacity={dim ? 0.45 : 1}
-      />
-      <text x={cx} y={cy + 4} textAnchor="middle" fontSize="12" fontWeight="700" fill="var(--dg-on-orange)" pointerEvents="none">
-        {n}
-      </text>
-    </g>
   )
 }

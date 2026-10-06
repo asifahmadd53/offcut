@@ -1,4 +1,5 @@
 import { computeWasteCells, edgesToSegments, extractEdges } from './diagramLayout'
+import { spreadPositions } from './diagramStyle'
 import { plural } from './format'
 import { fmt, fmtLeft } from './inches'
 import { SvgDoc, type DrawDoc, type RGB } from './svgDoc'
@@ -159,21 +160,7 @@ export function sheetStats(sheet: SheetPlan): SheetStats {
   }
 }
 
-/**
- * Spreads desired positions (ascending) so neighbours are at least `minGap` apart, pulling
- * the group back up when it would run past `hi`. Returns as many positions as fit between
- * `lo` and `hi`; the caller draws only those, so nothing is ever drawn on top of another.
- */
-export function spreadPositions(desired: number[], minGap: number, lo: number, hi: number): number[] {
-  const cap = Math.max(0, Math.floor((hi - lo) / minGap) + 1)
-  const ys = desired.slice(0, cap).map((d) => Math.min(Math.max(d, lo), hi))
-  for (let i = 1; i < ys.length; i++) ys[i] = Math.max(ys[i], ys[i - 1] + minGap)
-  for (let i = ys.length - 1; i >= 0; i--) {
-    const limit = i === ys.length - 1 ? hi : ys[i + 1] - minGap
-    ys[i] = Math.min(ys[i], limit)
-  }
-  return ys
-}
+export { spreadPositions }
 
 // ---------- Parts: cutting pieces and leftovers are never mixed ----------
 
@@ -188,9 +175,9 @@ export interface PartSection {
 }
 
 /**
- * Every block on the sheet, in plain words, under its own heading: the pieces to cut, the
- * leftovers this cut creates (kept), leftovers that were already in stock, and what was cut
- * earlier. Pieces keep the size as typed; leftovers show their short side first (R16).
+ * The parts list: the pieces to cut, and what was cut earlier. Leftovers are not listed
+ * here (they are drawn, labelled, and counted in "How much is used"). Pieces keep the size
+ * as typed (R16).
  */
 export function partSections(blocks: Block[]): PartSection[] {
   const pieces: PartRow[] = blocks
@@ -199,19 +186,11 @@ export function partSections(blocks: Block[]): PartSection[] {
       name: `Piece ${b.n ?? ''}${b.rotated ? ' (turned)' : ''}`,
       size: b.label ?? `${fmt(b.w)} × ${fmt(b.h)}`,
     }))
-  const kept: PartRow[] = blocks
-    .filter((b) => b.kind === 'freeNew')
-    .map((b) => ({ name: b.letter ?? 'Leftover', size: fmtLeft(b.w, b.h) }))
-  const inStock: PartRow[] = blocks
-    .filter((b) => b.kind === 'free' || b.kind === 'focus')
-    .map((b) => ({ name: b.letter ?? 'Leftover', size: fmtLeft(b.w, b.h) }))
   const earlier: PartRow[] = blocks
     .filter((b) => b.kind === 'earlier')
     .map((b) => ({ name: 'Already cut', size: `${fmt(b.w)} × ${fmt(b.h)}` }))
   return [
     { title: 'Cutting pieces', rows: pieces },
-    { title: 'Leftovers to keep', rows: kept },
-    { title: 'Leftovers already in stock', rows: inStock },
     { title: 'Already cut earlier', rows: earlier },
   ].filter((s) => s.rows.length > 0)
 }

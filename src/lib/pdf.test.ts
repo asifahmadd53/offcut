@@ -238,7 +238,7 @@ describe('spreadPositions', () => {
 })
 
 describe('partSections', () => {
-  it('keeps cutting pieces and leftovers under separate headings, in plain words', () => {
+  it('lists the cutting pieces only; leftovers are not in the parts list', () => {
     const r = packJob([piece(23, 77, 2)], [], opts)
     const cut = cutFrom([piece(23, 77, 2)], r.sheets)
     const pages = buildPrintPages(cut, deriveStock([cut]), DEFAULT_SETTINGS)
@@ -248,13 +248,6 @@ describe('partSections', () => {
         rows: [
           { name: 'Piece 1', size: '23 × 77' },
           { name: 'Piece 2', size: '23 × 77' },
-        ],
-      },
-      {
-        title: 'Leftovers to keep',
-        rows: [
-          { name: 'A', size: '19 × 48' },
-          { name: 'B', size: '2 × 77' },
         ],
       },
     ])
@@ -401,14 +394,14 @@ describe('one page per sheet, however many parts', () => {
     expect(res.pdfPages).toBe(res.sheets)
   })
 
-  it('has no cut order anywhere, and keeps pieces and leftovers under separate headings', async () => {
+  it('has no cut order anywhere, and lists no leftovers among the parts', async () => {
     const r = packJob([piece(23, 77, 2)], [], opts)
     const cut = withClient(cutFrom([piece(23, 77, 2)], r.sheets))
     const { text } = await pdfPages(cut)
     expect(text.toLowerCase()).not.toContain('cut order')
     expect(text.toLowerCase()).not.toContain('measure each cut')
     expect(text).toContain('CUTTING PIECES')
-    expect(text).toContain('LEFTOVERS TO KEEP')
+    expect(text).not.toContain('LEFTOVERS')
   })
 })
 

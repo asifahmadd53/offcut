@@ -4,9 +4,9 @@ import {
   DG_LIGHT,
   blockTier,
   horizontalTicks,
-  placeBadges,
   rulerLabel,
-  smallBlockNotes,
+  smallBlockCallouts,
+  spreadPositions,
   verticalTicks,
 } from './diagramStyle'
 import type { Block } from './sheetView'
@@ -44,7 +44,7 @@ describe('horizontalTicks / rulerLabel', () => {
   })
 })
 
-describe('blockTier and smallBlockNotes', () => {
+describe('blockTier and smallBlockCallouts', () => {
   it('large blocks carry full text, slivers carry none', () => {
     expect(blockTier(280, 330)).toBe('full')
     expect(blockTier(88, 330)).toBe('medium')
@@ -52,36 +52,22 @@ describe('blockTier and smallBlockNotes', () => {
     expect(blockTier(8, 200)).toBe('tiny')
   })
 
-  it('lists every block too small to show its own size (R15)', () => {
+  it('gives every block too small to show its own size a note and a pointer (R15)', () => {
     const withSliver: Block[] = [...blocks, { kind: 'freeNew', x: 0, y: 0, w: 1, h: 40, letter: 'C' }]
-    expect(smallBlockNotes(withSliver, 5.9).map((n) => n.text)).toEqual(['C · 1 × 40'])
-    expect(smallBlockNotes(blocks, 5.9)).toEqual([])
+    expect(smallBlockCallouts(withSliver, 5.9)).toEqual([{ key: 'n3', name: 'C', dims: '1 × 40', ax: 1, ay: 20 }])
+    expect(smallBlockCallouts(blocks, 5.9)).toEqual([])
+  })
+
+  it('even a 2 x 2 piece gets one', () => {
+    const tiny: Block[] = [{ kind: 'cut', x: 5, y: 10, w: 2, h: 2, label: '2 × 2', n: 7 }]
+    expect(smallBlockCallouts(tiny, 3)).toEqual([{ key: 'n0', name: 'Piece 7', dims: '2 × 2', ax: 7, ay: 11 }])
   })
 })
 
-describe('placeBadges', () => {
-  it('leaves well-spaced badges exactly where their cuts end', () => {
-    const out = placeBadges([
-      { n: 1, x: 300, y: 100, axis: 'y' },
-      { n: 2, x: 120, y: 60, axis: 'x' },
-    ])
-    expect(out.every((b) => b.x === b.ox && b.y === b.oy)).toBe(true)
-  })
-
-  it('slides crowded badges apart so none overlap, and remembers where each cut ends', () => {
-    const items = [
-      { n: 1, x: 300, y: 100, axis: 'y' as const },
-      { n: 2, x: 300, y: 104, axis: 'y' as const },
-      { n: 3, x: 300, y: 98, axis: 'y' as const },
-      { n: 4, x: 300, y: 110, axis: 'y' as const },
-    ]
-    const out = placeBadges(items, 26)
-    for (let i = 0; i < out.length; i++) {
-      for (let j = i + 1; j < out.length; j++) {
-        expect(Math.hypot(out[i].x - out[j].x, out[i].y - out[j].y)).toBeGreaterThanOrEqual(25.99)
-      }
-    }
-    for (const b of out) expect(items.find((i) => i.n === b.n)).toMatchObject({ x: b.ox, y: b.oy })
+describe('spreadPositions', () => {
+  it('keeps neighbours apart and inside the range', () => {
+    expect(spreadPositions([10, 11, 12], 4, 0, 100)).toEqual([10, 14, 18])
+    expect(spreadPositions([98, 99, 100], 4, 0, 100)).toEqual([92, 96, 100])
   })
 })
 

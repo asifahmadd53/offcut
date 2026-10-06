@@ -122,65 +122,53 @@ export function horizontalTicks(sheetW: number): XTick[] {
   return [0, 0.25, 0.5, 0.75, 1].map((f) => ({ value: sheetW * f, major: f === 0 || f === 0.5 || f === 1 }))
 }
 
-export interface BlockNote {
+export interface SmallCallout {
   key: string
-  text: string
+  /** "Piece 6", "A" or "Already cut". */
+  name: string
+  /** The size, written the way the block itself would show it. */
+  dims: string
+  /** Where the block's right edge meets its middle, in sheet inches: the end of the leader line. */
+  ax: number
+  ay: number
 }
 
 /**
  * Blocks too small to carry their own size inside the drawing still owe it to the reader
- * (R15): they are listed under the drawing instead of being left unlabelled.
+ * (R15): each gets a note beside the sheet with a line pointing at the block, however tiny
+ * the block is.
  */
-export function smallBlockNotes(blocks: Block[], pxPerInch: number): BlockNote[] {
-  const notes: BlockNote[] = []
+export function smallBlockCallouts(blocks: Block[], pxPerInch: number): SmallCallout[] {
+  const out: SmallCallout[] = []
   blocks.forEach((b, i) => {
     const tier = blockTierFor(b, pxPerInch)
     if (tier !== 'small' && tier !== 'tiny') return
+    const at = { ax: b.x + b.w, ay: b.y + b.h / 2 }
     if (b.kind === 'cut') {
-      notes.push({ key: `n${i}`, text: `Piece ${b.n ?? ''} · ${b.label ?? fmtDims(b.w, b.h)}`.replace('  ', ' ') })
+      out.push({ key: `n${i}`, name: `Piece ${b.n ?? ''}`.trim(), dims: b.label ?? fmtDims(b.w, b.h), ...at })
     } else if (b.kind === 'earlier') {
-      notes.push({ key: `n${i}`, text: `Already cut · ${fmtDims(b.w, b.h)}` })
+      out.push({ key: `n${i}`, name: 'Already cut', dims: fmtDims(b.w, b.h), ...at })
     } else if (b.kind === 'free' || b.kind === 'freeNew' || b.kind === 'focus') {
-      notes.push({ key: `n${i}`, text: `${b.letter ?? 'Leftover'} · ${fmtLeft(b.w, b.h)}` })
+      out.push({ key: `n${i}`, name: b.letter ?? 'Leftover', dims: fmtLeft(b.w, b.h), ...at })
     }
   })
-  return notes
-}
-
-export interface BadgeInput {
-  n: number
-  x: number
-  y: number
-  /** Which way a crowded badge may slide: along the sheet's right edge ('y') or its top edge ('x'). */
-  axis: 'x' | 'y'
-}
-
-export interface PlacedBadge extends BadgeInput {
-  /** Where the cut line really ends; differs from x/y only when the badge had to move. */
-  ox: number
-  oy: number
+  return out
 }
 
 /**
- * Keeps numbered cut badges from covering each other when several cuts end close together:
- * a badge that would collide slides along its own axis (alternating either side) until it
- * has `minDist` of clear space. The caller draws a short leader back to (ox, oy).
+ * Spreads desired positions (ascending) so neighbours are at least `minGap` apart, pulling
+ * the group back up when it would run past `hi`. Returns as many positions as fit between
+ * `lo` and `hi`; the caller draws only those, so nothing is ever drawn on top of another.
  */
-export function placeBadges(items: BadgeInput[], minDist = 26): PlacedBadge[] {
-  const placed: PlacedBadge[] = []
-  const sorted = [...items].sort((a, b) => a.y - b.y || a.x - b.x || a.n - b.n)
-  const free = (x: number, y: number) => placed.every((p) => Math.hypot(p.x - x, p.y - y) >= minDist - 0.01)
-  for (const it of sorted) {
-    let x = it.x
-    let y = it.y
-    for (let k = 1; !free(x, y) && k < 60; k++) {
-      const step = Math.ceil(k / 2) * (minDist * 0.9) * (k % 2 === 1 ? 1 : -1)
-      x = it.axis === 'x' ? it.x + step : it.x
-      y = it.axis === 'y' ? it.y + step : it.y
-    }
-    placed.push({ ...it, x, y, ox: it.x, oy: it.y })
+export function spreadPositions(desired: number[], minGap: number, lo: number, hi: number): number[] {
+  const cap = Math.max(0, Math.floor((hi - lo) / minGap) + 1)
+  const ys = desired.slice(0, cap).map((d) => Math.min(Math.max(d, lo), hi))
+  for (let i = 1; i < ys.length; i++) ys[i] = Math.max(ys[i], ys[i - 1] + minGap)
+  for (let i = ys.length - 1; i >= 0; i--) {
+    const limit = i === ys.length - 1 ? hi : ys[i + 1] - minGap
+    ys[i] = Math.min(ys[i], limit)
   }
-  return placed
+  return ys
 }
 
 /** `24"` style ruler label; the zero end is written bare. */
