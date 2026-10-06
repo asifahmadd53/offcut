@@ -210,6 +210,8 @@ offcut/
 
 - **C87.** Edge tape picker made compact on wide screens: the card is at most 420 px wide and centred, the edge grid at most 320 px, and the piece picture at most 200 px wide (it was stretching to about 300 px wide and 255 px tall on a laptop, making the whole picker about 540 px tall; now about 370 px). Phone sizes are unchanged in practice (picture 124 × 125 at 320 px, 194 × 165 at 390 px) and nothing leaves the card or scrolls sideways. Only `EdgeTapePicker.tsx` changed. Checked in a temporary headless New job page at 320, 390 and 1280 px (deleted afterwards), not in the logged-in app. `npm run typecheck` and `npm test` (165) verified clean.
 
+- **C88.** The PDF/print page header now reads "Client name: <name>" instead of just the name (jobs with no client name still show the job title as before). One line in `lib/pdf.ts`; nothing else changed in this commit. `npm test` (165) and the type check verified clean. Not looked at in the app.
+
 ## Working agreements
 - Be brief in chat: at most 12 lines per stage — what was done, commands run and results, what to check, what's needed from the user.
 - Ask before: adding a dependency outside the stack table, changing a rule in R1–R16, or deviating from an approved screen.
