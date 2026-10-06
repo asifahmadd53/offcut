@@ -99,7 +99,7 @@ export function EdgeTapePicker({ value, onChange, widthText, heightText, w, h }:
   const fmt = sizeFormatter('decimal').fmt
 
   return (
-    <div className="mx-auto w-full max-w-[420px] rounded-lg border-hair border-border bg-card p-3" style={GRID}>
+    <div className="mx-auto w-full  rounded-lg border-hair border-border bg-card p-3" style={GRID}>
       <div className="mx-auto grid w-full max-w-[320px] grid-cols-[44px_minmax(0,1fr)_44px] grid-rows-[auto_auto_auto] items-stretch gap-2">
         {pill('top', 'col-span-3 col-start-1 row-start-1')}
         {pill('left', 'col-start-1 row-start-2', true, true)}
