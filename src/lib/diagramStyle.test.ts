@@ -7,7 +7,7 @@ import {
   rulerLabel,
   blockTierFor,
   smallBlockCallouts,
-  blockLabel,
+  blockLabel, turnedBlockLabel,
   spreadPositions,
   verticalTicks,
 } from './diagramStyle'
@@ -95,5 +95,36 @@ describe('diagram tokens', () => {
     for (const [token, value] of Object.entries(DG_LIGHT)) {
       expect(rootBlock, token).toContain(`${token}: ${value};`)
     }
+  })
+})
+
+describe('turned pieces carry the turn mark and keep their typed size', () => {
+  const flat: Block = { kind: 'cut', x: 0, y: 0, w: 27.6, h: 4, label: '4 × 27.6', n: 5, rotated: true }
+
+  it('writes "#5 ↻ 4 × 27.6" with the size exactly as typed, never swapped', () => {
+    const l = turnedBlockLabel(flat, 27.6 * 6, 4 * 6)
+    expect(l?.lines.join(' ')).toContain('#5 ↻')
+    expect(l?.lines.join(' ')).toContain('4 × 27.6')
+    expect(l?.lines.join(' ')).not.toContain('27.6 × 4')
+  })
+
+  it('shrinks the type to fit, and never overflows the block', () => {
+    for (const px of [5, 4, 3.2, 2.6]) {
+      const l = turnedBlockLabel(flat, 27.6 * px, 4 * px)
+      if (!l) continue
+      const len = l.lines[0].length * 0.68 * l.size
+      const across = l.rotated ? 4 * px : 27.6 * px
+      expect(len).toBeLessThanOrEqual(l.rotated ? 27.6 * px : across)
+    }
+  })
+
+  it('returns nothing when even the shrunk label does not fit, so the block falls back to "#5 ↻" and a note', () => {
+    expect(turnedBlockLabel(flat, 27.6 * 1.2, 4 * 1.2)).toBeNull()
+    expect(blockTierFor(flat, 1.2)).not.toBe('line')
+  })
+
+  it('an upright piece is untouched', () => {
+    const upright: Block = { ...flat, rotated: false }
+    expect(turnedBlockLabel(upright, 160, 30)).toBeNull()
   })
 })

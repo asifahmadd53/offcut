@@ -2,6 +2,8 @@ import { useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from 're
 import { diagramAriaLabel } from '@/lib/diagramLayout'
 import {
   blockLabel,
+  turnedBlockLabel,
+  TURN_MARK,
   blockTierFor,
   horizontalTicks,
   rulerLabel,
@@ -181,7 +183,7 @@ export function SheetDiagram({
     const cx = bx + bw / 2
     const cy = by + bh / 2
     const highlighted = highlightIndex === i
-    const label = tier === 'line' ? blockLabel(b, bw, bh, F) : null
+    const label = tier === 'line' ? (b.kind === 'cut' && b.rotated ? turnedBlockLabel(b, bw, bh, F) : blockLabel(b, bw, bh, F)) : null
     const isLeftover = b.kind === 'free' || b.kind === 'freeNew' || b.kind === 'focus'
 
     let body: JSX.Element
@@ -192,7 +194,11 @@ export function SheetDiagram({
           {label && <LabelText label={label} cx={cx} cy={cy} fill="var(--dg-on-blue)" />}
           {tier === 'small' && (
             <text x={cx} y={cy + 4} textAnchor="middle" fontSize="11" fontWeight="700" fill="var(--dg-on-blue)">
-              {bw >= (String(b.n).length + 1) * 7.6 + 2 ? `#${b.n}` : b.n}
+              {b.rotated && bw >= (String(b.n).length + 3) * 7.6 + 2
+                ? `#${b.n} ${TURN_MARK}`
+                : bw >= (String(b.n).length + 1) * 7.6 + 2
+                  ? `#${b.n}`
+                  : b.n}
             </text>
           )}
         </>

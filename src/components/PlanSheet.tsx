@@ -342,7 +342,17 @@ function SaveImageButton({ sheet }: { sheet: SheetPlan; blocks: Block[] }) {
   )
 }
 
-function Legend({ swatch, label }: { swatch: 'cut' | 'free' | 'old' | 'path' | 'tape'; label: string }) {
+function Legend({ swatch, label }: { swatch: 'cut' | 'free' | 'old' | 'path' | 'tape' | 'turn'; label: string }) {
+  if (swatch === 'turn') {
+    return (
+      <div className="flex items-center gap-2">
+        <span aria-hidden="true" className="flex h-3.5 w-3.5 flex-none items-center justify-center text-[14px] font-bold leading-none">
+          ↻
+        </span>
+        {label}
+      </div>
+    )
+  }
   if (swatch === 'tape') {
     return (
       <div className="flex items-center gap-2">

@@ -98,8 +98,17 @@ interface TextStyle {
   angle?: number
 }
 
+/** The turn mark of a turned piece. The font has no such glyph, so it is drawn as a small vector arrow. */
+const ARROW = '↻'
+/** Width reserved for the arrow, in em of the surrounding text. */
+const ARROW_EM = 1.15
+
 /** Every text in the file goes through here, one line per call, so nothing wraps on its own. */
 function put(doc: DrawDoc, text: string, x: number, y: number, st: TextStyle) {
+  if (text.includes(ARROW)) {
+    putWithArrow(doc, text, x, y, st)
+    return
+  }
   doc.setFont('helvetica', st.bold ? 'bold' : 'normal')
   doc.setFontSize(st.size)
   doc.setTextColor(...(st.color ?? COL.ink))
@@ -113,10 +122,81 @@ function put(doc: DrawDoc, text: string, x: number, y: number, st: TextStyle) {
   }
 }
 
+/**
+ * A clockwise turn-arrow (↻): an open circle with a solid arrowhead at its end. (x, y) is the start of the
+ * slot on the text line's baseline; `up` is for text written up the block. Solid and dark, so it reads in black and white.
+ */
+function drawTurnArrow(doc: DrawDoc, x: number, y: number, size: number, color: RGB, up: boolean, bold: boolean) {
+  const em = size * PT
+  const r = em * 0.33
+  // (u, v): u along the reading direction, v up from the baseline; page x/y follow the text's angle.
+  const at = (u: number, v: number): [number, number] => (up ? [x - v, y - u] : [x + u, y - v])
+  const cu = em * ARROW_EM * 0.5
+  const cv = em * 0.32
+  doc.setDrawColor(...color)
+  doc.setFillColor(...color)
+  doc.setLineWidth(Math.max(0.16, em * (bold ? 0.14 : 0.11)))
+  doc.setLineDashPattern([], 0)
+  // The arc runs clockwise from -15° (just below the right side) round the bottom, the left and the top to 45°
+  // (upper right), where the head points down-right: the usual refresh arrow, with its gap at the right.
+  const startDeg = -15
+  const sweep = 300
+  const steps = 72
+  const pt = (deg: number): [number, number] => {
+    const phi = (deg * Math.PI) / 180
+    return at(cu + r * Math.cos(phi), cv + r * Math.sin(phi))
+  }
+  let prev = pt(startDeg)
+  for (let k = 1; k <= steps; k++) {
+    const next = pt(startDeg - (sweep * k) / steps)
+    doc.line(prev[0], prev[1], next[0], next[1])
+    prev = next
+  }
+  // Solid head at the end of the arc, pointing along the clockwise tangent.
+  const endPhi = ((startDeg - sweep) * Math.PI) / 180
+  const tx = Math.sin(endPhi)
+  const ty = -Math.cos(endPhi)
+  const nx = Math.cos(endPhi)
+  const ny = Math.sin(endPhi)
+  const ex = cu + r * Math.cos(endPhi)
+  const ey = cv + r * Math.sin(endPhi)
+  const len = em * 0.42
+  const half = em * 0.24
+  const tip = at(ex + tx * len * 0.65, ey + ty * len * 0.65)
+  const b1 = at(ex - tx * len * 0.35 + nx * half, ey - ty * len * 0.35 + ny * half)
+  const b2 = at(ex - tx * len * 0.35 - nx * half, ey - ty * len * 0.35 - ny * half)
+  doc.triangle(tip[0], tip[1], b1[0], b1[1], b2[0], b2[1], 'F')
+}
+
+/** Draws a text that contains turn marks: the words as text, each mark as a small vector arrow in its slot. */
+function putWithArrow(doc: DrawDoc, text: string, x: number, y: number, st: TextStyle) {
+  const parts = text.split(ARROW)
+  const slot = st.size * PT * ARROW_EM
+  const total = widthOf(doc, text, st.size, !!st.bold)
+  const up = st.angle === 90
+  // The text's start along its own direction (bottom for text written up the block).
+  let pos = up ? y : st.align === 'center' ? x - total / 2 : st.align === 'right' ? x - total : x
+  parts.forEach((part, i) => {
+    if (part) {
+      const w = widthOf(doc, part, st.size, !!st.bold)
+      if (up) put(doc, part, x, pos, { ...st, align: 'left' })
+      else put(doc, part, pos, y, { ...st, align: 'left' })
+      pos += up ? -w : w
+    }
+    if (i < parts.length - 1) {
+      if (up) drawTurnArrow(doc, x, pos, st.size, st.color ?? COL.ink, true, !!st.bold || !!st.semi)
+      else drawTurnArrow(doc, pos, y, st.size, st.color ?? COL.ink, false, !!st.bold || !!st.semi)
+      pos += up ? -slot : slot
+    }
+  })
+}
+
 function widthOf(doc: DrawDoc, text: string, size: number, bold = false): number {
   doc.setFont('helvetica', bold ? 'bold' : 'normal')
   doc.setFontSize(size)
-  return doc.getTextWidth(text)
+  if (!text.includes(ARROW)) return doc.getTextWidth(text)
+  const parts = text.split(ARROW)
+  return parts.reduce((a, p) => a + (p ? doc.getTextWidth(p) : 0), 0) + (parts.length - 1) * size * PT * ARROW_EM
 }
 
 function wrap(doc: DrawDoc, text: string, maxW: number, size: number, bold = false): string[] {
@@ -358,19 +438,21 @@ function labelCandidates(b: Block): LabelCandidate[] {
   const plain = F.fmtDims(b.w, b.h)
   if (b.kind === 'cut') {
     const size = b.label ?? plain
+    // A turned piece keeps its typed size and carries the turn mark after its number.
     const n = `#${b.n ?? ''}`
-    const one = `${n} · ${size}`
+    const head = b.rotated ? `${n} ${ARROW}` : n
+    const one = b.rotated ? `${n} ${ARROW} ${size}` : `${n} · ${size}`
     // A small piece keeps its "#n" big and bold, with its size beneath in whatever type fits (down to
     // 2.5 pt). A block too tiny for both keeps just the bold "#n" and its size goes in a note beside the sheet.
     return [
-      { lines: [n, size], min: 9 },
+      { lines: [head, size], min: 9 },
       { lines: [one], min: 7.5 },
       { lines: [one], vertical: true, min: 7.5 },
       { lines: [one], min: 6 },
       { lines: [one], vertical: true, min: 6 },
-      { lines: [n, size], split: true, min: 2.5 },
-      { lines: [n], min: 5, tag: true },
-      { lines: [n], vertical: true, min: 5, tag: true },
+      { lines: [head, size], split: true, min: 2.5 },
+      { lines: [head], min: 5, tag: true },
+      { lines: [head], vertical: true, min: 5, tag: true },
       { lines: [size], min: 2.5, tag: true },
       { lines: [size], vertical: true, min: 2.5, tag: true },
     ]
@@ -461,7 +543,10 @@ function drawPieceLine(doc: DrawDoc, text: string, along: number, base: number, 
     up
       ? put(doc, t, base, pos, { size, color, angle: 90, ...st })
       : put(doc, t, pos, base, { size, color, ...st })
-  const sep = text.indexOf(' · ')
+  const dot = text.indexOf(' · ')
+  const arrow = text.indexOf(ARROW)
+  // "#4 · 3 × 30" splits at the dot; "#4 ↻ 3 × 30" right after the turn mark, which stays with the bold number.
+  const sep = dot > 0 ? dot : arrow > 0 && arrow + 1 < text.length ? arrow + 1 : -1
   if (text.startsWith('#') && sep > 0) {
     const n = text.slice(0, sep)
     const rest = text.slice(sep)
@@ -484,13 +569,14 @@ function drawPieceLine(doc: DrawDoc, text: string, along: number, base: number, 
 }
 
 function drawLegend(doc: DrawDoc, sheet: SheetPlan, blocks: Block[], x: number, y: number, maxW: number) {
-  const items: Array<{ key: 'blue' | 'green' | 'earlier' | 'cut' | 'tape'; text: string }> = [
+  const items: Array<{ key: 'blue' | 'green' | 'earlier' | 'cut' | 'tape' | 'turn'; text: string }> = [
     { key: 'blue', text: 'Piece to cut' },
     { key: 'green', text: 'Leftover' },
   ]
   if (blocks.some((b) => b.kind === 'earlier')) items.push({ key: 'earlier', text: 'Already cut' })
   if ((sheet.cuts ?? []).length > 0) items.push({ key: 'cut', text: 'Cut line' })
   if (blocks.some((b) => b.kind === 'cut' && b.tape)) items.push({ key: 'tape', text: 'Tape' })
+  if (blocks.some((b) => b.kind === 'cut' && b.rotated)) items.push({ key: 'turn', text: '= turned piece' })
   const size = 8.5
   const itemW = (t: string) => 7 + widthOf(doc, t, size)
   let cx = x
@@ -500,7 +586,10 @@ function drawLegend(doc: DrawDoc, sheet: SheetPlan, blocks: Block[], x: number, 
       cx = x
       cy += 5.5
     }
-    if (it.key === 'tape') {
+    if (it.key === 'turn') {
+      // Same vector arrow as on the pieces, in the legend's ink.
+      drawTurnArrow(doc, cx, cy, size, COL.muted, false, false)
+    } else if (it.key === 'tape') {
       doc.setFillColor(...COL.tape)
       doc.rect(cx, cy - 2.4, 5.4, 2.4, 'F')
       doc.setDrawColor(...COL.tapeInk)
@@ -572,7 +661,7 @@ function planDiagram(doc: DrawDoc, page: PrintPage, box: Box, zoneRight: number,
     fits.push({ block: b, fit })
     // A block that can only show its bare number or letter still gets its size in a note with a line to it.
     if ((!fit || fit.tag) && b.kind !== 'waste') {
-      const name = b.kind === 'cut' ? `Piece ${b.n ?? ''}` : b.kind === 'earlier' ? 'Already cut' : `Leftover ${b.letter ?? ''}`
+      const name = b.kind === 'cut' ? `Piece ${b.n ?? ''}${b.rotated ? ' (turned)' : ''}` : b.kind === 'earlier' ? 'Already cut' : `Leftover ${b.letter ?? ''}`
       const dims = b.kind === 'cut' ? (b.label ?? F.fmtDims(b.w, b.h)) : b.kind === 'earlier' ? F.fmtDims(b.w, b.h) : ''
       callouts.push({ name, dims, ax: X(b.x + b.w), ay: Y(b.y + b.h / 2), ink: inkFor(b) })
     }
@@ -912,7 +1001,7 @@ function drawInfoColumn(doc: DrawDoc, page: PrintPage, box: Box, compact: boolea
 /** A stand-in for the document that measures text like the real one but draws nothing. */
 function dryRun(doc: DrawDoc): DrawDoc {
   const d = Object.create(doc) as Record<string, unknown>
-  for (const k of ['text', 'rect', 'circle', 'line', 'setFillColor', 'setDrawColor', 'setLineWidth', 'setLineDashPattern', 'setTextColor']) {
+  for (const k of ['text', 'rect', 'circle', 'line', 'triangle', 'setFillColor', 'setDrawColor', 'setLineWidth', 'setLineDashPattern', 'setTextColor']) {
     d[k] = () => d
   }
   return d as unknown as DrawDoc

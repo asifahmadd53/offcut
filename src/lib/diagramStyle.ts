@@ -87,6 +87,27 @@ export function blockLabel(b: Block, pw: number, ph: number, f: Formatter = DEFA
   return null
 }
 
+/** The mark on a turned piece. */
+export const TURN_MARK = '↻'
+
+/**
+ * The label of a piece the plan turned: the same typed size as always (R16), with the turn mark after
+ * its number, "#5 ↻" over "4 × 27.6" or "#5 ↻ 4 × 27.6" on one line across or up the block (type shrinks a
+ * little to fit). Null when even that does not fit: the block then shows just "#5 ↻" and its size goes in a note.
+ */
+export function turnedBlockLabel(b: Block, pw: number, ph: number, f: Formatter = DEFAULT_FORMAT): BlockLabel | null {
+  if (b.kind !== 'cut' || !b.rotated) return null
+  const d = splitDims(b.label ?? f.fmtDims(b.w, b.h)) ?? { w: f.fmt(b.w), h: f.fmt(b.h) }
+  const head = `#${b.n ?? ''} ${TURN_MARK}`
+  const size = `${d.w} × ${d.h}`
+  const two = [head, size]
+  const widest = Math.max(...two.map((l) => l.length))
+  for (const s of [22, 20, 18, 16, 14, 13, 12, 11, 10]) {
+    if (widest * 0.68 * s <= pw - 8 && two.length * s * 1.25 <= ph - 8) return { lines: two, size: s, rotated: false }
+  }
+  return oneLine(`${head} ${size}`, pw, ph, [12, 11, 10, 9, 8, 7])
+}
+
 function oneLine(text: string, pw: number, ph: number, sizes: number[]): BlockLabel | null {
   for (const size of sizes) {
     const len = text.length * 0.68 * size
@@ -106,7 +127,8 @@ export function blockTierFor(b: Block, pxPerInch: number, f: Formatter = DEFAULT
   const ph = b.h * pxPerInch
   const tier = blockTier(pw, ph)
   if (b.kind === 'earlier' && (tier === 'full' || tier === 'medium') && f.fmtDims(b.w, b.h).length * 0.66 * 9 <= pw - 14) return tier
-  if (blockLabel(b, pw, ph, f)) return 'line'
+  // A turned piece also carries the turn mark, so it needs a little more room; without it, "small".
+  if (b.kind === 'cut' && b.rotated ? turnedBlockLabel(b, pw, ph, f) : blockLabel(b, pw, ph, f)) return 'line'
   return tier === 'full' || tier === 'medium' ? 'small' : tier
 }
 
