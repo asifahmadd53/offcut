@@ -194,6 +194,35 @@ function buildCuts(bin: Bin): SheetPlan['cuts'] {
   })
 }
 
+type ItemOrder = (a: Item, b: Item) => number
+
+/**
+ * The orders pieces are tried in. The first (largest area first) is the one the plan uses whenever
+ * nothing does better; the others exist because a long thin piece (say 4 × 96) is tiny by area, so it
+ * is placed last, after every sheet's full-length column has already been broken up by shorter
+ * pieces, and it then needs a whole sheet of its own although it would have fitted beside them.
+ */
+const ORDERS: ItemOrder[] = [
+  (a, b) => b.w * b.h - a.w * a.h || b.h - a.h || a.n - b.n,
+  (a, b) => Math.max(b.w, b.h) - Math.max(a.w, a.h) || b.w * b.h - a.w * a.h || a.n - b.n,
+  (a, b) => Math.min(b.w, b.h) - Math.min(a.w, a.h) || Math.max(b.w, b.h) - Math.max(a.w, a.h) || a.n - b.n,
+  (a, b) => b.h - a.h || b.w - a.w || a.n - b.n,
+  (a, b) => b.w - a.w || b.h - a.h || a.n - b.n,
+  (a, b) => b.w + b.h - (a.w + a.h) || b.w * b.h - a.w * a.h || a.n - b.n,
+]
+
+/** Lower is better: every piece placed, then the fewest new sheets, then the biggest single leftover kept. */
+function planScore(r: PackResult): [number, number, number] {
+  const newSheets = r.sheets.filter((s) => s.isNew).length
+  const biggest = Math.max(0, ...r.sheets.flatMap((s) => s.newLeftovers.map((l) => l.w * l.h)))
+  return [r.unplaced.length, newSheets, -biggest]
+}
+
+/**
+ * Plans the job in several piece orders and keeps the one that needs the fewest new sheets (ties go to
+ * the earlier order, so the usual largest-first plan is kept unless another is genuinely better). Each
+ * order still follows R2-R5 piece by piece, so a saved leftover is always preferred over a new sheet.
+ */
 export function packJob(
   pieces: Piece[],
   stock: Leftover[],
@@ -201,9 +230,30 @@ export function packJob(
   excludedIds: ReadonlySet<string> = new Set(),
   sheetLetters: ReadonlyMap<string, Set<string>> = new Map(),
 ): PackResult {
-  const items = expandPieces(pieces).sort(
-    (a, b) => b.w * b.h - a.w * a.h || b.h - a.h || a.n - b.n,
-  )
+  let best: PackResult | null = null
+  let bestScore: [number, number, number] | null = null
+  for (const order of ORDERS) {
+    const r = packInOrder(pieces, stock, opts, excludedIds, sheetLetters, order)
+    const sc = planScore(r)
+    const better =
+      !bestScore || sc[0] < bestScore[0] || (sc[0] === bestScore[0] && (sc[1] < bestScore[1] || (sc[1] === bestScore[1] && sc[2] < bestScore[2] - EPS)))
+    if (better) {
+      best = r
+      bestScore = sc
+    }
+  }
+  return best!
+}
+
+function packInOrder(
+  pieces: Piece[],
+  stock: Leftover[],
+  opts: PackOptions,
+  excludedIds: ReadonlySet<string>,
+  sheetLetters: ReadonlyMap<string, Set<string>>,
+  order: ItemOrder,
+): PackResult {
+  const items = expandPieces(pieces).sort(order)
 
   const leftoverBins: Bin[] = stock
     .filter((l) => l.status === 'free' && !excludedIds.has(l.id))

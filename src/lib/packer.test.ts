@@ -494,3 +494,13 @@ describe('packJob allowNewSheets (leftover-restricted planning)', () => {
     expect(result.sheets.some((s) => s.isNew)).toBe(true)
   })
 })
+
+describe('packJob piece order', () => {
+  it('a long thin 4 x 96 piece shares a sheet instead of taking a new one (3 sheets, not 4)', () => {
+    const t = (id: string, w: number, h: number, qty: number) => ({ id, w, h, qty })
+    const ps = [t('a', 22.7, 82.2, 2), t('b', 22.7, 35, 2), t('c', 23.1, 35, 2), t('d', 3, 30, 2), t('e', 4, 96, 1), t('f', 19, 45.6, 1), t('g', 20.6, 7.1, 4)]
+    const r = packJob(ps as never, [], { sheetW: 48, sheetH: 96, kerf: 0.125, minLeftover: 1 })
+    expect(r.unplaced).toHaveLength(0)
+    expect(r.sheets).toHaveLength(3)
+  })
+})
