@@ -4,7 +4,7 @@ import { AppShell } from '@/components/AppShell'
 import { PlanSheet } from '@/components/PlanSheet'
 import { PrintOrPdfDialog } from '@/components/PrintOrPdfDialog'
 import { Button } from '@/components/ui/button'
-import { dayMonth } from '@/lib/format'
+import { dayMonth, plural } from '@/lib/format'
 import { sizeStyleOf } from '@/lib/inches'
 import { pieceSummary, sourceSummary } from '@/lib/summary'
 import { buildBlocks } from '@/lib/sheetView'
@@ -75,8 +75,20 @@ export default function JobDetail() {
         </div>
       )}
 
+      {cut.sheets.length > 1 && (
+        <p className="mb-4 text-lg font-bold tracking-tight text-foreground md:text-xl lg:text-2xl">
+          <span className="text-primary">{cut.sheets.length}</span> {plural(cut.sheets.length, 'sheet').replace(/^\d+\s*/, '')} in this job
+        </p>
+      )}
       {cut.sheets.map((sheet, i) => (
-        <PlanSheet key={sheet.sheetId + i} sheet={sheet} blocks={buildBlocks(sheet, derived, cut.id)} sizeStyle={sizeStyleOf(cut.pieces)} />
+        <div key={sheet.sheetId + i} className="mb-8">
+          {cut.sheets.length > 1 && (
+            <p className="mb-2 text-[13px] text-muted-foreground">
+              Sheet {i + 1} of {cut.sheets.length}
+            </p>
+          )}
+          <PlanSheet sheet={sheet} blocks={buildBlocks(sheet, derived, cut.id)} sizeStyle={sizeStyleOf(cut.pieces)} />
+        </div>
       ))}
 
       <PrintOrPdfDialog

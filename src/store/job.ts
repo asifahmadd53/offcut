@@ -1,11 +1,26 @@
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 import { uid } from '@/lib/id'
-import { packJob, type Item } from '@/lib/packer'
+import { packJob as packOnly, type Item, type PackOptions, type PackResult } from '@/lib/packer'
+import { checkPlan } from '@/lib/planCheck'
 import type { EdgeTape, Leftover, Piece, SheetPlan } from '@/lib/types'
 import { cleanTape } from '@/lib/tape'
 import { useData } from './data'
 import { useSettings } from './settings'
+
+/** Plans the job, then audits the plan against the rules (checkPlan); a failed audit is logged, never shown. */
+function packJob(
+  pieces: Piece[],
+  stock: Leftover[],
+  opts: PackOptions,
+  excluded: ReadonlySet<string>,
+  sheetLetters: Parameters<typeof packOnly>[4],
+): PackResult {
+  const result = packOnly(pieces, stock, opts, excluded, sheetLetters)
+  const problems = checkPlan(pieces, result, opts)
+  if (problems.length > 0) console.error('Plan check failed:', problems)
+  return result
+}
 
 /** Only this client's own leftovers are ever offered as stock for their job (never pooled across clients). */
 function stockForClient(freeLeftovers: Leftover[], clientId: string): Leftover[] {

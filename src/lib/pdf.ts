@@ -91,6 +91,8 @@ const COL = {
 interface TextStyle {
   size: number
   bold?: boolean
+  /** A weight between normal and bold (the built-in font has none): the text is drawn twice, a hair apart. */
+  semi?: boolean
   color?: RGB
   align?: 'left' | 'center' | 'right'
   angle?: number
@@ -104,6 +106,11 @@ function put(doc: DrawDoc, text: string, x: number, y: number, st: TextStyle) {
   const opts: { align: 'left' | 'center' | 'right'; angle?: number } = { align: st.align ?? 'left' }
   if (st.angle) opts.angle = st.angle
   doc.text(text, x, y, opts)
+  if (st.semi) {
+    const d = st.size * PT * 0.03
+    // The second pass is shifted across the letters (for text written up the block, sideways), thickening each stroke.
+    doc.text(text, x + d, y, opts)
+  }
 }
 
 function widthOf(doc: DrawDoc, text: string, size: number, bold = false): number {
@@ -334,6 +341,12 @@ interface LabelCandidate {
   lines: string[]
   /** One line written up the block (bottom to top) instead of across it. */
   vertical?: boolean
+  /** Smallest type this form may shrink to (pt). */
+  min?: number
+  /** Only the bare number/letter: the size still goes in a note with a line. */
+  tag?: boolean
+  /** Two lines at different sizes: the bold "#n" kept big and easy to read, its size small beneath (or beside) it. */
+  split?: boolean
 }
 
 /**
@@ -347,7 +360,20 @@ function labelCandidates(b: Block): LabelCandidate[] {
     const size = b.label ?? plain
     const n = `#${b.n ?? ''}`
     const one = `${n} · ${size}`
-    return [{ lines: [n, size] }, { lines: [one] }, { lines: [one], vertical: true }, { lines: [n] }]
+    // A small piece keeps its "#n" big and bold, with its size beneath in whatever type fits (down to
+    // 2.5 pt). A block too tiny for both keeps just the bold "#n" and its size goes in a note beside the sheet.
+    return [
+      { lines: [n, size], min: 9 },
+      { lines: [one], min: 7.5 },
+      { lines: [one], vertical: true, min: 7.5 },
+      { lines: [one], min: 6 },
+      { lines: [one], vertical: true, min: 6 },
+      { lines: [n, size], split: true, min: 2.5 },
+      { lines: [n], min: 5, tag: true },
+      { lines: [n], vertical: true, min: 5, tag: true },
+      { lines: [size], min: 2.5, tag: true },
+      { lines: [size], vertical: true, min: 2.5, tag: true },
+    ]
   }
   // A leftover shows just its letter (its size is not printed); too small for even that, it
   // gets a note with a line to it.
@@ -366,29 +392,95 @@ function inkFor(b: Block): RGB {
 interface LabelFit {
   lines: string[]
   size: number
+  /** Per-line type sizes when the lines differ (a big bold "#n" over a small size). */
+  sizes?: number[]
   /** Only the bare number/letter fits, so the size still goes in a note with a line. */
   tag: boolean
   vertical: boolean
 }
 
 function fitBlockLabel(doc: DrawDoc, b: Block, pw: number, ph: number): LabelFit | null {
-  const pad = 1.2
   const cands = labelCandidates(b)
   const leftover = b.kind === 'free' || b.kind === 'freeNew' || b.kind === 'focus'
+  // Every line of a piece (its "#n" and its size) is the same semibold weight; measured as bold to stay safe.
+  const semiAll = b.kind === 'cut'
   for (let ci = 0; ci < cands.length; ci++) {
     const { lines, vertical = false } = cands[ci]
-    const tagOnly = ci === cands.length - 1 && cands.length > 1
+    const tagOnly = cands[ci].tag ?? (ci === cands.length - 1 && cands.length > 1)
+    if (cands[ci].split) {
+      // The number stays big and bold (down to 5 pt); only the size under it shrinks. Both ways of
+      // writing it (across, or up the block) are tried and the one that leaves the larger type wins, so a
+      // narrow block is written up its length instead of squeezing tiny text across its width.
+      const pad = 0.35
+      let best: LabelFit | null = null
+      // First with the number at 6.5 pt or more; only a block too small for that lets it go down to 5.
+      for (const bigMin of [6.5, 5]) {
+        for (const up of [false, true]) {
+          for (let big = 10; big >= bigMin; big -= 0.5) {
+            for (let sub = Math.min(6, big - 1); sub >= 2.5; sub -= 0.5) {
+              const sizes = [big, sub]
+              const widths = lines.map((l, i) => widthOf(doc, l, sizes[i], semiAll || i === 0))
+              const heights = sizes.map((z) => lineHeight(z))
+              const ok = up
+                ? Math.max(...widths) <= ph - pad * 2 && heights[0] + heights[1] <= pw - pad * 2
+                : Math.max(...widths) <= pw - pad * 2 && heights[0] + heights[1] <= ph - pad * 2
+              if (!ok) continue
+              if (!best || sub > best.sizes![1] || (sub === best.sizes![1] && big > best.sizes![0])) {
+                best = { lines, size: big, sizes, tag: false, vertical: up }
+              }
+              break
+            }
+          }
+        }
+        if (best) break
+      }
+      if (best) return best
+      continue
+    }
     // The two-line form is only worth it at a comfortable size; smaller, writing up the block reads better.
-    const minSize = tagOnly ? 7 : ci === 0 && b.kind === 'cut' ? 9 : 7.5
+    const minSize = cands[ci].min ?? (tagOnly ? 7 : 7.5)
+    // The tiny-type forms sit closer to the block's edge, so a very small piece can still hold its size.
+    const pad = minSize <= 5 ? 0.35 : minSize <= 6 ? 0.6 : 1.2
     for (let size = leftover ? 16 : 10; size >= minSize; size -= 0.5) {
       const lh = lineHeight(size)
       const totalH = lines.length * lh
-      const maxW = Math.max(...lines.map((l, i) => widthOf(doc, l, size, i === 0)))
+      const maxW = Math.max(...lines.map((l, i) => widthOf(doc, l, size, semiAll || i === 0)))
       const fits = vertical ? maxW <= ph - pad * 2 && lh <= pw - pad * 2 : maxW <= pw - pad * 2 && totalH <= ph - pad * 2
       if (fits) return { lines, size, tag: tagOnly, vertical }
     }
   }
   return null
+}
+
+/**
+ * One line of a piece's label: "#n" in bold, and any size written with it ("#4 · 3 × 30", or the line
+ * under it) in semibold. `along` is the middle of the line along its direction, `base` its baseline.
+ */
+function drawPieceLine(doc: DrawDoc, text: string, along: number, base: number, size: number, color: RGB, up: boolean) {
+  const at = (t: string, pos: number, st: { bold?: boolean; semi?: boolean }) =>
+    up
+      ? put(doc, t, base, pos, { size, color, angle: 90, ...st })
+      : put(doc, t, pos, base, { size, color, ...st })
+  const sep = text.indexOf(' · ')
+  if (text.startsWith('#') && sep > 0) {
+    const n = text.slice(0, sep)
+    const rest = text.slice(sep)
+    const wn = widthOf(doc, n, size, true)
+    const total = wn + widthOf(doc, rest, size, false)
+    if (up) {
+      const y0 = along + total / 2
+      at(n, y0, { bold: true })
+      at(rest, y0 - wn, { semi: true })
+    } else {
+      const x0 = along - total / 2
+      at(n, x0, { bold: true })
+      at(rest, x0 + wn, { semi: true })
+    }
+    return
+  }
+  const st = text.startsWith('#') ? { bold: true } : { semi: true }
+  const w = widthOf(doc, text, size, text.startsWith('#'))
+  at(text, up ? along + w / 2 : along - w / 2, st)
 }
 
 function drawLegend(doc: DrawDoc, sheet: SheetPlan, blocks: Block[], x: number, y: number, maxW: number) {
@@ -596,15 +688,44 @@ function drawDiagram(doc: DrawDoc, page: PrintPage, box: Box) {
     if (!fit) continue
     const cx = X(b.x) + (b.w * sc) / 2
     const cy = Y(b.y) + (b.h * sc) / 2
-    if (fit.vertical) {
-      const text = fit.lines[0]
-      put(doc, text, cx + fit.size * PT * 0.3, cy + widthOf(doc, text, fit.size) / 2, { size: fit.size, color: inkFor(b), angle: 90 })
+    const sizes = fit.sizes ?? fit.lines.map(() => fit.size)
+    const total = sizes.reduce((a, z) => a + lineHeight(z), 0)
+    if (b.kind === 'cut') {
+      // "#n" is bold; the size written with it is semibold.
+      if (fit.vertical) {
+        let left = cx - total / 2
+        fit.lines.forEach((text, i) => {
+          const colW = lineHeight(sizes[i])
+          drawPieceLine(doc, text, cy, left + colW / 2 + sizes[i] * PT * 0.3, sizes[i], inkFor(b), true)
+          left += colW
+        })
+      } else {
+        let top = cy - total / 2
+        fit.lines.forEach((line, i) => {
+          drawPieceLine(doc, line, cx, top + sizes[i] * PT * 0.95, sizes[i], inkFor(b), false)
+          top += lineHeight(sizes[i])
+        })
+      }
       continue
     }
-    const lh = lineHeight(fit.size)
-    const top = cy - (fit.lines.length * lh) / 2
+    if (fit.vertical) {
+      let left = cx - total / 2
+      fit.lines.forEach((text, i) => {
+        const colW = lineHeight(sizes[i])
+        put(doc, text, left + colW / 2 + sizes[i] * PT * 0.3, cy + widthOf(doc, text, sizes[i], i === 0) / 2, {
+          size: sizes[i],
+          bold: i === 0,
+          color: inkFor(b),
+          angle: 90,
+        })
+        left += colW
+      })
+      continue
+    }
+    let top = cy - total / 2
     fit.lines.forEach((line, i) => {
-      put(doc, line, cx, top + i * lh + fit.size * PT * 0.95, { size: fit.size, bold: i === 0, color: inkFor(b), align: 'center' })
+      put(doc, line, cx, top + sizes[i] * PT * 0.95, { size: sizes[i], bold: i === 0, color: inkFor(b), align: 'center' })
+      top += lineHeight(sizes[i])
     })
   }
   for (const { cell, fit } of wasteFits) {

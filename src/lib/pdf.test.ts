@@ -271,6 +271,7 @@ interface TextBox {
 }
 
 function recorder(boxes: TextBox[]) {
+  const lastCall: { current: { text: string; x: number; y: number } | null } = { current: null }
   return class Rec extends jsPDF {
     constructor(opts: ConstructorParameters<typeof jsPDF>[0]) {
       super(opts)
@@ -278,7 +279,11 @@ function recorder(boxes: TextBox[]) {
       const original = this.text.bind(this) as (...a: unknown[]) => unknown
       ;(this as unknown as { text: (...a: unknown[]) => unknown }).text = (...args: unknown[]) => {
         const [text, x, y, opts2] = args as [string, number, number, { align?: string; angle?: number } | undefined]
-        if (typeof text === 'string' && text.length > 0) {
+        // A semibold text is drawn twice, a hair apart: that is one text, not two overlapping ones.
+        const last = lastCall.current
+        const twin = last !== null && typeof text === 'string' && last.text === text && Math.abs(last.x - x) < 0.3 && Math.abs(last.y - y) < 0.01
+        lastCall.current = { text: String(text), x, y }
+        if (typeof text === 'string' && text.length > 0 && !twin) {
           const w = this.getTextWidth(text)
           const h = this.getFontSize() * 0.3528
           const page = this.getCurrentPageInfo().pageNumber
@@ -424,7 +429,17 @@ describe('Print screen pages are the saved PDF pages', () => {
 
     expect(svgs).toHaveLength(pages.length)
     const unescape = (s: string) => s.replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&amp;/g, '&')
-    const svgTexts = svgs.map((svg) => [...svg.matchAll(/<text [^>]*>([^<]*)<\/text>/g)].map((m) => unescape(m[1])))
+    // A semibold text is drawn twice, a hair apart, in both outputs; count it once (the recorder does the same).
+    const svgTexts = svgs.map((svg) => {
+      const out: string[] = []
+      let prev: { t: string; x: number; y: number } | null = null
+      for (const m of svg.matchAll(/<text x="([^"]*)" y="([^"]*)"[^>]*>([^<]*)<\/text>/g)) {
+        const cur = { t: unescape(m[3]), x: Number(m[1]), y: Number(m[2]) }
+        if (!(prev && prev.t === cur.t && Math.abs(prev.x - cur.x) < 0.3 && Math.abs(prev.y - cur.y) < 0.01)) out.push(cur.t)
+        prev = cur
+      }
+      return out
+    })
     const pdfTexts = pages.map((_, i) => boxes.filter((b) => b.page === i + 1).map((b) => b.text))
     expect(svgTexts).toEqual(pdfTexts)
     for (const svg of svgs) expect(svg.startsWith('<svg')).toBe(true)
@@ -445,5 +460,22 @@ describe('sizes on the PDF are written the way they were typed', () => {
     expect(all.join('|')).not.toContain('10 1/2')
     // Worked-out sizes follow the same style: the leftover strip is a decimal here too.
     expect(all.join('|')).not.toMatch(/\d \d+\/\d+/)
+  })
+})
+
+describe('edge tape on the PDF', () => {
+  it('shows one "Edge tape used" total per sheet, no tape list, and nothing overlaps', async () => {
+    const taped = (w: number, h: number, qty: number): Piece => ({ ...piece(w, h, qty), tape: { top: true, left: true } })
+    const ps = [taped(22, 45, 3), taped(10.5, 38.6, 4), piece(4, 96, 1), taped(20.6, 7.1, 6)]
+    const sheets = packJob(ps, [], opts).sheets
+    const cut = cutFrom(ps, sheets)
+    const boxes: TextBox[] = []
+    const pages = buildPrintPages(cut, deriveStock([cut]), DEFAULT_SETTINGS)
+    const pdf = await buildPrintPdf(pages, 'A4', recorder(boxes) as unknown as typeof jsPDF, cut)
+    expect(pdf).toBeDefined()
+    expect(overlaps(boxes)).toEqual([])
+    const texts = boxes.map((b) => b.text)
+    expect(texts.filter((t) => t === 'Edge tape used')).toHaveLength(sheets.length)
+    expect(texts.some((t) => /^Edge tape \(/i.test(t))).toBe(false)
   })
 })
