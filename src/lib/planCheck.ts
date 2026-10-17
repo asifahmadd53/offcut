@@ -71,6 +71,27 @@ export function checkPlan(pieces: Piece[], result: PackResult, opts: PackOptions
     const used = parts.reduce((a, p) => a + p.r.w * p.r.h, 0)
     if (used > s.region.w * s.region.h + 1e-4) problems.push(`${tag}: pieces and leftovers add up to more than the area.`)
     if (s.cuts && s.cuts.length !== s.steps.length) problems.push(`${tag}: cut lines and cut steps do not match.`)
+    // A saw cut runs edge to edge: it stays inside the area being cut and never goes through a piece.
+    for (const c of s.cuts ?? []) {
+      const horizontal = c.kind === 'across'
+      const lo = horizontal ? s.region.x : s.region.y
+      const hi = horizontal ? s.region.x + s.region.w : s.region.y + s.region.h
+      const inside = horizontal ? c.pos >= s.region.y - EPS && c.pos <= s.region.y + s.region.h + EPS : c.pos >= s.region.x - EPS && c.pos <= s.region.x + s.region.w + EPS
+      if (!inside || c.from < lo - EPS || c.to > hi + EPS || c.to < c.from - EPS) problems.push(`${tag}: cut ${c.n} is outside the area being cut.`)
+      for (const p of s.placements) {
+        const crosses = horizontal
+          ? c.pos > p.y + EPS && c.pos < p.y + p.h - EPS && c.from < p.x + p.w - EPS && c.to > p.x + EPS
+          : c.pos > p.x + EPS && c.pos < p.x + p.w - EPS && c.from < p.y + p.h - EPS && c.to > p.y + EPS
+        if (crosses) problems.push(`${tag}: cut ${c.n} goes through piece ${p.n}.`)
+      }
+      // ...and never through a leftover that is kept: a saved leftover must come out as one whole piece.
+      for (const l of s.newLeftovers) {
+        const crosses = horizontal
+          ? c.pos > l.y + EPS && c.pos < l.y + l.h - EPS && c.from < l.x + l.w - EPS && c.to > l.x + EPS
+          : c.pos > l.x + EPS && c.pos < l.x + l.w - EPS && c.from < l.y + l.h - EPS && c.to > l.y + EPS
+        if (crosses) problems.push(`${tag}: cut ${c.n} goes through leftover ${l.letter}.`)
+      }
+    }
   })
 
   for (const it of items) if (!seen.has(it.n)) problems.push(`Piece ${it.n} is missing from the plan.`)

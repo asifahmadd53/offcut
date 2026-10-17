@@ -51,6 +51,28 @@ interface CutLine {
   kind: 'across' | 'down'
   pos: number
   rect: Rect
+  /** Where the saw actually travels along the cut, when that is not the whole free rectangle (full-height cut first). */
+  span?: { from: number; to: number }
+}
+
+/**
+ * How the free rectangle around a placed piece is divided.
+ *  'across': a cut across the full width under the piece, then one beside it (the usual order).
+ *  'down':   a cut down the full height beside the piece first, then one under it, only as wide as the piece.
+ * Both are edge-to-edge saw cuts; 'down' keeps a tall strip whole, which is what a long piece needs next to it.
+ */
+type SplitMode = 'across' | 'down'
+
+/** Which way a plan divides free rectangles: always across first (the usual), always down first, or whichever leaves the bigger piece of free sheet. */
+type SplitPolicy = SplitMode | 'best'
+
+function chooseSplit(policy: SplitPolicy, f: Rect, pw: number, ph: number, kerf: number): SplitMode {
+  if (policy !== 'best') return policy
+  const rightW = Math.max(0, f.w - pw - kerf)
+  const bottomH = Math.max(0, f.h - ph - kerf)
+  const across = Math.max(rightW * ph, f.w * bottomH)
+  const down = Math.max(rightW * f.h, pw * bottomH)
+  return down > across + EPS ? 'down' : 'across'
 }
 
 interface Bin {
@@ -100,23 +122,33 @@ function bestFree(bins: Bin[], w: number, h: number): { bin: Bin; idx: number } 
   return best
 }
 
-function place(bin: Bin, idx: number, item: Item, rotated: boolean, kerf: number) {
+function place(bin: Bin, idx: number, item: Item, rotated: boolean, kerf: number, mode: SplitMode = 'across') {
   const f = bin.free[idx]
   const pw = rotated ? item.h : item.w
   const ph = rotated ? item.w : item.h
   bin.free.splice(idx, 1)
 
-  // Cut order: across first (full width), then down.
-  if (f.h - ph > EPS) bin.cuts.push({ kind: 'across', pos: r4(f.y + ph), rect: f })
-  if (f.w - pw > EPS) bin.cuts.push({ kind: 'down', pos: r4(f.x + pw), rect: f })
-
   const rightW = r4(f.w - pw - kerf)
   const bottomH = r4(f.h - ph - kerf)
-  if (rightW > EPS) {
-    bin.free.push({ x: r4(f.x + pw + kerf), y: f.y, w: rightW, h: ph })
-  }
-  if (bottomH > EPS) {
-    bin.free.push({ x: f.x, y: r4(f.y + ph + kerf), w: f.w, h: bottomH })
+  if (mode === 'across') {
+    // Cut order: across first (full width), then down.
+    if (f.h - ph > EPS) bin.cuts.push({ kind: 'across', pos: r4(f.y + ph), rect: f })
+    if (f.w - pw > EPS) bin.cuts.push({ kind: 'down', pos: r4(f.x + pw), rect: f })
+    if (rightW > EPS) bin.free.push({ x: r4(f.x + pw + kerf), y: f.y, w: rightW, h: ph })
+    if (bottomH > EPS) bin.free.push({ x: f.x, y: r4(f.y + ph + kerf), w: f.w, h: bottomH })
+  } else {
+    // Full-height cut beside the piece first, then a cut under it across just the piece's own column.
+    if (f.w - pw > EPS) bin.cuts.push({ kind: 'down', pos: r4(f.x + pw), rect: f, span: { from: f.y, to: r4(f.y + f.h) } })
+    if (f.h - ph > EPS) {
+      bin.cuts.push({
+        kind: 'across',
+        pos: r4(f.y + ph),
+        rect: { x: f.x, y: f.y, w: pw, h: f.h },
+        span: { from: f.x, to: r4(f.x + pw) },
+      })
+    }
+    if (rightW > EPS) bin.free.push({ x: r4(f.x + pw + kerf), y: f.y, w: rightW, h: f.h })
+    if (bottomH > EPS) bin.free.push({ x: f.x, y: r4(f.y + ph + kerf), w: pw, h: bottomH })
   }
 
   bin.placements.push({
@@ -182,6 +214,7 @@ function buildSteps(bin: Bin): string[] {
  */
 function buildCuts(bin: Bin): SheetPlan['cuts'] {
   return bin.cuts.map((c, i) => {
+    if (c.span) return { n: i + 1, kind: c.kind, pos: c.pos, from: c.span.from, to: c.span.to }
     if (c.kind === 'across') {
       return { n: i + 1, kind: 'across' as const, pos: c.pos, from: c.rect.x, to: r4(c.rect.x + c.rect.w) }
     }
@@ -233,13 +266,25 @@ export function packJob(
   let best: PackResult | null = null
   let bestScore: [number, number, number] | null = null
   for (const order of ORDERS) {
-    const r = packInOrder(pieces, stock, opts, excludedIds, sheetLetters, order)
+    const r = packInOrder(pieces, stock, opts, excludedIds, sheetLetters, order, 'across')
     const sc = planScore(r)
     const better =
       !bestScore || sc[0] < bestScore[0] || (sc[0] === bestScore[0] && (sc[1] < bestScore[1] || (sc[1] === bestScore[1] && sc[2] < bestScore[2] - EPS)))
     if (better) {
       best = r
       bestScore = sc
+    }
+  }
+  // The usual cut order is kept unless dividing the free sheet the other way needs fewer sheets (or places
+  // a piece that otherwise does not fit): a long piece beside a tall strip is where it matters.
+  for (const policy of ['best', 'down'] as const) {
+    for (const order of ORDERS) {
+      const r = packInOrder(pieces, stock, opts, excludedIds, sheetLetters, order, policy)
+      const sc = planScore(r)
+      if (sc[0] < bestScore![0] || (sc[0] === bestScore![0] && sc[1] < bestScore![1])) {
+        best = r
+        bestScore = sc
+      }
     }
   }
   return best!
@@ -252,6 +297,7 @@ function packInOrder(
   excludedIds: ReadonlySet<string>,
   sheetLetters: ReadonlyMap<string, Set<string>>,
   order: ItemOrder,
+  policy: SplitPolicy,
 ): PackResult {
   const items = expandPieces(pieces).sort(order)
 
@@ -305,7 +351,7 @@ function packInOrder(
       const h = rotated ? item.w : item.h
       const slot = bestFree(bins, w, h)
       if (slot) {
-        place(slot.bin, slot.idx, item, rotated, opts.kerf)
+        place(slot.bin, slot.idx, item, rotated, opts.kerf, chooseSplit(policy, slot.bin.free[slot.idx], w, h, opts.kerf))
         done = true
         break
       }
@@ -316,10 +362,10 @@ function packInOrder(
       unplaced.push(item)
     } else if (fits({ x: 0, y: 0, w: opts.sheetW, h: opts.sheetH }, item.w, item.h)) {
       const bin = openSheet()
-      place(bin, 0, item, false, opts.kerf)
+      place(bin, 0, item, false, opts.kerf, chooseSplit(policy, bin.free[0], item.w, item.h, opts.kerf))
     } else if (fits({ x: 0, y: 0, w: opts.sheetW, h: opts.sheetH }, item.h, item.w)) {
       const bin = openSheet()
-      place(bin, 0, item, true, opts.kerf)
+      place(bin, 0, item, true, opts.kerf, chooseSplit(policy, bin.free[0], item.h, item.w, opts.kerf))
     } else {
       unplaced.push(item)
     }

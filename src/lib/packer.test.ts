@@ -504,3 +504,13 @@ describe('packJob piece order', () => {
     expect(r.sheets).toHaveLength(3)
   })
 })
+
+describe('packJob full-height cut beside a long piece', () => {
+  it('23 x 33, 23 x 80, 17.4 x 49 and two 17 x 76 fit on 2 sheets, not 3 (the 33-inch piece goes under the 49-inch one)', () => {
+    const t = (id: string, w: number, h: number, qty: number) => ({ id, w, h, qty })
+    const ps = [t('a', 23, 33, 1), t('b', 23, 80, 1), t('c', 17.4, 49, 1), t('d', 17, 76, 2)]
+    const r = packJob(ps as never, [], { sheetW: 48, sheetH: 96, kerf: 0.125, minLeftover: 1 })
+    expect(r.unplaced).toHaveLength(0)
+    expect(r.sheets).toHaveLength(2)
+  })
+})
