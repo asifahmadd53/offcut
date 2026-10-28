@@ -18,13 +18,21 @@ export interface UsedLeftover {
  * "what would normally happen" without touching the plan actually being shown, for
  * example to explain a forced-new-sheet choice.
  */
+let lastKey = ''
+let lastUsed: UsedLeftover[] = []
+
 export function wouldUseLeftover(
   pieces: Piece[],
   stock: Leftover[],
   options: PackOptions,
 ): UsedLeftover[] {
+  // The plan page asks this on every redraw; the answer only changes with the inputs, so the last one is kept.
+  const key = JSON.stringify([pieces.map((p) => [p.id, p.w, p.h, p.qty]), stock.map((l) => [l.id, l.w, l.h]), options])
+  if (lastKey === key) return lastUsed
   const result = packJob(pieces, stock, { ...options, allowNewSheets: true })
-  return usedLeftoversFrom(result.sheets)
+  lastKey = key
+  lastUsed = usedLeftoversFrom(result.sheets)
+  return lastUsed
 }
 
 function usedLeftoversFrom(sheets: SheetPlan[]): UsedLeftover[] {
