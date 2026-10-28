@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { packJob } from './packer'
 import { checkPlan } from './planCheck'
+import { exactSheetLayouts } from './exactPack'
 import { exactMinSheets, type SizeCount } from './testing/exactSheets'
 import type { Piece } from './types'
 
@@ -62,6 +63,47 @@ describe('large-job regression fixtures: the plan uses the fewest sheets any lay
               const fitsTurned = p.h <= l.w + 1e-6 && p.w <= l.h + 1e-6
               expect(fitsAsTyped || fitsTurned, `piece ${p.n} on sheet ${j + 1} fits free space ${l.letter} of sheet ${i + 1}`).toBe(false)
             }
+          }
+        }
+      })
+    }
+  })
+
+  // Could this sheet, laid out again in any edge-to-edge way, also take one more piece? (exact answer)
+  const sheetCouldTake = (placed: Array<{ pieceId: string; w: number; h: number }>, extra: { pieceId: string; w: number; h: number }, kerf: number) => {
+    const items = [...placed, extra].map((p, i) => ({ n: i + 1, type: p.pieceId, w: p.w, h: p.h }))
+    const r = exactSheetLayouts(items, { sheetW: 48, sheetH: 96, kerf, maxWork: 3_000_000 })
+    return !!r && r.length === 1
+  }
+
+  it('T-19 no piece on a later sheet could join an earlier sheet, even with that sheet laid out again', () => {
+    const plan = packJob(ghulam, [], opts)
+    plan.sheets.forEach((sh, j) => {
+      for (const p of sh.placements) {
+        for (let i = 0; i < j; i++) {
+          // The sheet's pieces as cut (turned ones swapped back is not needed: the exact search may turn any piece).
+          const as = (q: { pieceId: string; w: number; h: number; rotated?: boolean }) => (q.rotated ? { pieceId: q.pieceId, w: q.h, h: q.w } : { pieceId: q.pieceId, w: q.w, h: q.h })
+          expect(sheetCouldTake(plan.sheets[i].placements.map(as), as(p), opts.kerf), `piece ${p.n} (sheet ${j + 1}) could join sheet ${i + 1}`).toBe(false)
+        }
+      }
+    })
+  })
+
+  it('on 120 random jobs no later piece could join an earlier new sheet laid out again (strips that join up are used)', () => {
+    let s = 777
+    const rnd = () => ((s = (s * 1664525 + 1013904223) % 4294967296) / 4294967296)
+    const q = (x: number) => Math.round(x * 8) / 8
+    for (let k = 0; k < 120; k++) {
+      const kerf = [0, 0.125][Math.floor(rnd() * 2)]
+      const o = { ...opts, kerf }
+      const ps = Array.from({ length: 2 + Math.floor(rnd() * 5) }, (_, i) => piece(`p${i}`, q(2 + rnd() * 30), q(2 + rnd() * 60), 1 + Math.floor(rnd() * 3)))
+      const plan = packJob(ps, [], o)
+      expect(checkPlan(ps, plan, o)).toEqual([])
+      const as = (p: { pieceId: string; w: number; h: number; rotated?: boolean }) => (p.rotated ? { pieceId: p.pieceId, w: p.h, h: p.w } : { pieceId: p.pieceId, w: p.w, h: p.h })
+      plan.sheets.forEach((sh, j) => {
+        for (const p of sh.placements) {
+          for (let i = 0; i < j; i++) {
+            expect(sheetCouldTake(plan.sheets[i].placements.map(as), as(p), kerf), JSON.stringify(ps)).toBe(false)
           }
         }
       })

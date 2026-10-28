@@ -7,13 +7,17 @@
  * by looking at every way a set of pieces can be cut edge to edge:
  *
  *  - For every set of pieces it keeps each (width, height) box that some guillotine layout of the set fits
- *    in, dropping boxes that are bigger in every way (and no better in turned pieces).
+ *    in, dropping boxes that are bigger in every way.
  *  - Two sets join side by side (widths add, plus one blade) or one above the other (heights add, plus one blade).
  *  - A set fits a sheet when one of its boxes fits the sheet; the fewest sheets then comes from covering
  *    the pieces with sets that fit.
+ *  - Among the plans with the fewest sheets it takes the one whose emptiest sheet holds the least, so the
+ *    biggest possible leftover is saved.
  *
- * Pure and deterministic. It gives up (returns null) when the job is too big to search quickly; the caller
- * then keeps the everyday plan.
+ * A set of pieces is a whole number (a mixed-radix code of how many of each size it holds), which keeps the
+ * search fast. Pure and deterministic. It gives up (returns null) when the job is too big to search quickly,
+ * counted in steps rather than seconds so it gives up the same way every time; the caller then keeps the
+ * everyday plan.
  */
 
 const EPS = 1e-6
@@ -35,40 +39,37 @@ export type LayoutNode =
 interface Entry {
   w: number
   h: number
-  /** How many pieces are turned in this layout, so the layout with the fewest turns wins. */
+  /** How many pieces are turned in this layout (used to prefer the layout with the fewest). */
   turns: number
-  how:
-    | { k: 'leaf'; type: number; turned: boolean }
-    | { k: 'v' | 'h'; c1: number[]; e1: number; c2: number[]; e2: number }
+  how: { k: 'leaf'; type: number; turned: boolean } | { k: 'v' | 'h'; s1: number; e1: number; s2: number; e2: number }
 }
 
 export interface ExactOptions {
   sheetW: number
   sheetH: number
   kerf: number
+  /** A smaller search budget than usual, for the quick checks the planner makes many times. */
+  maxWork?: number
 }
 
 /** A job bigger than this is left to the everyday planner. */
 const MAX_TYPES = 9
 const MAX_SETS = 20_000
-const MAX_WORK = 22_000_000
+const MAX_WORK = 6_000_000
 
-const keyOf = (c: number[]) => c.join(',')
-
-/** Keeps only boxes no other box beats (smaller or equal in width, height and turned pieces). */
+/** Keeps only boxes no other box beats; of boxes with the same size, the one with the fewest turned pieces. */
 function prune(list: Entry[], charge: (n: number) => void): Entry[] {
+  // Sorting is the costly part of a long list, so it is paid for in steps too.
+  charge(list.length * 4)
   list.sort((a, b) => a.w - b.w || a.h - b.h || a.turns - b.turns)
   const out: Entry[] = []
+  let bestH = Infinity
   for (const e of list) {
-    charge(out.length + 1)
-    let dominated = false
-    for (const o of out) {
-      if (o.w <= e.w + EPS && o.h <= e.h + EPS && o.turns <= e.turns) {
-        dominated = true
-        break
-      }
+    // Sorted by width, so a box is useful only when it is shorter than every narrower (or equal) one.
+    if (e.h < bestH - EPS) {
+      out.push(e)
+      bestH = e.h
     }
-    if (!dominated) out.push(e)
   }
   return out
 }
@@ -95,194 +96,210 @@ export function exactSheetLayouts(items: ExactItem[], opts: ExactOptions): Array
     }
     counts[i] += 1
   }
-  if (typeNames.length > MAX_TYPES) return null
+  const T = typeNames.length
+  if (T > MAX_TYPES) return null
   const sets = counts.reduce((p, c) => p * (c + 1), 1)
   if (sets > MAX_SETS) return null
 
+  // A set of pieces is the number  idx = sum(count[i] * stride[i]);  dec[idx * T + i] is count[i].
+  const stride: number[] = []
+  let acc = 1
+  for (let i = 0; i < T; i++) {
+    stride.push(acc)
+    acc *= counts[i] + 1
+  }
+  const dec = new Uint8Array(sets * T)
+  const size = new Int32Array(sets)
   const infl = typeDims.map(([w, h]) => (w + kerf) * (h + kerf))
+  const pieceArea = typeDims.map(([w, h]) => w * h)
+  const inflArea = new Float64Array(sets)
+  const realArea = new Float64Array(sets)
+  for (let idx = 0; idx < sets; idx++) {
+    let r = idx
+    for (let i = T - 1; i >= 0; i--) {
+      // Decode from the most significant type down.
+      const c = Math.floor(r / stride[i])
+      r -= c * stride[i]
+      dec[idx * T + i] = c
+      size[idx] += c
+      inflArea[idx] += c * infl[i]
+      realArea[idx] += c * pieceArea[i]
+    }
+  }
+  const fullIdx = sets - 1
   const sheetArea = (sheetW + kerf) * (sheetH + kerf)
+
+  const limit = opts.maxWork ?? MAX_WORK
   let work = 0
   let tooBig = false
   // Every step of the search is paid for here, so a job that is too big to finish quickly gives up the same way every time.
   const spend = (n: number) => {
     work += n
-    if (work > MAX_WORK) tooBig = true
+    if (work > limit) tooBig = true
   }
 
-  const memo = new Map<string, Entry[]>()
-  const boxes = (c: number[]): Entry[] => {
-    const k = keyOf(c)
-    const hit = memo.get(k)
+  const memo: Array<Entry[] | undefined> = new Array(sets)
+  const boxes = (idx: number): Entry[] => {
+    const hit = memo[idx]
     if (hit) return hit
-    const n = c.reduce((a, b) => a + b, 0)
     let res: Entry[] = []
     // With a blade's width added to every side, the pieces can never cover more than the sheet does.
-    const area = c.reduce((a, q, i) => a + q * infl[i], 0)
-    if (area > sheetArea + EPS || tooBig) {
-      memo.set(k, res)
+    if (inflArea[idx] > sheetArea + EPS || tooBig) {
+      memo[idx] = res
       return res
     }
-    if (n === 1) {
-      const i = c.findIndex((q) => q === 1)
-      const [w, h] = typeDims[i]
-      if (w <= sheetW + EPS && h <= sheetH + EPS) res.push({ w, h, turns: 0, how: { k: 'leaf', type: i, turned: false } })
+    if (size[idx] === 1) {
+      let t = 0
+      while (dec[idx * T + t] !== 1) t++
+      const [w, h] = typeDims[t]
+      if (w <= sheetW + EPS && h <= sheetH + EPS) res.push({ w, h, turns: 0, how: { k: 'leaf', type: t, turned: false } })
       if (h <= sheetW + EPS && w <= sheetH + EPS && Math.abs(w - h) > EPS) {
-        res.push({ w: h, h: w, turns: 1, how: { k: 'leaf', type: i, turned: true } })
+        res.push({ w: h, h: w, turns: 1, how: { k: 'leaf', type: t, turned: true } })
       }
       res = prune(res, spend)
     } else {
-      const sub = new Array<number>(c.length).fill(0)
       const found: Entry[] = []
-      const go = (i: number) => {
-        if (tooBig) return
-        if (i === c.length) {
-          const s1 = sub.reduce((a, b) => a + b, 0)
-          if (s1 === 0 || s1 === n) return
-          const rest = c.map((q, j) => q - sub[j])
-          // Each pair of groups once: the smaller key is group one.
-          if (keyOf(sub) > keyOf(rest)) return
-          const c1 = [...sub]
-          const f1 = boxes(c1)
-          const f2 = boxes(rest)
-          if (!f1.length || !f2.length) return
-          for (let x = 0; x < f1.length; x++) {
-            for (let y = 0; y < f2.length; y++) {
-              const a = f1[x]
-              const b = f2[y]
-              // Boxes come widest-last, so once side by side is too wide only the stacked join can still fit.
-              const sideBySide = a.w + kerf + b.w <= sheetW + EPS
-              spend(1)
-              if (tooBig) return
-              if (!sideBySide && a.h + kerf + b.h > sheetH + EPS) continue
-              const w1 = a.w + kerf + b.w
-              const h1 = Math.max(a.h, b.h)
-              if (sideBySide && h1 <= sheetH + EPS) {
-                found.push({ w: w1, h: h1, turns: a.turns + b.turns, how: { k: 'v', c1, e1: x, c2: rest, e2: y } })
-              }
-              const w2 = Math.max(a.w, b.w)
-              const h2 = a.h + kerf + b.h
-              if (w2 <= sheetW + EPS && h2 <= sheetH + EPS) {
-                found.push({ w: w2, h: h2, turns: a.turns + b.turns, how: { k: 'h', c1, e1: x, c2: rest, e2: y } })
-              }
+      // Every way to split the set into two groups (an odometer over how many of each size go to group one).
+      const sub = new Array<number>(T).fill(0)
+      const top = Array.from({ length: T }, (_, i) => dec[idx * T + i])
+      let s1 = 0
+      for (;;) {
+        let i = 0
+        while (i < T && sub[i] === top[i]) {
+          s1 -= sub[i] * stride[i]
+          sub[i] = 0
+          i++
+        }
+        if (i === T) break
+        sub[i] += 1
+        s1 += stride[i]
+        spend(1)
+        const s2 = idx - s1
+        // Each pair of groups once, and neither empty.
+        if (s2 === 0 || s1 > s2) continue
+        const f1 = boxes(s1)
+        if (!f1.length) continue
+        const f2 = boxes(s2)
+        if (!f2.length) continue
+        for (let x = 0; x < f1.length; x++) {
+          for (let y = 0; y < f2.length; y++) {
+            const a = f1[x]
+            const b = f2[y]
+            spend(1)
+            const side = a.w + kerf + b.w
+            const stack = a.h + kerf + b.h
+            if (side <= sheetW + EPS && Math.max(a.h, b.h) <= sheetH + EPS) {
+              found.push({ w: side, h: Math.max(a.h, b.h), turns: a.turns + b.turns, how: { k: 'v', s1, e1: x, s2, e2: y } })
+            }
+            if (stack <= sheetH + EPS && Math.max(a.w, b.w) <= sheetW + EPS) {
+              found.push({ w: Math.max(a.w, b.w), h: stack, turns: a.turns + b.turns, how: { k: 'h', s1, e1: x, s2, e2: y } })
             }
           }
-          return
         }
-        for (let q = 0; q <= c[i]; q++) {
-          sub[i] = q
-          go(i + 1)
-          if (tooBig) return
-        }
-        sub[i] = 0
+        if (tooBig) break
       }
-      go(0)
       res = prune(found, spend)
     }
-    memo.set(k, res)
+    memo[idx] = res
     return res
   }
 
-  // Every set of pieces that fits on one sheet.
-  const fitting: number[][] = []
-  const enumerate = (i: number, cur: number[]) => {
-    if (tooBig) return
-    if (i === counts.length) {
-      if (cur.some((c) => c > 0) && boxes(cur).length > 0) fitting.push([...cur])
-      return
-    }
-    for (let c = 0; c <= counts[i]; c++) {
-      cur.push(c)
-      enumerate(i + 1, cur)
-      cur.pop()
-    }
+  // Every set of pieces that fits on one sheet, and for each size the sets that hold it.
+  const fitting: number[] = []
+  for (let idx = 1; idx < sets; idx++) {
+    if (tooBig) return null
+    if (inflArea[idx] > sheetArea + EPS) continue
+    if (boxes(idx).length > 0) fitting.push(idx)
   }
-  enumerate(0, [])
   if (tooBig) return null
+  const byType: number[][] = Array.from({ length: T }, () => [])
+  for (const p of fitting) for (let i = 0; i < T; i++) if (dec[p * T + i] > 0) byType[i].push(p)
+  const patTurns = new Map<number, number>()
+  for (const p of fitting) patTurns.set(p, Math.min(...boxes(p).map((e) => e.turns)))
 
   // The fewest sheets (then the fewest turned pieces) that cover everything.
-  const patTurns = fitting.map((pat) => Math.min(...boxes(pat).map((e) => e.turns)))
-  const best = new Map<string, { cost: number; pick: number }>()
-  const solve = (rem: number[]): number => {
-    if (rem.every((r) => r === 0)) return 0
-    const k = keyOf(rem)
-    const hit = best.get(k)
-    if (hit) return hit.cost
+  const cost = new Float64Array(sets).fill(NaN)
+  const pick = new Int32Array(sets).fill(-1)
+  const solve = (rem: number): number => {
+    if (rem === 0) return 0
+    if (!Number.isNaN(cost[rem])) return cost[rem]
     let bestCost = Infinity
-    let pick = -1
-    const first = rem.findIndex((r) => r > 0)
-    for (let p = 0; p < fitting.length; p++) {
-      spend(3)
+    let bestPick = -1
+    let first = 0
+    while (dec[rem * T + first] === 0) first++
+    for (const p of byType[first]) {
+      spend(2)
       if (tooBig) return Infinity
-      const pat = fitting[p]
-      if (pat[first] === 0 || pat.some((c, i) => c > rem[i])) continue
-      const cost = 1000 + patTurns[p] + solve(rem.map((r, i) => r - pat[i]))
-      if (cost < bestCost - EPS) {
-        bestCost = cost
-        pick = p
+      if (p > rem) continue
+      let ok = true
+      for (let i = 0; i < T; i++) {
+        if (dec[p * T + i] > dec[rem * T + i]) {
+          ok = false
+          break
+        }
+      }
+      if (!ok) continue
+      const c = 1000 + patTurns.get(p)! + solve(rem - p)
+      if (c < bestCost - EPS) {
+        bestCost = c
+        bestPick = p
       }
     }
-    best.set(k, { cost: bestCost, pick })
+    cost[rem] = bestCost
+    pick[rem] = bestPick
     return bestCost
   }
-  const total = solve(counts)
+  const total = solve(fullIdx)
   if (tooBig || !Number.isFinite(total)) return null
-
-  const sheetsOf = (cost: number) => Math.floor((cost + 1e-6) / 1000)
+  const sheetsOf = (c: number) => Math.floor((c + 1e-6) / 1000)
   const needed = sheetsOf(total)
 
   // Among the plans with the fewest sheets, the one whose emptiest sheet holds the least: that sheet is
   // left nearly whole, so the biggest possible leftover is saved for the next job.
-  const pieceArea = typeDims.map(([w, h]) => w * h)
-  const areaOf = (pat: number[]) => pat.reduce((a, c, i) => a + c * pieceArea[i], 0)
-  let lastPat: number[] | null = null
+  let lastPat = -1
   if (needed > 1) {
-    const order = fitting.map((_, i) => i).sort((x, y) => areaOf(fitting[x]) - areaOf(fitting[y]) || patTurns[x] - patTurns[y] || x - y)
-    for (const idx of order) {
-      const pat = fitting[idx]
-      if (pat.some((c, i) => c > counts[i])) continue
-      const rest = counts.map((r, i) => r - pat[i])
-      if (rest.every((r) => r === 0)) continue
+    const order = [...fitting].sort((x, y) => realArea[x] - realArea[y] || patTurns.get(x)! - patTurns.get(y)! || x - y)
+    for (const p of order) {
+      if (p === fullIdx) continue
+      const rest = fullIdx - p
       const c = solve(rest)
       if (tooBig) return null
       if (Number.isFinite(c) && sheetsOf(c) === needed - 1) {
-        lastPat = pat
+        lastPat = p
         break
       }
     }
   }
 
   const out: Array<{ tree: LayoutNode; counts: Record<string, number> }> = []
-  const lay = (pat: number[]) => {
+  const lay = (p: number) => {
     // The box with the fewest turned pieces, then the smallest.
-    const list = boxes(pat)
+    const list = boxes(p)
     let chosen = 0
     for (let i = 1; i < list.length; i++) {
       const a = list[i]
       const b = list[chosen]
       if (a.turns < b.turns || (a.turns === b.turns && a.w * a.h < b.w * b.h - EPS)) chosen = i
     }
-    const build = (c: number[], e: number): LayoutNode => {
-      const entry = boxes(c)[e]
+    const build = (s: number, e: number): LayoutNode => {
+      const entry = boxes(s)[e]
       if (entry.how.k === 'leaf') {
         return { kind: 'leaf', w: entry.w, h: entry.h, type: typeNames[entry.how.type], turned: entry.how.turned }
       }
-      const { c1, e1, c2, e2 } = entry.how
-      return { kind: entry.how.k, w: entry.w, h: entry.h, a: build(c1, e1), b: build(c2, e2) }
+      const { s1, e1, s2, e2 } = entry.how
+      return { kind: entry.how.k, w: entry.w, h: entry.h, a: build(s1, e1), b: build(s2, e2) }
     }
-    const tree = build(pat, chosen)
     const made: Record<string, number> = {}
-    pat.forEach((c, i) => {
-      if (c > 0) made[typeNames[i]] = c
-    })
-    out.push({ tree, counts: made })
+    for (let i = 0; i < T; i++) if (dec[p * T + i] > 0) made[typeNames[i]] = dec[p * T + i]
+    out.push({ tree: build(p, chosen), counts: made })
   }
-  let rem = lastPat ? counts.map((r, i) => r - lastPat![i]) : counts
-  while (!rem.every((r) => r === 0)) {
-    const pat = fitting[best.get(keyOf(rem))!.pick]
-    lay(pat)
-    rem = rem.map((r, i) => r - pat[i])
+  let rem = lastPat >= 0 ? fullIdx - lastPat : fullIdx
+  while (rem !== 0) {
+    const p = pick[rem]
+    lay(p)
+    rem -= p
   }
   // The emptiest sheet comes last.
-  if (lastPat) lay(lastPat)
+  if (lastPat >= 0) lay(lastPat)
   return out
 }

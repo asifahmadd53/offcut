@@ -234,6 +234,10 @@ type ItemOrder = (a: Item, b: Item) => number
 const EXTRA_RUNS = 240
 const EXTRA_WORK = 2_400_000
 
+/** Most times one plan lays a sheet out again to see whether one more piece fits it. */
+const MAX_RELAYOUTS = 60
+const MAX_RELAYOUT_RUNS = 250
+
 /**
  * The orders pieces are tried in. The first (largest area first) is the one the plan uses whenever
  * nothing does better; the others exist because a long thin piece (say 4 × 96) is tiny by area, so it
@@ -368,23 +372,36 @@ function improveNewSheets(plan: Packed, pieces: Piece[], opts: PackOptions): Pac
 const biggestFree = (b: Bin) => Math.max(0, ...b.free.map((f) => f.w * f.h))
 
 /**
- * Lays these pieces out again on one fresh sheet, in the best way found (the biggest free piece of sheet
- * left over), or null when they do not fit one sheet. Used when a piece has moved away from a sheet.
+ * Lays these pieces out again in the same place as `like` (a whole new sheet, or the saved leftover it is
+ * cut from), in the best way found (the biggest free piece left over), or null when they do not all fit
+ * there. Used when a piece moves away from a sheet, and when a piece is added to one.
  */
-function relayoutOnOneSheet(items: Item[], like: Bin, opts: PackOptions): Bin | null {
+function relayoutIn(items: Item[], like: Bin, opts: PackOptions, budget: { runs: number } | null, firstFit = false): Bin | null {
   let best: Bin | null = null
-  const o = { ...opts, allowNewSheets: true }
+  const o = { ...opts, allowNewSheets: like.isNew }
+  const start = (): Bin[] =>
+    like.isNew ? [] : [{ ...like, free: [{ ...like.region }], placements: [], cuts: [] }]
   for (const order of ORDERS) {
     for (const policy of ['across', 'best', 'down'] as const) {
-      const r = runPack([...items].sort(order), [], o, policy)
-      if (r.unplaced.length > 0 || r.bins.length !== 1) continue
-      if (!best || biggestFree(r.bins[0]) > biggestFree(best) + EPS) best = r.bins[0]
+      if (budget) {
+        if (budget.runs <= 0) break
+        budget.runs -= 1
+      }
+      const r = runPack([...items].sort(order), start(), o, policy)
+      const bin = r.bins[0]
+      if (r.unplaced.length > 0 || r.bins.length !== 1 || bin.placements.length !== items.length) continue
+      if (!best || biggestFree(bin) > biggestFree(best) + EPS) best = bin
+      // Asking only "does it all fit?", the first layout that does is enough.
+      if (firstFit) break
     }
+    if (firstFit && best) break
   }
-  if (!best) {
+  // A new sheet that no usual order manages is tried exactly (a small search, quick for the few pieces on one sheet).
+  if (!best && like.isNew && (!budget || budget.runs > 0)) {
+    if (budget) budget.runs -= 20
     const layouts = exactSheetLayouts(
       items.map((i) => ({ n: i.n, type: i.pieceId, w: i.w, h: i.h })),
-      { sheetW: opts.sheetW, sheetH: opts.sheetH, kerf: opts.kerf },
+      { sheetW: opts.sheetW, sheetH: opts.sheetH, kerf: opts.kerf, maxWork: 120_000 },
     )
     if (layouts && layouts.length === 1) {
       const mine = new Map<string, Item[]>()
@@ -398,49 +415,98 @@ function relayoutOnOneSheet(items: Item[], like: Bin, opts: PackOptions): Bin | 
   return best
 }
 
+const placedArea = (b: Bin) => b.placements.reduce((a, p) => a + p.w * p.h, 0)
+
 /**
- * Fills earlier sheets first. A piece sitting on a later new sheet moves to the earliest sheet whose free
- * space takes it (as typed, else turned; the smallest fitting free space on that sheet, R3), and the sheet
- * it left is laid out again without it. A sheet already using a saved leftover never gives its pieces up
- * (R2), and a move is made only when the sheet it leaves still holds everything else on one sheet, so the
- * plan is never longer. It repeats until nothing can move; every move sends a piece to an earlier sheet,
- * so it always stops. A later sheet ends up emptier, which leaves a bigger piece of it for the next job.
+ * Fills earlier sheets first. A piece sitting on a later new sheet moves to the earliest sheet that can take
+ * it, and the sheet it left is laid out again without it. A sheet takes it in one of two ways, tried in this
+ * order: the piece fits a free space the sheet already has (as typed first, then turned; the smallest fitting
+ * space, R3), or the sheet is laid out again with the piece added, so free spaces that are cut apart in the
+ * first layout (a strip above another strip, say) join into one big enough. A move is made only when every
+ * piece on both sheets still fits its own sheet, so the plan is never longer, and an emptied sheet
+ * disappears. A sheet that uses a saved leftover never gives pieces up (R2). It repeats until nothing can
+ * move; every move goes to an earlier sheet, so it stops. Afterwards the new sheets are put fullest first.
  */
 function consolidate(bins: Bin[], pieces: Piece[], opts: PackOptions): Bin[] {
   const all = new Map(expandPieces(pieces).map((i) => [i.n, i]))
-  const list = bins.filter((b) => b.placements.length > 0)
-  for (let moves = 0; moves < 1000; moves++) {
-    let moved = false
-    search: for (let j = list.length - 1; j >= 1; j--) {
-      const from = list[j]
-      if (!from.isNew) continue
-      const order = [...from.placements].sort((a, b) => b.w * b.h - a.w * a.h || a.n - b.n)
-      for (const p of order) {
-        const item = all.get(p.n)!
-        for (let i = 0; i < j; i++) {
-          const to = list[i]
-          // As typed first, then turned, on this sheet (the unturned fit is preferred even over a smaller turned one).
-          let slot = bestFree([to], item.w, item.h)
-          let turned = false
-          if (!slot) {
-            slot = bestFree([to], item.h, item.w)
-            turned = true
-          }
-          if (!slot) continue
+  let list = bins.filter((b) => b.placements.length > 0)
+  const k = opts.kerf
+  // Laying a sheet out again costs a little, so the number of tries is capped (the same for every run) and a
+  // combination that failed once is not tried twice.
+  let tries = 0
+  // The work spent laying sheets out again, in plan runs: the same for every run of the same job.
+  const budget = { runs: MAX_RELAYOUT_RUNS }
+  const failed = new Set<string>()
+  const sig = (b: Bin) => `${b.sheetId}:${b.placements.map((p) => p.n).sort((x, y) => x - y).join(',')}`
+  const inflated = (w: number, h: number) => (w + k) * (h + k)
+
+  for (let pass = 0; pass < 6; pass++) {
+    let any = false
+    for (let moves = 0; moves < 1000; moves++) {
+      let moved = false
+      search: for (let j = list.length - 1; j >= 1; j--) {
+        const from = list[j]
+        if (!from.isNew) continue
+        const order = [...from.placements].sort((a, b) => b.w * b.h - a.w * a.h || a.n - b.n)
+        for (const p of order) {
+          const item = all.get(p.n)!
           const rest = from.placements.filter((q) => q !== p).map((q) => all.get(q.n)!)
-          const relaid = rest.length > 0 ? relayoutOnOneSheet(rest, from, opts) : null
-          if (rest.length > 0 && !relaid) continue
-          const w = turned ? item.h : item.w
-          const h = turned ? item.w : item.h
-          place(to, slot.idx, item, turned, opts.kerf, chooseSplit('best', to.free[slot.idx], w, h, opts.kerf))
-          if (relaid) list[j] = relaid
-          else list.splice(j, 1)
-          moved = true
-          break search
+          let relaidFrom: Bin | null | undefined
+          const sourceAfter = () => {
+            if (relaidFrom === undefined) relaidFrom = rest.length > 0 ? relayoutIn(rest, from, opts, null) : null
+            return rest.length === 0 || relaidFrom !== null
+          }
+          for (let i = 0; i < j; i++) {
+            const to = list[i]
+            // 1. A free space the sheet already has: as typed first, then turned.
+            let slot = bestFree([to], item.w, item.h)
+            let turned = false
+            if (!slot) {
+              slot = bestFree([to], item.h, item.w)
+              turned = true
+            }
+            if (slot) {
+              if (!sourceAfter()) continue
+              const w = turned ? item.h : item.w
+              const h = turned ? item.w : item.h
+              place(to, slot.idx, item, turned, k, chooseSplit('best', to.free[slot.idx], w, h, k))
+              if (relaidFrom) list[j] = relaidFrom
+              else list.splice(j, 1)
+              moved = true
+              break search
+            }
+            // 2. The sheet laid out again with the piece added (only when the room is there at all).
+            if (tries >= MAX_RELAYOUTS) continue
+            const room = to.region.w * to.region.h - to.placements.reduce((a, q) => a + inflated(q.w, q.h), 0)
+            if (room + EPS < inflated(item.w, item.h)) continue
+            const key = `${sig(to)}+${item.pieceId}`
+            if (failed.has(key)) continue
+            tries += 1
+            const grown = relayoutIn([...to.placements.map((q) => all.get(q.n)!), item], to, opts, budget, true)
+            if (!grown) {
+              failed.add(key)
+              continue
+            }
+            if (!sourceAfter()) continue
+            list[i] = grown
+            if (relaidFrom) list[j] = relaidFrom
+            else list.splice(j, 1)
+            moved = true
+            break search
+          }
         }
       }
+      if (!moved) break
+      any = true
     }
-    if (!moved) break
+    // New sheets fullest first: a piece moved out of a middle sheet can leave it emptier than the last one.
+    const keep = list.filter((b) => !b.isNew)
+    const fresh = list.filter((b) => b.isNew)
+    const sorted = [...fresh].sort((a, b) => placedArea(b) - placedArea(a))
+    const reordered = sorted.some((b, i) => b !== fresh[i])
+    list = [...keep, ...sorted]
+    if (!any && !reordered) break
+    if (!reordered && !any) break
   }
   return list
 }
