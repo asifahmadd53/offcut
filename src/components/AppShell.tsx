@@ -87,7 +87,7 @@ export function AppShell({
   )
 
   return (
-    <div className="flex h-dvh w-full overflow-hidden">
+    <div className="app-shell flex h-dvh w-full overflow-hidden">
       {/* 1024px+: persistent left sidebar */}
       <aside className="hidden w-60 flex-none flex-col overflow-y-auto border-r border-hair border-border bg-card px-4 py-5 lg:flex">
         <div className="mb-6 flex items-center gap-2 px-1">

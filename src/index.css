@@ -107,6 +107,31 @@ html {
   background: var(--background);
 }
 
+/* No rubber-band bounce or pull-to-refresh on a phone: the page would slide under the tab bar. */
+html,
+body {
+  overscroll-behavior: none;
+}
+
+/* A screen inside AppShell scrolls only its own <main>. Locked here, not in a script, so the page
+   never scrolls, not even for a moment while it loads. Print and Login have no AppShell, so
+   they still scroll the document as before. */
+html:has(.app-shell),
+html:has(.app-shell) body {
+  height: 100%;
+  overflow: hidden;
+}
+
+/* On a touch screen the scroll bar only flashes up after a refresh and then fades; drop it. */
+@media (pointer: coarse) {
+  #main-content {
+    scrollbar-width: none;
+  }
+  #main-content::-webkit-scrollbar {
+    display: none;
+  }
+}
+
 body {
   margin: 0;
   background: var(--background);
