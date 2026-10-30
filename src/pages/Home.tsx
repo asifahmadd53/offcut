@@ -126,9 +126,8 @@ export default function Home() {
                 <div
                   ref={listRef}
                   onScroll={onListScroll}
-                  className="thin-scroll pb-5 lg:pb-1 overflow-y-auto overscroll-contain pr-1.5"
+                  className="thin-scroll max-h-[max(calc(100dvh-21rem),220px)] overflow-y-auto overscroll-contain pb-5 pr-1.5 md:max-h-[max(calc(100dvh-18rem),220px)] lg:max-h-[max(50vh,220px)] lg:pb-1"
                   style={{
-                    maxHeight: 'max(50vh, 220px)',
                     WebkitOverflowScrolling: 'touch',
                     scrollbarWidth: 'thin',
                   }}
