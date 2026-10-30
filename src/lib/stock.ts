@@ -79,6 +79,8 @@ function addLeftovers(known: Map<string, Leftover>, cut: CutDoc, sheet: SheetPla
       status: 'free',
       clientId: cut.clientId || UNASSIGNED_CLIENT_ID,
       clientName: cut.clientName || UNASSIGNED_CLIENT_NAME,
+      // What is left of a grained sheet keeps its grain: a piece placed in it is never turned.
+      ...(sheet.grain ? { grain: true } : {}),
     })
   }
 }

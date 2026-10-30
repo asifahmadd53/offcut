@@ -6,9 +6,10 @@ import { PrintOrPdfDialog } from '@/components/PrintOrPdfDialog'
 import { Button } from '@/components/ui/button'
 import { buildBlocks } from '@/lib/sheetView'
 import { plural } from '@/lib/format'
-import { pieceDims, sizeStyleOf } from '@/lib/inches'
+import { fmt, pieceDims, sizeStyleOf, unitSuffix } from '@/lib/inches'
 import { forcedNewSheetNote, leftoverUseMessage, usingLeftoverToast, wouldUseLeftover } from '@/lib/leftoverAnnounce'
 import { saveCut } from '@/lib/db'
+import { isPlainLayout, layoutSummary, packOptionsFor } from '@/lib/layout'
 import { getDeviceId, uid } from '@/lib/id'
 import { useAuth } from '@/store/auth'
 import { useData } from '@/store/data'
@@ -23,7 +24,7 @@ function subtitleFor(sheets: SheetPlan[], pieces: Piece[]): string {
   if (newCount === sheets.length && newCount > 0) {
     const first = sheets[0]
     const sheetLabel = newCount > 1 ? `${newCount} new sheets` : 'New sheet'
-    return `${sheetLabel} ${first.sheetW} × ${first.sheetH} · ${pieceText}`
+    return `${sheetLabel} ${fmt(first.sheetW)} × ${fmt(first.sheetH)}${unitSuffix()} · ${pieceText}`
   }
   return pieceText
 }
@@ -102,21 +103,15 @@ export default function Plan() {
 
   if (!plan) return null
 
-  const { sheets, unplaced, excluded, kerf } = plan
+  const { sheets, unplaced, excluded, kerf, layout } = plan
   const sheet = sheets[activeSheet] ?? sheets[0]
   const usedLeftoverIds = sheets.filter((s) => !s.isNew).map((s) => s.usedLeftoverId!).filter(Boolean)
 
   // What a default plan (every leftover, new sheets allowed) would have used, ignoring
   // forceNewSheet — only meaningful outside leftover-restricted mode.
-  const kerfValue = settings.kerfOn ? settings.kerfSize : 0
   const defaultWouldUse = onlyLeftoverId
     ? []
-    : wouldUseLeftover(pieces, derived.freeLeftovers, {
-        sheetW: settings.sheetW,
-        sheetH: settings.sheetH,
-        kerf: kerfValue,
-        minLeftover: settings.minLeftover,
-      })
+    : wouldUseLeftover(pieces, derived.freeLeftovers, packOptionsFor(settings, layout))
 
   const announceMessage = !onlyLeftoverId && !forceNewSheet ? leftoverUseMessage(sheets, pieces) : null
   const forcedNote = !onlyLeftoverId && forceNewSheet ? forcedNewSheetNote(defaultWouldUse) : null
@@ -183,6 +178,8 @@ export default function Plan() {
       clientName,
       clientPhone: clientPhone.trim() || undefined,
       sheetNumber: sheetNumber.trim() || undefined,
+      // Only recorded when the job was cut with grain or in strips, so plain jobs are saved exactly as before.
+      ...(isPlainLayout(layout) ? {} : { layout }),
     }
 
     setPendingDoc(doc)
@@ -219,6 +216,9 @@ export default function Plan() {
         Client name: <span className="font-normal text-muted-foreground">{clientName}</span>
       </p>
       <p className="mb-3.5 text-[13px] text-muted-foreground">{subtitleFor(sheets, pieces)}</p>
+      {!isPlainLayout(layout) && (
+        <p className="mb-3.5 text-[13px] text-muted-foreground">Sheet layout: {layoutSummary(layout)}</p>
+      )}
 
       {forcedNote && (
         <div className="mb-3.5 rounded-lg bg-muted px-3 py-2.5 text-[13px] text-muted-foreground">
@@ -271,8 +271,8 @@ export default function Plan() {
       {unplaced.length > 0 && (
         <div className="mb-3.5 rounded-lg bg-warning-bg px-3 py-2.5 text-[13.5px] text-warning-text">
           {unplaced.length === 1
-            ? `Piece ${unplaced[0].n} does not fit on any sheet. Split it or change the sheet size.`
-            : `Pieces ${unplaced.map((u) => u.n).join(', ')} do not fit on any sheet. Split them or change the sheet size.`}
+            ? `Piece ${unplaced[0].n} does not fit on any sheet${layout.grain ? ' without turning' : ''}. Split it or change the sheet size.`
+            : `Pieces ${unplaced.map((u) => u.n).join(', ')} do not fit on any sheet${layout.grain ? ' without turning' : ''}. Split them or change the sheet size.`}
         </div>
       )}
 

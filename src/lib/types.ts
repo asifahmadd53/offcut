@@ -1,3 +1,5 @@
+import type { Unit } from './inches'
+
 /** All sizes are in inches. Sheets are `sheetW` wide (48) and `sheetH` tall (96). */
 
 export type TapeSide = 'top' | 'right' | 'bottom' | 'left'
@@ -13,6 +15,8 @@ export interface Piece {
   /** The width and height exactly as the user typed them (tidied), for display. Missing on older pieces. */
   wText?: string
   hText?: string
+  /** The unit those typed sizes were written in; missing means inches (older pieces). */
+  unit?: Unit
   /** Edge tape on this piece, sides named as typed (top/bottom = width edges). Optional. */
   tape?: EdgeTape
 }
@@ -31,6 +35,8 @@ export interface Placed extends Rect {
   pieceId: string
   /** The size as the user typed it, for example "19 × 22". */
   label: string
+  /** The unit `label` was written in when the plan was made; missing means inches. */
+  labelUnit?: Unit
   /** True when the piece was turned 90 degrees to fit. */
   rotated: boolean
   /** Edge tape, already turned to match how the piece sits on the sheet. Optional. */
@@ -57,6 +63,11 @@ export interface SheetPlan {
   manual?: boolean
   usedLeftoverId?: string
   usedLetter?: string
+  /**
+   * True when this sheet has a grain (lines running top to bottom, along the sheet's height): no piece
+   * on it is ever turned, and what is left of it keeps the grain. Missing on older records (no grain).
+   */
+  grain?: boolean
   /** The area that is worked on: the whole sheet, or the leftover rectangle. */
   region: Rect
   placements: Placed[]
@@ -85,6 +96,8 @@ export interface Leftover extends Rect {
   /** Whose stock this leftover belongs to. Never offered to any other client's job. */
   clientId: string
   clientName: string
+  /** True when it was cut from a grained sheet: a piece placed in it is never turned. */
+  grain?: boolean
 }
 
 export type CutType = 'cut' | 'manual' | 'discard'
@@ -112,7 +125,27 @@ export interface CutDoc {
   clientPhone?: string
   /** Optional free-text reference note, e.g. "34/66". Never parsed or validated. */
   sheetNumber?: string
+  /** How the sheets of this job were laid out and cut. Missing on older records (normal layout, no grain). */
+  layout?: SheetLayout
 }
+
+/**
+ * How a job's sheets are cut.
+ *  method 'normal': any edge-to-edge layout, whatever wastes least.
+ *  method 'length': the first cut runs the whole length of the sheet (long strips), each strip is then cut across.
+ *  method 'width': the first cut runs across the whole width (wide strips), each strip is then cut down.
+ *  levels: how many rounds of cutting a strip layout may use (2: strips, then pieces; 3: pieces are trimmed too).
+ *  grain: the sheet has lines running top to bottom, so pieces are never turned.
+ */
+export type LayoutMethod = 'normal' | 'length' | 'width'
+
+export interface SheetLayout {
+  method: LayoutMethod
+  levels: 2 | 3
+  grain: boolean
+}
+
+export const DEFAULT_LAYOUT: SheetLayout = { method: 'normal', levels: 2, grain: false }
 
 export type Resolution = 'voided' | 'kept'
 
@@ -128,6 +161,13 @@ export interface Settings {
   minLeftover: number
   /** Paper size used for the print pages. */
   paperSize: 'A4' | 'Letter'
+  /** How new jobs are cut unless the job says otherwise (see SheetLayout). */
+  layoutMethod: LayoutMethod
+  layoutLevels: 2 | 3
+  /** New jobs start with a grained sheet (pieces never turned). */
+  grain: boolean
+  /** The unit sizes are typed and shown in. Everything is still worked out in inches. */
+  unit: Unit
 }
 
 /** Bucket for jobs/leftovers recorded before per-client tracking existed. */
@@ -141,4 +181,8 @@ export const DEFAULT_SETTINGS: Settings = {
   kerfSize: 0.125,
   minLeftover: 1,
   paperSize: 'A4',
+  layoutMethod: 'normal',
+  layoutLevels: 2,
+  grain: false,
+  unit: 'in',
 }

@@ -1,6 +1,6 @@
 import { cn } from '@/lib/utils'
 import { cleanTape, describeSides, hasTape, tapeTotal, TAPE_SIDES } from '@/lib/tape'
-import { sizeFormatter } from '@/lib/inches'
+import { sizeFormatter, unitLabel, unitWords } from '@/lib/inches'
 import type { EdgeTape, TapeSide } from '@/lib/types'
 import type { CSSProperties } from 'react'
 
@@ -64,7 +64,7 @@ export function EdgeTapePicker({ value, onChange, widthText, heightText, w, h }:
       <button
         type="button"
         aria-pressed={on}
-        aria-label={`${NAME[side]}${len ? `, ${len} inches` : ''}${on ? ', has tape' : ', no tape'}`}
+        aria-label={`${NAME[side]}${len ? `, ${len} ${unitWords()}` : ''}${on ? ', has tape' : ', no tape'}`}
         onClick={() => toggle(side)}
         className={cn(
           'flex min-w-0 items-center justify-center gap-2 rounded-lg border px-2 text-[10px] font-bold uppercase tracking-wide transition-transform active:scale-[0.97] sm:text-[11px]',
@@ -118,7 +118,7 @@ export function EdgeTapePicker({ value, onChange, widthText, heightText, w, h }:
             This piece
           </text>
           <text x={PICTURE_W / 2} y={pictureH / 2 + 14} textAnchor="middle" fontSize="12" fontWeight="600" fill="var(--muted-foreground)">
-            {widthText && heightText ? `${widthText} × ${heightText} in` : 'width × height, inches'}
+            {widthText && heightText ? `${widthText} × ${heightText} ${unitLabel()}` : `width × height, ${unitWords()}`}
           </text>
         </svg>
         {pill('right', 'col-start-3 row-start-2', true)}
@@ -126,7 +126,7 @@ export function EdgeTapePicker({ value, onChange, widthText, heightText, w, h }:
       </div>
 
       <p className="mt-3 text-center text-[14px] font-semibold" aria-live="polite">
-        {hasTape(value) ? `Tape on ${describeSides(value)}${total !== null ? ` · ${fmt(total)} in per piece` : ''}` : 'No tape on this piece'}
+        {hasTape(value) ? `Tape on ${describeSides(value)}${total !== null ? ` · ${fmt(total)} ${unitLabel()} per piece` : ''}` : 'No tape on this piece'}
       </p>
 
       <div className="mt-2 flex flex-wrap justify-center gap-2">

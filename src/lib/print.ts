@@ -1,6 +1,6 @@
 import { allRectSizeLabels, type RectSizeLabel } from './diagramLayout'
 import { dayMonth, timeOfDay } from './format'
-import { fmt, sizeFormatter, sizeStyleOf, type Formatter } from './inches'
+import { fmt, getDisplayUnit, sizeFormatter, sizeStyleOf, unitLabel, type Formatter } from './inches'
 import { pieceSummary, sourceSummary } from './summary'
 import { buildBlocks } from './sheetView'
 import type { Block } from './sheetView'
@@ -61,8 +61,8 @@ function sourceTextFor(sheet: SheetPlan, f: Formatter): string {
 }
 
 function bladeTextFor(kerf: number | undefined, style: 'fraction' | 'decimal'): string {
-  const shown = style === 'decimal' ? String(Math.round((kerf ?? 0) * 1000) / 1000) : fmt(kerf ?? 0)
-  return kerf && kerf > 0 ? `Blade thickness ${shown} in included` : 'Blade thickness not included'
+  const shown = style === 'decimal' && getDisplayUnit() === 'in' ? String(Math.round((kerf ?? 0) * 1000) / 1000) : fmt(kerf ?? 0)
+  return kerf && kerf > 0 ? `Blade thickness ${shown} ${unitLabel()} included` : 'Blade thickness not included'
 }
 
 /**
@@ -87,7 +87,7 @@ export function buildPrintPages(cut: CutDoc, derived: Derived, _settings: Settin
       sheetTotal: total,
       jobTitle: title,
       dateTimeText,
-      sheetSizeText: `${f.fmt(sheet.sheetW)} × ${f.fmt(sheet.sheetH)} in`,
+      sheetSizeText: `${f.fmt(sheet.sheetW)} × ${f.fmt(sheet.sheetH)} ${unitLabel()}`,
       sourceText: sourceTextFor(sheet, f),
       bladeText,
       sheet,

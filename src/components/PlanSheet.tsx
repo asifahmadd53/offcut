@@ -2,7 +2,7 @@ import { useRef, useState } from 'react'
 import { TransformComponent, TransformWrapper, type ReactZoomPanPinchRef } from 'react-zoom-pan-pinch'
 import { IconX } from '@tabler/icons-react'
 import { dayMonth } from '@/lib/format'
-import { sizeFormatter, type SizeStyle } from '@/lib/inches'
+import { areaLabel, fmt, fmtArea, sizeFormatter, unitSuffix, unitWords, type SizeStyle } from '@/lib/inches'
 import { tapeSummary, tapeTotalText } from '@/lib/tape'
 import { dgLightDeclarations } from '@/lib/diagramStyle'
 import { SheetDiagram } from './SheetDiagram'
@@ -49,6 +49,7 @@ export function PlanSheet({ sheet, blocks, highlightIndex, sizeStyle = 'decimal'
             cuts={sheet.cuts}
             highlightIndex={highlightIndex}
             sizeStyle={sizeStyle}
+            grain={sheet.grain}
             autoHeight
           />
         </div>
@@ -72,8 +73,9 @@ export function PlanSheet({ sheet, blocks, highlightIndex, sizeStyle = 'decimal'
             <Legend swatch="free" label={sheet.isNew ? 'Saved leftover' : 'Free after this cut'} />
             <Legend swatch="path" label="Cut line" />
             {tape.rows.length > 0 && <Legend swatch="tape" label="Tape" />}
+            {sheet.grain && <Legend swatch="grain" label="Grain runs top to bottom" />}
           </div>
-          <p className="mb-3 text-[12px] text-muted-foreground">Sizes are width × height, in inches</p>
+          <p className="mb-3 text-[12px] text-muted-foreground">Sizes are width × height, in {unitWords()}</p>
           {anyTurned && (
             <span className="mb-3 mt-[-6px] inline-block rounded-full bg-muted px-2.5 py-0.5 text-[12px] text-muted-foreground">
               Turned to fit
@@ -83,7 +85,7 @@ export function PlanSheet({ sheet, blocks, highlightIndex, sizeStyle = 'decimal'
           <p className="mb-0.5 text-muted-foreground">Sheet used</p>
           <p className="mb-0.5 font-sans text-[22px] font-semibold">{pct}%</p>
           <p className="mb-3 text-muted-foreground">
-            {Math.round(usedArea).toLocaleString()} of {Math.round(regionArea).toLocaleString()} sq in
+            {fmtArea(usedArea)} of {fmtArea(regionArea)} {areaLabel()}
           </p>
 
           {tape.total > 0 && (
@@ -117,7 +119,7 @@ export function PlanSheet({ sheet, blocks, highlightIndex, sizeStyle = 'decimal'
         <button
           type="button"
           onClick={() => setFullScreen(true)}
-          className="flex h-11 min-w-[44px] items-center justify-center rounded-lg border-hair border-border px-3 text-[13px] font-semibold text-foreground"
+          className="flex min-w-[44px] items-center justify-center rounded-lg border-hair border-border px-3 text-[13px] font-semibold text-foreground"
         >
           Full screen
         </button>
@@ -207,6 +209,7 @@ function FullScreenDiagram({ sheet, blocks, sizeStyle, onClose }: { sheet: Sheet
               blocks={blocks}
               cuts={sheet.cuts}
               sizeStyle={sizeStyle}
+              grain={sheet.grain}
               fill
             />
           </TransformComponent>
@@ -282,7 +285,7 @@ function SaveImageButton({ sheet }: { sheet: SheetPlan; blocks: Block[] }) {
       title.setAttribute('font-size', '12')
       title.setAttribute('fill', '#5f5e5a')
       const pieceSummary = sheet.placements.map((p) => p.label).join(', ') || 'No pieces'
-      title.textContent = `${pieceSummary} — ${new Date().toLocaleDateString()} — sheet ${sheet.sheetW} × ${sheet.sheetH}`
+      title.textContent = `${pieceSummary} — ${new Date().toLocaleDateString()} — sheet ${fmt(sheet.sheetW)} × ${fmt(sheet.sheetH)}${unitSuffix()}`
       clone.appendChild(title)
 
       const svgText = new XMLSerializer().serializeToString(clone)
@@ -342,7 +345,20 @@ function SaveImageButton({ sheet }: { sheet: SheetPlan; blocks: Block[] }) {
   )
 }
 
-function Legend({ swatch, label }: { swatch: 'cut' | 'free' | 'old' | 'path' | 'tape' | 'turn'; label: string }) {
+function Legend({ swatch, label }: { swatch: 'cut' | 'free' | 'old' | 'path' | 'tape' | 'turn' | 'grain'; label: string }) {
+  if (swatch === 'grain') {
+    return (
+      <div className="flex items-center gap-2">
+        <svg aria-hidden="true" width="14" height="14" viewBox="0 0 14 14" className="flex-none">
+          <rect x="0.5" y="0.5" width="13" height="13" rx="2" fill="var(--dg-blue)" />
+          <line x1="4" y1="2" x2="4" y2="12" stroke="var(--dg-on-blue)" strokeOpacity="0.7" strokeWidth="1" />
+          <line x1="7" y1="2" x2="7" y2="12" stroke="var(--dg-on-blue)" strokeOpacity="0.5" strokeWidth="1" />
+          <line x1="10" y1="2" x2="10" y2="12" stroke="var(--dg-on-blue)" strokeOpacity="0.7" strokeWidth="1" />
+        </svg>
+        {label}
+      </div>
+    )
+  }
   if (swatch === 'turn') {
     return (
       <div className="flex items-center gap-2">

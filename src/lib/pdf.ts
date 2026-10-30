@@ -1,13 +1,14 @@
 import { computeWasteCells } from './diagramLayout'
 import { spreadPositions } from './diagramStyle'
 import { plural } from './format'
-import { fmt, sizeFormatter, sizeStyleOf, type Formatter } from './inches'
+import { fmt, sizeFormatter, sizeStyleOf, unitLabel, unitWords, type Formatter } from './inches'
 import { tapeSummary, tapeTotalText } from './tape'
 import { SvgDoc, type DrawDoc, type RGB } from './svgDoc'
 import type { jsPDF as JsPdfDoc, jsPDFOptions } from 'jspdf'
 import type { PrintPage } from './print'
 import type { Block } from './sheetView'
-import type { CutDoc, Settings, SheetPlan } from './types'
+import { isPlainLayout, METHOD_NAME } from './layout'
+import type { CutDoc, Settings, SheetLayout, SheetPlan } from './types'
 
 /**
  * Turns a job's client/sheet reference (or its pieces/date, when either is missing) into
@@ -72,6 +73,8 @@ const COL = {
   brand: [194, 65, 12] as RGB,
   blue: [37, 99, 235] as RGB,
   blueFill: [219, 234, 254] as RGB,
+  grainOnBlue: [168, 196, 240] as RGB,
+  grainOnGreen: [166, 214, 190] as RGB,
   blueInk: [23, 52, 140] as RGB,
   green: [34, 139, 87] as RGB,
   greenFill: [226, 246, 235] as RGB,
@@ -332,6 +335,8 @@ function groupSections(sections: PartSection[]): PartSection[] {
 // ---------- Job-wide facts repeated on every page ----------
 
 interface JobFacts {
+  /** How the job's sheets were cut, when that was anything but the plain layout. */
+  layout?: SheetLayout
   client?: string
   phone?: string
   ref?: string
@@ -345,6 +350,7 @@ function jobFacts(pages: PrintPage[], cut?: CutDoc): JobFacts {
   const regionTotal = pages.reduce((t, p) => t + p.sheet.region.w * p.sheet.region.h, 0)
   const usedTotal = pages.reduce((t, p) => t + p.sheet.placements.reduce((a, q) => a + q.w * q.h, 0), 0)
   return {
+    layout: cut?.layout && !isPlainLayout(cut.layout) ? cut.layout : undefined,
     client: cut?.clientName?.trim() || undefined,
     phone: cut?.clientPhone?.trim() || undefined,
     ref: cut?.sheetNumber?.trim() || undefined,
@@ -569,13 +575,14 @@ function drawPieceLine(doc: DrawDoc, text: string, along: number, base: number, 
 }
 
 function drawLegend(doc: DrawDoc, sheet: SheetPlan, blocks: Block[], x: number, y: number, maxW: number) {
-  const items: Array<{ key: 'blue' | 'green' | 'earlier' | 'cut' | 'tape' | 'turn'; text: string }> = [
+  const items: Array<{ key: 'blue' | 'green' | 'earlier' | 'cut' | 'tape' | 'turn' | 'grain'; text: string }> = [
     { key: 'blue', text: 'Piece to cut' },
     { key: 'green', text: 'Leftover' },
   ]
   if (blocks.some((b) => b.kind === 'earlier')) items.push({ key: 'earlier', text: 'Already cut' })
   if ((sheet.cuts ?? []).length > 0) items.push({ key: 'cut', text: 'Cut line' })
   if (blocks.some((b) => b.kind === 'cut' && b.tape)) items.push({ key: 'tape', text: 'Tape' })
+  if (sheet.grain) items.push({ key: 'grain', text: 'Grain' })
   if (blocks.some((b) => b.kind === 'cut' && b.rotated)) items.push({ key: 'turn', text: '= turned piece' })
   const size = 8.5
   const itemW = (t: string) => 7 + widthOf(doc, t, size)
@@ -586,7 +593,15 @@ function drawLegend(doc: DrawDoc, sheet: SheetPlan, blocks: Block[], x: number, 
       cx = x
       cy += 5.5
     }
-    if (it.key === 'turn') {
+    if (it.key === 'grain') {
+      doc.setFillColor(...COL.blueFill)
+      doc.setDrawColor(...COL.blue)
+      doc.setLineWidth(0.25)
+      doc.rect(cx, cy - 2.8, 3.6, 3.6, 'FD')
+      doc.setDrawColor(...COL.grainOnBlue)
+      doc.setLineWidth(0.15)
+      for (const dx of [0.9, 1.8, 2.7]) doc.line(cx + dx, cy - 2.3, cx + dx, cy + 0.3)
+    } else if (it.key === 'turn') {
       // Same vector arrow as on the pieces, in the legend's ink.
       drawTurnArrow(doc, cx, cy, size, COL.muted, false, false)
     } else if (it.key === 'tape') {
@@ -616,7 +631,7 @@ function drawLegend(doc: DrawDoc, sheet: SheetPlan, blocks: Block[], x: number, 
     put(doc, it.text, cx + 7, cy, { size, color: COL.muted })
     cx += itemW(it.text) + 5
   }
-  const note = 'Sizes are width × height, in inches'
+  const note = `Sizes are width × height, in ${unitWords()}`
   if (cx > x && cx + widthOf(doc, note, size) > x + maxW) {
     cx = x
     cy += 5.5
@@ -722,6 +737,19 @@ function drawDiagram(doc: DrawDoc, page: PrintPage, box: Box) {
     doc.setDrawColor(...COL.blue)
     doc.setLineWidth(0.35)
     doc.rect(X(b.x), Y(b.y), b.w * sc, b.h * sc, 'FD')
+  }
+
+  // The grain: faint lines running top to bottom inside every piece and leftover, under all text.
+  if (sheet.grain) {
+    doc.setLineWidth(0.12)
+    const lines = (b: Block, color: RGB) => {
+      doc.setDrawColor(...color)
+      const left = X(b.x)
+      const right = X(b.x + b.w)
+      for (let x = left + 1.8; x <= right - 1.2; x += 3.4) doc.line(x, Y(b.y) + 0.9, x, Y(b.y + b.h) - 0.9)
+    }
+    for (const b of blocks.filter(isFree)) lines(b, COL.grainOnGreen)
+    for (const b of blocks.filter((x) => x.kind === 'cut')) lines(b, COL.grainOnBlue)
   }
 
   // Where the saw goes: the dashed cut lines (no order is printed).
@@ -853,12 +881,12 @@ function drawDiagram(doc: DrawDoc, page: PrintPage, box: Box) {
   doc.line(X0, dimY, X1, dimY)
   doc.line(X0, dimY - 1.4, X0, dimY + 1.4)
   doc.line(X1, dimY - 1.4, X1, dimY + 1.4)
-  put(doc, `${F.fmt(sheetW)} in wide`, (X0 + X1) / 2, dimY - 1.8, { size: 9.5, bold: true, align: 'center' })
+  put(doc, `${F.fmt(sheetW)} ${unitLabel()} wide`, (X0 + X1) / 2, dimY - 1.8, { size: 9.5, bold: true, align: 'center' })
   const dimX = X0 - 14.5
   doc.line(dimX, Y0, dimX, Y1)
   doc.line(dimX - 1.4, Y0, dimX + 1.4, Y0)
   doc.line(dimX - 1.4, Y1, dimX + 1.4, Y1)
-  const hText = `${F.fmt(sheetH)} in tall`
+  const hText = `${F.fmt(sheetH)} ${unitLabel()} tall`
   const hW = widthOf(doc, hText, 9.5, true)
   put(doc, hText, dimX - 1.8, (Y0 + Y1) / 2 + hW / 2, { size: 9.5, bold: true, angle: 90 })
 
@@ -961,7 +989,7 @@ function drawParts(doc: DrawDoc, lay: PartsLayout, x: number, y: number, w: numb
   return y
 }
 
-function drawInfoColumn(doc: DrawDoc, page: PrintPage, box: Box, compact: boolean): { fits: boolean } {
+function drawInfoColumn(doc: DrawDoc, page: PrintPage, box: Box, compact: boolean, job?: JobFacts): { fits: boolean } {
   const x = box.x
   const w = box.w
   const maxY = box.y + box.h
@@ -978,6 +1006,17 @@ function drawInfoColumn(doc: DrawDoc, page: PrintPage, box: Box, compact: boolea
   for (const line of wrap(doc, page.bladeText, w, 9)) {
     put(doc, line, x, y, { size: 9, color: COL.muted })
     y += lineHeight(9)
+  }
+  // Only a job cut with grain or in strips says so; a plain job's page is exactly as before.
+  const how = [
+    page.sheet.grain ? 'Grain runs top to bottom, pieces are not turned' : '',
+    job?.layout && job.layout.method !== 'normal' ? `${METHOD_NAME[job.layout.method]}, ${job.layout.levels} rounds` : '',
+  ].filter(Boolean)
+  for (const text of how) {
+    for (const line of wrap(doc, text, w, 9)) {
+      put(doc, line, x, y, { size: 9, color: COL.muted })
+      y += lineHeight(9)
+    }
   }
   y += 3
 
@@ -1021,8 +1060,8 @@ function drawJob(doc: DrawDoc, pages: PrintPage[], paperSize: Settings['paperSiz
     const diagramBox: Box = { x: MARGIN, y: top, w: infoBox.x - COL_GAP - MARGIN, h: bottom - top }
     drawDiagram(doc, page, diagramBox)
     // Normal-size text if everything fits beside the drawing, tighter text if that makes it fit.
-    const compact = !drawInfoColumn(dryRun(doc), page, infoBox, false).fits
-    drawInfoColumn(doc, page, infoBox, compact)
+    const compact = !drawInfoColumn(dryRun(doc), page, infoBox, false, job).fits
+    drawInfoColumn(doc, page, infoBox, compact, job)
     drawFooter(doc, page, size.h)
   })
 

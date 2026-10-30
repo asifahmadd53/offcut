@@ -11,7 +11,7 @@ import {
   spreadPositions,
   verticalTicks,
 } from '@/lib/diagramStyle'
-import { sizeFormatter, type SizeStyle } from '@/lib/inches'
+import { sizeFormatter, unitMark, type SizeStyle } from '@/lib/inches'
 import type { Block } from '@/lib/sheetView'
 import type { SheetPlan } from '@/lib/types'
 
@@ -43,6 +43,8 @@ interface SheetDiagramProps {
    * does not make a giant sheet). Used by Plan / Job detail / Leftover detail's main drawing.
    */
   autoHeight?: boolean
+  /** The sheet has a grain: faint lines run top to bottom over every piece and leftover. */
+  grain?: boolean
 }
 
 const LEFT = 72
@@ -79,6 +81,7 @@ export function SheetDiagram({
   sizeStyle = 'decimal',
   fill = false,
   autoHeight = false,
+  grain = false,
 }: SheetDiagramProps) {
   const F = useMemo(() => sizeFormatter(sizeStyle), [sizeStyle])
   const fmt = F.fmt
@@ -158,18 +161,20 @@ export function SheetDiagram({
   const xTicks = horizontalTicks(sheetW)
   const hatchId = `hatch-${uid}`
   const gridId = `grid-${uid}`
+  const grainOnPieceId = `grain-piece-${uid}`
+  const grainOnLeftoverId = `grain-left-${uid}`
 
   const pieceCount = blocks.filter((b) => b.kind === 'cut').length
   const leftoverCount = blocks.filter((b) => b.kind === 'free' || b.kind === 'freeNew' || b.kind === 'focus').length
   const ariaLabel = diagramAriaLabel(sheetW, sheetH, pieceCount, leftoverCount, cuts ? cuts.length : undefined)
 
-  const calloutText = `${fmt(sheetW)}" Sheet Width`
+  const calloutText = `${fmt(sheetW)}${unitMark()} Sheet Width`
   const calloutW = calloutText.length * 8 + 50
   const calloutCx = sheetLeft + sheetPxW / 2
   const dimX = sheetLeft - SIDE_DIM
-  const heightText = `${fmt(sheetH)}" Sheet Height`
+  const heightText = `${fmt(sheetH)}${unitMark()} Sheet Height`
   const heightLong = heightText.length * 8 + 50
-  const heightPill = heightLong <= sheetPxH - 12 ? heightText : `${fmt(sheetH)}"`
+  const heightPill = heightLong <= sheetPxH - 12 ? heightText : `${fmt(sheetH)}${unitMark()}`
   const heightPillW = heightPill === heightText ? heightLong : heightPill.length * 8 + 50
   const showHeightPill = heightPillW <= sheetPxH - 12
   const midY = TOP + sheetPxH / 2
@@ -191,6 +196,7 @@ export function SheetDiagram({
       body = (
         <>
           <rect x={bx} y={by} width={bw} height={bh} fill="var(--dg-blue)" />
+          {grain && <rect x={bx} y={by} width={bw} height={bh} fill={`url(#${grainOnPieceId})`} />}
           {label && <LabelText label={label} cx={cx} cy={cy} fill="var(--dg-on-blue)" />}
           {tier === 'small' && (
             <text x={cx} y={cy + 4} textAnchor="middle" fontSize="11" fontWeight="700" fill="var(--dg-on-blue)">
@@ -211,6 +217,7 @@ export function SheetDiagram({
         <>
           <rect x={bx} y={by} width={bw} height={bh} fill="var(--dg-green-fill)" />
           <rect x={bx} y={by} width={bw} height={bh} fill={`url(#${hatchId})`} />
+          {grain && <rect x={bx} y={by} width={bw} height={bh} fill={`url(#${grainOnLeftoverId})`} />}
           <rect
             x={bx + 0.75}
             y={by + 0.75}
@@ -280,6 +287,15 @@ export function SheetDiagram({
         <defs>
           <pattern id={hatchId} width="8" height="8" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
             <line x1="0" y1="0" x2="0" y2="8" stroke="var(--dg-green-hatch)" strokeWidth="2.4" />
+          </pattern>
+          {/* The grain: faint lines running top to bottom, white on a piece and green on a leftover. */}
+          <pattern id={grainOnPieceId} width="13" height="40" patternUnits="userSpaceOnUse">
+            <line x1="3" y1="0" x2="3" y2="40" stroke="var(--dg-on-blue)" strokeOpacity="0.28" strokeWidth="1" />
+            <line x1="9.5" y1="0" x2="9.5" y2="40" stroke="var(--dg-on-blue)" strokeOpacity="0.16" strokeWidth="1.4" />
+          </pattern>
+          <pattern id={grainOnLeftoverId} width="13" height="40" patternUnits="userSpaceOnUse">
+            <line x1="3" y1="0" x2="3" y2="40" stroke="var(--dg-green)" strokeOpacity="0.3" strokeWidth="1" />
+            <line x1="9.5" y1="0" x2="9.5" y2="40" stroke="var(--dg-green)" strokeOpacity="0.18" strokeWidth="1.4" />
           </pattern>
           <pattern id={gridId} width="22" height="22" patternUnits="userSpaceOnUse">
             <path d="M22 0H0V22" fill="none" stroke="var(--dg-grid)" strokeWidth="1" />

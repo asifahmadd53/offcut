@@ -3,8 +3,10 @@ import { persist } from 'zustand/middleware'
 import { uid } from '@/lib/id'
 import { packJob as packOnly, type Item, type PackOptions, type PackResult } from '@/lib/packer'
 import { checkPlan } from '@/lib/planCheck'
-import type { EdgeTape, Leftover, Piece, SheetPlan } from '@/lib/types'
+import type { EdgeTape, Leftover, Piece, SheetLayout, SheetPlan } from '@/lib/types'
+import { effectiveLayout, packOptionsFor } from '@/lib/layout'
 import { cleanTape } from '@/lib/tape'
+import { getDisplayUnit } from '@/lib/inches'
 import { useData } from './data'
 import { useSettings } from './settings'
 
@@ -33,6 +35,8 @@ export interface PlanState {
   /** Leftovers the user asked not to use ("Pick a different leftover"). */
   excluded: string[]
   kerf: number
+  /** How the sheets of this plan were cut (grain, strip layout). */
+  layout: SheetLayout
 }
 
 /** Result of trying the restricted-leftover pack, before any plan is committed to state. */
@@ -63,6 +67,8 @@ interface JobState {
    * with an empty stock, so only new sheets are used even though a leftover would fit.
    */
   forceNewSheet: boolean
+  /** This job's own choice of how its sheets are cut (grain, strip layout); null means the Settings defaults. */
+  layoutOverride: SheetLayout | null
   addPiece: (w: number, h: number, qty: number, wText?: string, hText?: string, tape?: EdgeTape) => void
   /** Sets (or clears) the edge tape on a piece already in the job. */
   setPieceTape: (id: string, tape?: EdgeTape) => void
@@ -83,6 +89,8 @@ interface JobState {
   dropPlan: () => void
   setOnlyLeftoverId: (id: string | null) => void
   setForceNewSheet: (v: boolean) => void
+  /** Sets (or clears) this job's own layout; any plan already made is dropped because it was cut another way. */
+  setLayoutOverride: (layout: SheetLayout | null) => void
 }
 
 export const useJob = create<JobState>()(
@@ -96,9 +104,10 @@ export const useJob = create<JobState>()(
       plan: null,
       onlyLeftoverId: null,
       forceNewSheet: false,
+      layoutOverride: null,
       addPiece: (w, h, qty, wText, hText, tape) =>
         set((s) => ({
-          pieces: [...s.pieces, { id: uid(), w, h, qty, wText, hText, tape: cleanTape(tape) }],
+          pieces: [...s.pieces, { id: uid(), w, h, qty, wText, hText, ...(getDisplayUnit() !== 'in' ? { unit: getDisplayUnit() } : {}), tape: cleanTape(tape) }],
           plan: null,
           forceNewSheet: false,
         })),
@@ -128,10 +137,12 @@ export const useJob = create<JobState>()(
           plan: null,
           onlyLeftoverId: null,
           forceNewSheet: false,
+          layoutOverride: null,
         }),
       buildPlan: (excluded = []) => {
         const { derived } = useData.getState()
         const { settings } = useSettings.getState()
+        const layout = effectiveLayout(settings, get().layoutOverride)
         const kerf = settings.kerfOn ? settings.kerfSize : 0
         const only = get().onlyLeftoverId
         const forceNewSheet = get().forceNewSheet
@@ -145,19 +156,16 @@ export const useJob = create<JobState>()(
           get().pieces,
           stock,
           {
-            sheetW: settings.sheetW,
-            sheetH: settings.sheetH,
-            kerf,
+            ...packOptionsFor(settings, layout),
             // Leftover-restricted planning must never silently open a new sheet:
             // the caller checks the fit first (checkLeftoverFit) and only reaches
             // here once every piece is known to fit the one leftover alone.
-            minLeftover: settings.minLeftover,
             allowNewSheets: !only,
           },
           new Set(excluded),
           derived.sheetLetters,
         )
-        set({ plan: { sheets: result.sheets, unplaced: result.unplaced, excluded, kerf } })
+        set({ plan: { sheets: result.sheets, unplaced: result.unplaced, excluded, kerf, layout } })
       },
       checkLeftoverFit: () => {
         const only = get().onlyLeftoverId
@@ -166,15 +174,12 @@ export const useJob = create<JobState>()(
         const { settings } = useSettings.getState()
         const lo = stockForClient(derived.freeLeftovers, get().clientId).find((l) => l.id === only)
         if (!lo) return null
-        const kerf = settings.kerfOn ? settings.kerfSize : 0
+        const layout = effectiveLayout(settings, get().layoutOverride)
         const result = packJob(
           get().pieces,
           [lo],
           {
-            sheetW: settings.sheetW,
-            sheetH: settings.sheetH,
-            kerf,
-            minLeftover: settings.minLeftover,
+            ...packOptionsFor(settings, layout),
             allowNewSheets: false,
           },
           new Set(),
@@ -199,6 +204,7 @@ export const useJob = create<JobState>()(
       buildPlanWithNewSheet: () => {
         const { derived } = useData.getState()
         const { settings } = useSettings.getState()
+        const layout = effectiveLayout(settings, get().layoutOverride)
         const kerf = settings.kerfOn ? settings.kerfSize : 0
         const only = get().onlyLeftoverId
         const stock = only ? stockForClient(derived.freeLeftovers, get().clientId).filter((l) => l.id === only) : []
@@ -206,20 +212,18 @@ export const useJob = create<JobState>()(
           get().pieces,
           stock,
           {
-            sheetW: settings.sheetW,
-            sheetH: settings.sheetH,
-            kerf,
-            minLeftover: settings.minLeftover,
+            ...packOptionsFor(settings, layout),
             allowNewSheets: true,
           },
           new Set(),
           derived.sheetLetters,
         )
-        set({ plan: { sheets: result.sheets, unplaced: result.unplaced, excluded: [], kerf } })
+        set({ plan: { sheets: result.sheets, unplaced: result.unplaced, excluded: [], kerf, layout } })
       },
       dropPlan: () => set({ plan: null }),
       setOnlyLeftoverId: (id) => set({ onlyLeftoverId: id }),
       setForceNewSheet: (v) => set({ forceNewSheet: v }),
+      setLayoutOverride: (layoutOverride) => set({ layoutOverride, plan: null, forceNewSheet: false }),
     }),
     {
       name: 'sc-job-draft',
@@ -229,6 +233,7 @@ export const useJob = create<JobState>()(
         clientName: s.clientName,
         clientPhone: s.clientPhone,
         sheetNumber: s.sheetNumber,
+        layoutOverride: s.layoutOverride,
       }),
     },
   ),

@@ -1,3 +1,4 @@
+import { getDisplayUnit } from './inches'
 import type { EdgeTape, TapeSide } from './types'
 
 /**
@@ -65,5 +66,8 @@ export function tapeSummary(pieces: TapePiece[]): { rows: TapeRow[]; total: numb
 
 /** "123.4 in (10.3 ft)" */
 export function tapeTotalText(total: number, fmt: (n: number) => string): string {
-  return `${fmt(total)} in (${Math.round((total / 12) * 10) / 10} ft)`
+  const u = getDisplayUnit()
+  if (u === 'in') return `${fmt(total)} in (${Math.round((total / 12) * 10) / 10} ft)`
+  // Tape is bought by the metre in metric countries, so cm and mm also show metres.
+  return u === 'ft' ? `${fmt(total)} ft` : `${fmt(total)} ${u} (${Math.round(total * 0.254) / 10} m)`
 }

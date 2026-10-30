@@ -10,7 +10,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog'
 import { dayMonth } from '@/lib/format'
-import { fmt, sizeStyleOf } from '@/lib/inches'
+import { areaLabel, fmt, fmtArea, sizeStyleOf, unitLabel } from '@/lib/inches'
 import { saveCut } from '@/lib/db'
 import { getDeviceId, uid } from '@/lib/id'
 import { buildBlocks } from '@/lib/sheetView'
@@ -106,7 +106,7 @@ export default function LeftoverDetail() {
           {fmt(Math.min(leftover.w, leftover.h))} × {fmt(Math.max(leftover.w, leftover.h))}
         </p>
         <p className="mb-2 text-muted-foreground">
-          {Math.round(leftover.w * leftover.h).toLocaleString()} sq in
+          {fmtArea(leftover.w * leftover.h)} {areaLabel()}
         </p>
         <p className="mb-0.5 text-muted-foreground">Client</p>
         <p className="mb-2 text-foreground">{leftover.clientName}</p>
@@ -116,7 +116,7 @@ export default function LeftoverDetail() {
             <p className="mb-2 text-foreground">Sheet cut on {dayMonth(leftover.sheetDate)}</p>
             <p className="mb-0.5 text-muted-foreground">Position on the sheet</p>
             <p className="text-foreground">
-              {fmt(leftover.x)} in from the left, {fmt(leftover.y)} in from the top
+              {fmt(leftover.x)} {unitLabel()} from the left, {fmt(leftover.y)} {unitLabel()} from the top
             </p>
           </>
         )}

@@ -479,3 +479,20 @@ describe('edge tape on the PDF', () => {
     expect(texts.some((t) => /^Edge tape \(/i.test(t))).toBe(false)
   })
 })
+
+describe('grain and strip layouts on the PDF', () => {
+  it('the extra grain lines and layout words never overlap other text, one page per sheet', async () => {
+    const ps: Piece[] = [piece(23.15, 76, 2), piece(21.2, 6.6, 3), piece(16, 25.3, 2), piece(10.5, 38.6, 2)]
+    for (const layout of ['normal', 'length', 'width'] as const) {
+      const o = { ...opts, kerf: 0.125, grain: true, layout, levels: 3 as const }
+      const sheets = packJob(ps, [], o).sheets
+      const cut: CutDoc = { ...cutFrom(ps, sheets), clientName: 'Asif', layout: { method: layout, levels: 3, grain: true } }
+      const boxes: TextBox[] = []
+      const pages = buildPrintPages(cut, deriveStock([cut]), DEFAULT_SETTINGS)
+      await buildPrintPdf(pages, 'A4', recorder(boxes) as unknown as typeof jsPDF, cut)
+      expect(overlaps(boxes), layout).toEqual([])
+      const text = await (await buildPrintPdf(pages, 'A4', jsPDF, cut)).text()
+      expect(text.match(/\/Type \/Page[^s]/g)?.length ?? 0).toBe(pages.length)
+    }
+  })
+})

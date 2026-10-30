@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { AppShell } from '@/components/AppShell'
 import { Button } from '@/components/ui/button'
@@ -11,11 +11,13 @@ import {
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Switch } from '@/components/ui/switch'
-import { fmt, parseInches } from '@/lib/inches'
+import { SheetLayoutDialog } from '@/components/SheetLayoutDialog'
+import { layoutSummary } from '@/lib/layout'
+import { fmtIn, parseSize, UNITS, UNIT_NAME, type Unit } from '@/lib/inches'
 import { useAuth } from '@/store/auth'
 import { useSettings } from '@/store/settings'
 import { toast } from 'sonner'
-import type { Settings as SettingsShape } from '@/lib/types'
+import { DEFAULT_SETTINGS, type LayoutMethod, type Settings as SettingsShape } from '@/lib/types'
 
 export interface Draft {
   sheetW: string
@@ -24,6 +26,12 @@ export interface Draft {
   kerfSize: string
   minLeftover: string
   paperSize: 'A4' | 'Letter'
+  /** The unit the four size fields above are written in. */
+  unit: Unit
+  /** How new jobs are cut, and whether their sheets have a grain, unless a job says otherwise. */
+  layoutMethod: LayoutMethod
+  layoutLevels: 2 | 3
+  grain: boolean
 }
 
 interface FieldErrors {
@@ -33,35 +41,51 @@ interface FieldErrors {
   minLeftover?: string
 }
 
-const DEFAULT_KERF_SIZE_TEXT = '1/8'
+/** A saved blade width of 0 means "not set"; show the usual 1/8 inch in whatever unit the fields use. */
+const DEFAULT_KERF_INCHES = 0.125
 
 export function draftFrom(s: SettingsShape): Draft {
+  const unit: Unit = s.unit ?? DEFAULT_SETTINGS.unit
   return {
-    sheetW: fmt(s.sheetW),
-    sheetH: fmt(s.sheetH),
+    unit,
+    sheetW: fmtIn(s.sheetW, unit),
+    sheetH: fmtIn(s.sheetH, unit),
     kerfOn: s.kerfOn,
     // A saved kerfSize of 0 means "not set" (the toggle was off when it was saved) —
     // show a sensible blade width instead of 0 so the disabled field always displays
     // something the carpenter would recognize, not a value that means "no blade".
-    kerfSize: s.kerfSize > 0 ? fmt(s.kerfSize) : DEFAULT_KERF_SIZE_TEXT,
-    minLeftover: fmt(s.minLeftover),
+    kerfSize: fmtIn(s.kerfSize > 0 ? s.kerfSize : DEFAULT_KERF_INCHES, unit),
+    minLeftover: fmtIn(s.minLeftover, unit),
     paperSize: s.paperSize,
+    // Settings saved before these existed lack them: the plain defaults apply.
+    layoutMethod: s.layoutMethod ?? DEFAULT_SETTINGS.layoutMethod,
+    layoutLevels: s.layoutLevels ?? DEFAULT_SETTINGS.layoutLevels,
+    grain: s.grain ?? DEFAULT_SETTINGS.grain,
   }
 }
 
 /** Sheet size, blade width and minimum leftover must be positive; minimum leftover may be 0. */
-export function validate(draft: Draft): { errors: FieldErrors; values?: Partial<SettingsShape> } {
-  const errors: FieldErrors = {}
-  const sheetW = parseInches(draft.sheetW)
-  const sheetH = parseInches(draft.sheetH)
-  const kerfSize = draft.kerfOn ? parseInches(draft.kerfSize) : 0
-  const minTrim = draft.minLeftover.trim()
-  const minLeftover = minTrim === '0' ? 0 : parseInches(draft.minLeftover)
+type SizeField = 'sheetW' | 'sheetH' | 'kerfSize' | 'minLeftover'
 
-  if (sheetW === null) errors.sheetW = 'Type a number like 48.'
-  if (sheetH === null) errors.sheetH = 'Type a number like 96.'
-  if (draft.kerfOn && kerfSize === null) errors.kerfSize = 'Type a number like 1/8.'
-  if (minLeftover === null) errors.minLeftover = 'Type a number like 1, or 0 to keep everything.'
+export function validate(draft: Draft, saved?: SettingsShape, exactSizes: Partial<Record<SizeField, { text: string; inches: number }>> = {}): { errors: FieldErrors; values?: Partial<SettingsShape> } {
+  const errors: FieldErrors = {}
+  // A field left exactly as it was shown keeps its saved size: the text is a rounded copy of it (1/8 inch shows as 3.18 mm).
+  const read = (field: SizeField): number | null => {
+    const text = draft[field]
+    if (exactSizes[field]?.text === text) return exactSizes[field]!.inches
+    if (saved && draft.unit === (saved.unit ?? 'in') && text === draftFrom(saved)[field] && (field !== 'kerfSize' || saved.kerfSize > 0)) return saved[field]
+    return parseSize(text, draft.unit)
+  }
+  const sheetW = read('sheetW')
+  const sheetH = read('sheetH')
+  const kerfSize = draft.kerfOn ? read('kerfSize') : 0
+  const minTrim = draft.minLeftover.trim()
+  const minLeftover = minTrim === '0' ? 0 : read('minLeftover')
+
+  if (sheetW === null) errors.sheetW = `Type a number like ${fmtIn(48, draft.unit)}.`
+  if (sheetH === null) errors.sheetH = `Type a number like ${fmtIn(96, draft.unit)}.`
+  if (draft.kerfOn && kerfSize === null) errors.kerfSize = `Type a number like ${fmtIn(DEFAULT_KERF_INCHES, draft.unit)}.`
+  if (minLeftover === null) errors.minLeftover = `Type a number like ${fmtIn(1, draft.unit)}, or 0 to keep everything.`
 
   if (Object.keys(errors).length > 0) return { errors }
   return {
@@ -73,6 +97,10 @@ export function validate(draft: Draft): { errors: FieldErrors; values?: Partial<
       kerfSize: kerfSize ?? 0,
       minLeftover: minLeftover!,
       paperSize: draft.paperSize,
+      unit: draft.unit,
+      layoutMethod: draft.layoutMethod,
+      layoutLevels: draft.layoutLevels,
+      grain: draft.grain,
     },
   }
 }
@@ -91,6 +119,7 @@ export default function Settings() {
   const [confirmSizeOpen, setConfirmSizeOpen] = useState(false)
   const [pendingValues, setPendingValues] = useState<Partial<SettingsShape> | null>(null)
   const [leaveOpen, setLeaveOpen] = useState(false)
+  const [layoutOpen, setLayoutOpen] = useState(false)
   const [pendingRoute, setPendingRoute] = useState<string | null>(null)
 
   // The last draft a save actually completed with. Compared alongside `settings` (not
@@ -98,6 +127,8 @@ export default function Settings() {
   // if this component hasn't yet re-rendered with the freshly updated settings from the
   // store — closes any timing gap between a successful save and the next navigation.
   const [lastSaved, setLastSaved] = useState<Draft | null>(null)
+  // The exact size (inches) behind each size field's text after a change of unit, so going 1/8 in -> ft -> in does not drift to 0.12.
+  const exact = useRef<Partial<Record<SizeField, { text: string; inches: number }>>>({})
 
   const saved = draftFrom(settings)
   const sameAsDraft = (a: Draft) =>
@@ -106,12 +137,36 @@ export default function Settings() {
     draft.kerfOn === a.kerfOn &&
     draft.kerfSize === a.kerfSize &&
     draft.minLeftover === a.minLeftover &&
-    draft.paperSize === a.paperSize
+    draft.paperSize === a.paperSize &&
+    draft.unit === a.unit &&
+    draft.layoutMethod === a.layoutMethod &&
+    draft.layoutLevels === a.layoutLevels &&
+    draft.grain === a.grain
   const dirty = !sameAsDraft(saved) && !(lastSaved && sameAsDraft(lastSaved))
 
   function patch(p: Partial<Draft>) {
     setDraft((d) => ({ ...d, ...p }))
     setLastSaved(null)
+  }
+
+  /** Switching unit rewrites the four size fields in the new unit, from the real size when a field is untouched. */
+  function changeUnit(unit: Unit) {
+    if (unit === draft.unit) return
+    const next: Partial<Record<SizeField, { text: string; inches: number }>> = {}
+    const convert = (field: SizeField) => {
+      const untouched = draft.unit === (settings.unit ?? 'in') && draft[field] === saved[field] && (field !== 'kerfSize' || settings.kerfSize > 0)
+      const known = exact.current[field]
+      const inches = untouched ? settings[field] : known && known.text === draft[field] ? known.inches : parseSize(draft[field], draft.unit)
+      if (inches === null || inches === undefined) return draft[field]
+      const text = fmtIn(inches, unit)
+      next[field] = { text, inches }
+      return text
+    }
+    // Worked out here, not inside the state update, so a repeated run (React's dev double-run) cannot lose the exact sizes.
+    setDraft({ ...draft, unit, sheetW: convert('sheetW'), sheetH: convert('sheetH'), kerfSize: convert('kerfSize'), minLeftover: convert('minLeftover') })
+    exact.current = next
+    setLastSaved(null)
+    setErrors({})
   }
 
   function discard() {
@@ -135,7 +190,7 @@ export default function Settings() {
   }
 
   function onSave() {
-    const { errors: fieldErrors, values } = validate(draft)
+    const { errors: fieldErrors, values } = validate(draft, settings, exact.current)
     setErrors(fieldErrors)
     if (!values) return
 
@@ -198,8 +253,31 @@ export default function Settings() {
       <div className='border border-border rounded-md p-2'>
 
 
+        <div className="border-b border-border py-3 px-2">
+          <Label>Measuring unit</Label>
+          <div role="radiogroup" aria-label="Measuring unit" className="grid grid-cols-4 gap-2">
+            {UNITS.map((u) => {
+              const selected = draft.unit === u
+              return (
+                <button
+                  key={u}
+                  type="button"
+                  role="radio"
+                  aria-checked={selected}
+                  aria-label={UNIT_NAME[u]}
+                  onClick={() => changeUnit(u)}
+                  className={`flex h-[38px] items-center justify-center rounded-lg border px-2 text-center transition-colors ${selected ? 'border-accent-border bg-accent-bg' : 'border-border-strong bg-background hover:bg-muted'}`}
+                >
+                  <span className={`text-[15px] font-semibold ${selected ? 'text-accent-text' : 'text-foreground'}`}>{u}</span>
+                </button>
+              )
+            })}
+          </div>
+          <p className="mb-0 mt-1.5 text-[12.5px] text-faint">Sizes you type and see use this unit ({UNITS.map((u) => UNIT_NAME[u].toLowerCase()).join(', ')}). Cutting stays exact.</p>
+        </div>
+
         <div className="border-b border-border  py-1 px-2">
-          <Label>Sheet size (in)</Label>
+          <Label>Sheet size ({draft.unit})</Label>
           <div className="grid grid-cols-2 gap-3">
             <div>
               <Label htmlFor="sheet-width" className="mb-1 text-[12.5px] font-normal text-muted-foreground">
@@ -230,7 +308,7 @@ export default function Settings() {
               {errors.sheetH && <p className="mt-1 text-[12.5px] text-danger-text">{errors.sheetH}</p>}
             </div>
           </div>
-          <p className="mt-1.5 text-[12.5px] text-faint">Width across, then height. Default 48 × 96.</p>
+          <p className="mt-1.5 text-[12.5px] text-faint">Width across, then height. Default {fmtIn(48, draft.unit)} × {fmtIn(96, draft.unit)}.</p>
         </div>
 
         <div className="border-b border-border py-3">
@@ -239,10 +317,10 @@ export default function Settings() {
             <Switch checked={draft.kerfOn} onCheckedChange={(v) => patch({ kerfOn: v })} />
           </div>
           <p className="mt-1.5 text-[12.5px] text-faint">
-            Blade width: {draft.kerfSize} in. Used when the toggle is on.
+            Blade width: {draft.kerfSize} {draft.unit}. Used when the toggle is on.
           </p>
           <div className="mt-2.5">
-            <Label>Blade width (in)</Label>
+            <Label>Blade width ({draft.unit})</Label>
             <Input
               inputMode="text"
               autoComplete="off"
@@ -256,7 +334,7 @@ export default function Settings() {
         </div>
 
         <div className="border-b border-border py-3">
-          <Label>Save leftovers bigger than (in)</Label>
+          <Label>Save leftovers bigger than ({draft.unit})</Label>
           <Input
             inputMode="text"
             autoComplete="off"
@@ -268,10 +346,28 @@ export default function Settings() {
           <p className="mt-1.5 text-[12.5px] text-faint">Anything smaller is treated as waste.</p>
         </div>
 
-        <div className="flex items-center justify-between border-b border-border py-3">
-          <span className="text-[15px]">Rotate pieces</span>
-          <span className="text-[14px] text-muted-foreground">Only if needed</span>
+        <div className="border-b border-border py-3">
+          <div className="flex items-center justify-between gap-3">
+            <span className="text-[15px]">Sheet layout</span>
+            <Button variant="outline" size="lg" onClick={() => setLayoutOpen(true)}>
+              Change
+            </Button>
+          </div>
+          <p className="mb-0 mt-1.5 text-[12.5px] text-faint">
+            {layoutSummary({ method: draft.layoutMethod, levels: draft.layoutLevels, grain: draft.grain })}.
+            {!draft.grain && ' A piece is turned only if needed.'} New jobs start with this; a job can change it.
+          </p>
         </div>
+
+        <SheetLayoutDialog
+          open={layoutOpen}
+          onOpenChange={setLayoutOpen}
+          value={{ method: draft.layoutMethod, levels: draft.layoutLevels, grain: draft.grain }}
+          title="Sheet layout for new jobs"
+          description="Every new job starts with this. A job can still choose its own on the New job screen."
+          saveLabel="Use this layout"
+          onSave={(l) => patch({ layoutMethod: l.method, layoutLevels: l.levels, grain: l.grain })}
+        />
 
         <div className="border-b border-border py-3">
           <Label>Paper size</Label>
@@ -284,7 +380,7 @@ export default function Settings() {
                   type="button"
                   onClick={() => patch({ paperSize: size })}
                   aria-pressed={selected}
-                  className={`flex items-center justify-between rounded-md border px-4 py-2 text-left transition-colors ${selected
+                  className={`flex h-[38px] items-center justify-between rounded-lg border px-4 py-0 text-left transition-colors ${selected
                       ? 'border-accent-border bg-accent-bg'
                       : 'border-border-strong bg-background hover:bg-muted'
                     }`}
@@ -330,10 +426,10 @@ export default function Settings() {
             <DialogTitle>Log out?</DialogTitle>
             <DialogDescription>You will need internet to log in again on this phone.</DialogDescription>
             <div className="mt-4 flex gap-2.5">
-              <Button variant="outline" className="h-11 flex-1" onClick={() => setLogoutOpen(false)}>
+              <Button size="lg" variant="outline" className="flex-1" onClick={() => setLogoutOpen(false)}>
                 Stay
               </Button>
-              <Button className="h-11 flex-1" onClick={onLogout}>
+              <Button size="lg" className="flex-1" onClick={onLogout}>
                 Log out
               </Button>
             </div>
@@ -345,10 +441,10 @@ export default function Settings() {
             <DialogTitle>Save your changes?</DialogTitle>
             <DialogDescription>Your new settings will apply to new plans.</DialogDescription>
             <div className="mt-4 flex flex-col gap-2.5">
-              <Button className="h-11 w-full" onClick={onSave}>
+              <Button size={"lg"} className="w-full" onClick={onSave}>
                 Save
               </Button>
-              <Button variant="outline" className="h-11 w-full" onClick={discardFromPopup}>
+              <Button size={"lg"} variant="outline" className="w-full" onClick={discardFromPopup}>
                 Discard
               </Button>
             </div>
@@ -358,16 +454,17 @@ export default function Settings() {
         <Dialog open={confirmSizeOpen} onOpenChange={setConfirmSizeOpen}>
           <DialogContent>
             <DialogTitle>
-              Change sheet size to {pendingValues ? fmt(pendingValues.sheetW!) : ''} ×{' '}
-              {pendingValues ? fmt(pendingValues.sheetH!) : ''}?
+              Change sheet size to {pendingValues ? fmtIn(pendingValues.sheetW!, draft.unit) : ''} ×{' '}
+              {pendingValues ? fmtIn(pendingValues.sheetH!, draft.unit) : ''} {draft.unit}?
             </DialogTitle>
             <DialogDescription>
               This applies to new plans only. Saved leftovers and past jobs keep their own sizes.
             </DialogDescription>
             <div className="mt-4 flex gap-2.5">
               <Button
+              size={"lg"}
                 variant="outline"
-                className="h-11 flex-1"
+                className="flex-1"
                 onClick={() => {
                   setConfirmSizeOpen(false)
                   setPendingValues(null)
@@ -375,7 +472,7 @@ export default function Settings() {
               >
                 Cancel
               </Button>
-              <Button className="h-11 flex-1" onClick={() => pendingValues && commitSave(pendingValues)}>
+              <Button size="lg" className="flex-1" onClick={() => pendingValues && commitSave(pendingValues)}>
                 Save
               </Button>
             </div>
@@ -387,14 +484,14 @@ export default function Settings() {
             <DialogTitle>Save your changes?</DialogTitle>
             <DialogDescription>You have changed settings that have not been saved yet.</DialogDescription>
             <div className="mt-4 flex flex-col gap-2.5">
-              <Button className="h-11 w-full" onClick={leaveAndSave}>
+              <Button size="lg" className="w-full" onClick={leaveAndSave}>
                 Save
               </Button>
               <div className="flex gap-2.5">
-                <Button variant="outline" className="h-11 flex-1" onClick={leaveAndDiscard}>
+                <Button size="lg" variant="outline" className=" flex-1" onClick={leaveAndDiscard}>
                   Discard
                 </Button>
-                <Button variant="outline" className="h-11 flex-1" onClick={stay}>
+                <Button size="lg" variant="outline" className=" flex-1" onClick={stay}>
                   Stay
                 </Button>
               </div>

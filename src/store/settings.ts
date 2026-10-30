@@ -1,6 +1,7 @@
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 import { saveSettings } from '@/lib/db'
+import { setDisplayUnit } from '@/lib/inches'
 import { DEFAULT_SETTINGS, type Settings } from '@/lib/types'
 import { useAuth } from './auth'
 import { useJob } from './job'
@@ -17,7 +18,8 @@ interface SettingsState {
  *  buildPlan() call (or navigating back to Plan) rebuilds against the new one, on
  *  this phone or on whichever phone the change arrives at via applyRemote. */
 function dropPlanIfSheetSizeChanged(prev: Settings, next: Settings) {
-  if (prev.sheetW !== next.sheetW || prev.sheetH !== next.sheetH) {
+  // A plan's wording (sizes and units) was written in the old unit, so a change of unit also drops it.
+  if (prev.sheetW !== next.sheetW || prev.sheetH !== next.sheetH || prev.unit !== next.unit) {
     useJob.getState().dropPlan()
   }
 }
@@ -30,6 +32,7 @@ export const useSettings = create<SettingsState>()(
         const prev = get().settings
         const next = { ...prev, ...patch }
         set({ settings: next })
+        setDisplayUnit(next.unit)
         dropPlanIfSheetSizeChanged(prev, next)
         const uid = useAuth.getState().uid
         if (uid) saveSettings(uid, next)
@@ -38,9 +41,18 @@ export const useSettings = create<SettingsState>()(
         const prev = get().settings
         const next = { ...DEFAULT_SETTINGS, ...prev, ...remote }
         set({ settings: next })
+        setDisplayUnit(next.unit)
         dropPlanIfSheetSizeChanged(prev, next)
       },
     }),
-    { name: 'sc-settings' },
+    {
+      name: 'sc-settings',
+      // Settings saved on this phone before a setting existed lack it; fill in its default.
+      merge: (persisted, current) => {
+        const settings = { ...DEFAULT_SETTINGS, ...((persisted as Partial<SettingsState> | undefined)?.settings ?? {}) }
+        setDisplayUnit(settings.unit)
+        return { ...current, ...(persisted as Partial<SettingsState>), settings }
+      },
+    },
   ),
 )

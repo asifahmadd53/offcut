@@ -1,8 +1,9 @@
-import { fmt, pieceDims } from './inches'
+import { fmt, getDisplayUnit, pieceDims, unitLabel, type Unit } from './inches'
 import { cleanTape, rotateTape } from './tape'
 import { uid } from './id'
 import { exactSheetLayouts, type LayoutNode } from './exactPack'
-import type { EdgeTape, Leftover, LeftoverRect, Piece, Placed, Rect, SheetPlan } from './types'
+import type { EdgeTape, LayoutMethod, Leftover, LeftoverRect, Piece, Placed, Rect, SheetPlan } from './types'
+import { isStaged, runStaged, stagedFitAll, stagedOrders, stagedProbe, type StagedState, type StagedVariant } from './stagedPack'
 
 /**
  * Cutting engine.
@@ -19,8 +20,8 @@ import type { EdgeTape, Leftover, LeftoverRect, Piece, Placed, Rect, SheetPlan }
  *   4. a brand new sheet (turned only if it does not fit the normal way)
  */
 
-const EPS = 1e-6
-const r4 = (n: number) => Math.round(n * 1e4) / 1e4
+export const EPS = 1e-6
+export const r4 = (n: number) => Math.round(n * 1e4) / 1e4
 
 export interface PackOptions {
   sheetW: number
@@ -31,6 +32,15 @@ export interface PackOptions {
   minLeftover: number
   /** When false, a piece that does not fit the given stock is left unplaced instead of opening a new sheet. */
   allowNewSheets?: boolean
+  /**
+   * The sheets have a grain (lines running top to bottom): no piece is turned on a new sheet, nor on a
+   * leftover that was cut from a grained sheet, so every piece keeps its lines running the same way.
+   */
+  grain?: boolean
+  /** How a sheet is cut: any edge-to-edge layout ('normal'), or long strips first ('length'), or wide strips first ('width'). */
+  layout?: LayoutMethod
+  /** Rounds of cutting a strip layout may use: 2 (strips, then pieces) or 3 (pieces are trimmed too). */
+  levels?: 2 | 3
 }
 
 export interface Item {
@@ -40,6 +50,7 @@ export interface Item {
   w: number
   h: number
   label: string
+  labelUnit?: Unit
   tape?: EdgeTape
 }
 
@@ -48,7 +59,7 @@ export interface PackResult {
   unplaced: Item[]
 }
 
-interface CutLine {
+export interface CutLine {
   kind: 'across' | 'down'
   pos: number
   rect: Rect
@@ -76,17 +87,21 @@ function chooseSplit(policy: SplitPolicy, f: Rect, pw: number, ph: number, kerf:
   return down > across + EPS ? 'down' : 'across'
 }
 
-interface Bin {
+export interface Bin {
   sheetId: string
   sheetW: number
   sheetH: number
   sheetDate: number
   isNew: boolean
+  /** The sheet has a grain: nothing is turned on it, and what is left of it keeps the grain. */
+  grain?: boolean
   leftover?: Leftover
   region: Rect
   free: Rect[]
   placements: Placed[]
   cuts: CutLine[]
+  /** Strip layouts only: how the strips and their cells are laid out (see stagedPack.ts). */
+  staged?: StagedState
 }
 
 export function expandPieces(pieces: Piece[]): Item[] {
@@ -95,16 +110,16 @@ export function expandPieces(pieces: Piece[]): Item[] {
   for (const p of pieces) {
     for (let i = 0; i < p.qty; i++) {
       n += 1
-      items.push({ n, pieceId: p.id, w: p.w, h: p.h, label: pieceDims(p), tape: cleanTape(p.tape) })
+      items.push({ n, pieceId: p.id, w: p.w, h: p.h, label: pieceDims(p), ...(getDisplayUnit() !== 'in' ? { labelUnit: getDisplayUnit() } : {}), tape: cleanTape(p.tape) })
     }
   }
   return items
 }
 
-const fits = (f: Rect, w: number, h: number) => w <= f.w + EPS && h <= f.h + EPS
+export const fits = (f: Rect, w: number, h: number) => w <= f.w + EPS && h <= f.h + EPS
 
 /** Smallest free rectangle (by area) that holds the piece. */
-function bestFree(bins: Bin[], w: number, h: number): { bin: Bin; idx: number } | null {
+export function bestFree(bins: Bin[], w: number, h: number): { bin: Bin; idx: number } | null {
   let best: { bin: Bin; idx: number } | null = null
   let bestArea = Infinity
   let bestTie = Infinity
@@ -160,6 +175,7 @@ function place(bin: Bin, idx: number, item: Item, rotated: boolean, kerf: number
     n: item.n,
     pieceId: item.pieceId,
     label: item.label,
+    ...(item.labelUnit ? { labelUnit: item.labelUnit } : {}),
     rotated,
     // The tape turns with the piece, so the sheet drawing shows it on the right sides.
     tape: rotated ? rotateTape(item.tape) : item.tape,
@@ -191,17 +207,17 @@ export function nextLetter(used: Set<string>, parent?: string): string {
   return letter
 }
 
-function buildSteps(bin: Bin): string[] {
+export function buildSteps(bin: Bin): string[] {
   const seen = new Set<string>()
   return bin.cuts.map((c) => {
     const from = c.kind === 'across' ? bin.region.y : bin.region.x
-    const base = `Cut ${c.kind} at ${fmt(r4(c.pos - from))} in`
+    const base = `Cut ${c.kind} at ${fmt(r4(c.pos - from))} ${unitLabel()}`
     // A second "Cut down at 23 in" on the same sheet would be ambiguous, so say which edge the
     // number counts from and how far into the named part the saw actually goes.
     const into = r4(c.pos - (c.kind === 'across' ? c.rect.y : c.rect.x))
     const edge = c.kind === 'across' ? 'top' : 'left'
     const text = seen.has(base)
-      ? `${base} from the ${edge} edge (${fmt(into)} in into the ${fmt(c.rect.w)} × ${fmt(c.rect.h)} part)`
+      ? `${base} from the ${edge} edge (${fmt(into)} ${unitLabel()} into the ${fmt(c.rect.w)} × ${fmt(c.rect.h)} part)`
       : base
     seen.add(base)
     return text
@@ -213,7 +229,7 @@ function buildSteps(bin: Bin): string[] {
  * 'across': the full x-span of the free rect being cut. 'down': the y-span from the top
  * of the free rect to the bottom of the piece that was placed there (its cut length).
  */
-function buildCuts(bin: Bin): SheetPlan['cuts'] {
+export function buildCuts(bin: Bin): SheetPlan['cuts'] {
   return bin.cuts.map((c, i) => {
     if (c.span) return { n: i + 1, kind: c.kind, pos: c.pos, from: c.span.from, to: c.span.to }
     if (c.kind === 'across') {
@@ -237,6 +253,22 @@ const EXTRA_WORK = 2_400_000
 /** Most times one plan lays a sheet out again to see whether one more piece fits it. */
 const MAX_RELAYOUTS = 60
 const MAX_RELAYOUT_RUNS = 250
+/** A strip layout's runs are cheaper and its sheets fussier, so it may lay a sheet out again many more times. */
+const MAX_RELAYOUT_RUNS_STAGED = 4000
+
+/** Pseudo-random piece orders, the same every time: `count` of them for a job of `itemCount` pieces (numbered from 1). */
+function seededOrders(count: number, itemCount: number): ItemOrder[] {
+  let seed = 0x2545f491
+  const rnd = () => {
+    seed = (Math.imul(seed, 1664525) + 1013904223) >>> 0
+    return seed / 4294967296
+  }
+  return Array.from({ length: count }, (_, k) => {
+    const noise = k % 2 === 0 ? 0.6 : 10
+    const keys = Array.from({ length: itemCount + 1 }, () => rnd())
+    return (a: Item, b: Item) => b.w * b.h * (1 + noise * keys[b.n % keys.length]) - a.w * a.h * (1 + noise * keys[a.n % keys.length]) || a.n - b.n
+  })
+}
 
 /**
  * The orders pieces are tried in. The first (largest area first) is the one the plan uses whenever
@@ -254,7 +286,7 @@ const ORDERS: ItemOrder[] = [
 ]
 
 /** What a plan is made of before it is turned into sheets: the bins (saved leftovers first, then new sheets) and the pieces that fit nowhere. */
-interface Packed {
+export interface Packed {
   bins: Bin[]
   unplaced: Item[]
 }
@@ -281,6 +313,7 @@ function binFromLayout(tree: LayoutNode, items: Map<string, Item[]>, opts: PackO
     sheetH: opts.sheetH,
     sheetDate: Date.now(),
     isNew: true,
+    grain: Boolean(opts.grain),
     region: { x: 0, y: 0, w: opts.sheetW, h: opts.sheetH },
     free: [],
     placements: [],
@@ -310,6 +343,7 @@ function binFromLayout(tree: LayoutNode, items: Map<string, Item[]>, opts: PackO
         n: item.n,
         pieceId: item.pieceId,
         label: item.label,
+        ...(item.labelUnit ? { labelUnit: item.labelUnit } : {}),
         rotated: node.turned,
         tape: node.turned ? rotateTape(item.tape) : item.tape,
       })
@@ -336,6 +370,8 @@ function binFromLayout(tree: LayoutNode, items: Map<string, Item[]>, opts: PackO
  * use saved leftovers are left exactly as planned. Small jobs only: a big one keeps the everyday plan.
  */
 function improveNewSheets(plan: Packed, pieces: Piece[], opts: PackOptions): Packed {
+  // A strip layout has its own rules about where a cut may go; the exact search above knows only the normal layout.
+  if (isStaged(opts)) return plan
   const fresh = plan.bins.filter((b) => b.isNew && b.placements.length > 0)
   if (fresh.length < 2) return plan
   const all = new Map(expandPieces(pieces).map((i) => [i.n, i]))
@@ -347,7 +383,7 @@ function improveNewSheets(plan: Packed, pieces: Piece[], opts: PackOptions): Pac
   if (fresh.length <= Math.ceil(area / ((opts.sheetW + opts.kerf) * (opts.sheetH + opts.kerf)) - 1e-9)) return plan
   const layouts = exactSheetLayouts(
     chosen.map((i) => ({ n: i.n, type: i.pieceId, w: i.w, h: i.h })),
-    { sheetW: opts.sheetW, sheetH: opts.sheetH, kerf: opts.kerf },
+    { sheetW: opts.sheetW, sheetH: opts.sheetH, kerf: opts.kerf, noTurn: Boolean(opts.grain) },
   )
   if (!layouts || layouts.length > fresh.length) return plan
   if (layouts.length === fresh.length) {
@@ -379,15 +415,25 @@ const biggestFree = (b: Bin) => Math.max(0, ...b.free.map((f) => f.w * f.h))
 function relayoutIn(items: Item[], like: Bin, opts: PackOptions, budget: { runs: number } | null, firstFit = false): Bin | null {
   let best: Bin | null = null
   const o = { ...opts, allowNewSheets: like.isNew }
+  const staged = isStaged(opts)
   const start = (): Bin[] =>
-    like.isNew ? [] : [{ ...like, free: [{ ...like.region }], placements: [], cuts: [] }]
-  for (const order of ORDERS) {
-    for (const policy of ['across', 'best', 'down'] as const) {
+    like.isNew ? [] : [{ ...like, free: [{ ...like.region }], placements: [], cuts: [], staged: undefined }]
+  // The same orders and ways of cutting the plan itself used: the usual ones, or the strip layout's own.
+  // A strip layout is fussier about which piece goes first, so beyond its own orders it also tries a few
+  // fixed pseudo-random ones (the same every time).
+  const orders = staged
+    ? [...stagedOrders(opts.layout as 'length' | 'width'), ...seededOrders(6, items.length)]
+    : ORDERS
+  const ways: Array<(sorted: Item[]) => Packed> = staged
+    ? ([0, 1] as StagedVariant[]).map((v) => (sorted: Item[]) => runStaged(sorted, start(), o, v))
+    : (['across', 'best', 'down'] as SplitPolicy[]).map((p) => (sorted: Item[]) => runPack(sorted, start(), o, p))
+  for (const order of orders) {
+    for (const way of ways) {
       if (budget) {
         if (budget.runs <= 0) break
         budget.runs -= 1
       }
-      const r = runPack([...items].sort(order), start(), o, policy)
+      const r = way([...items].sort(order))
       const bin = r.bins[0]
       if (r.unplaced.length > 0 || r.bins.length !== 1 || bin.placements.length !== items.length) continue
       if (!best || biggestFree(bin) > biggestFree(best) + EPS) best = bin
@@ -397,17 +443,23 @@ function relayoutIn(items: Item[], like: Bin, opts: PackOptions, budget: { runs:
     if (firstFit && best) break
   }
   // A new sheet that no usual order manages is tried exactly (a small search, quick for the few pieces on one sheet).
-  if (!best && like.isNew && (!budget || budget.runs > 0)) {
+  if (!best && !staged && like.isNew && (!budget || budget.runs > 0)) {
     if (budget) budget.runs -= 20
     const layouts = exactSheetLayouts(
       items.map((i) => ({ n: i.n, type: i.pieceId, w: i.w, h: i.h })),
-      { sheetW: opts.sheetW, sheetH: opts.sheetH, kerf: opts.kerf, maxWork: 120_000 },
+      { sheetW: opts.sheetW, sheetH: opts.sheetH, kerf: opts.kerf, maxWork: 120_000, noTurn: Boolean(opts.grain) },
     )
     if (layouts && layouts.length === 1) {
       const mine = new Map<string, Item[]>()
       for (const i of items) mine.set(i.pieceId, [...(mine.get(i.pieceId) ?? []), i])
       best = binFromLayout(layouts[0].tree, mine, opts)
     }
+  }
+  // A strip layout whose usual runs all missed gets the slower search over every place each piece could go
+  // (only for the handful of pieces of one sheet).
+  if (!best && staged && items.length <= 12 && (!budget || budget.runs > 0)) {
+    if (budget) budget.runs -= 40
+    best = stagedFitAll(items, like, opts)
   }
   if (!best) return null
   best.sheetId = like.sheetId
@@ -429,16 +481,33 @@ const placedArea = (b: Bin) => b.placements.reduce((a, p) => a + p.w * p.h, 0)
  */
 function consolidate(bins: Bin[], pieces: Piece[], opts: PackOptions): Bin[] {
   const all = new Map(expandPieces(pieces).map((i) => [i.n, i]))
-  let list = bins.filter((b) => b.placements.length > 0)
+  // Saved leftovers that nothing was put in yet stay in the list: a piece on a later new sheet may fit one
+  // (turned, say, when the plan put it unturned on an open sheet first), and a leftover is always better used.
+  let list = bins.filter((b) => b.placements.length > 0 || !b.isNew)
   const k = opts.kerf
   // Laying a sheet out again costs a little, so the number of tries is capped (the same for every run) and a
   // combination that failed once is not tried twice.
   let tries = 0
   // The work spent laying sheets out again, in plan runs: the same for every run of the same job.
-  const budget = { runs: MAX_RELAYOUT_RUNS }
+  const budget = { runs: isStaged(opts) ? MAX_RELAYOUT_RUNS_STAGED : MAX_RELAYOUT_RUNS }
   const failed = new Set<string>()
   const sig = (b: Bin) => `${b.sheetId}:${b.placements.map((p) => p.n).sort((x, y) => x - y).join(',')}`
   const inflated = (w: number, h: number) => (w + k) * (h + k)
+  // Whether a sheet already has room for a piece, and how to put it there (never turned on a grained sheet).
+  const probe = (to: Bin, item: Item): { apply: () => void } | null => {
+    if (isStaged(opts)) return stagedProbe(to, item, opts)
+    let slot = bestFree([to], item.w, item.h)
+    let turned = false
+    if (!slot && !to.grain) {
+      slot = bestFree([to], item.h, item.w)
+      turned = true
+    }
+    if (!slot) return null
+    const found = slot
+    const w = turned ? item.h : item.w
+    const h = turned ? item.w : item.h
+    return { apply: () => place(to, found.idx, item, turned, k, chooseSplit('best', to.free[found.idx], w, h, k)) }
+  }
 
   for (let pass = 0; pass < 6; pass++) {
     let any = false
@@ -459,17 +528,10 @@ function consolidate(bins: Bin[], pieces: Piece[], opts: PackOptions): Bin[] {
           for (let i = 0; i < j; i++) {
             const to = list[i]
             // 1. A free space the sheet already has: as typed first, then turned.
-            let slot = bestFree([to], item.w, item.h)
-            let turned = false
-            if (!slot) {
-              slot = bestFree([to], item.h, item.w)
-              turned = true
-            }
-            if (slot) {
+            const fit = probe(to, item)
+            if (fit) {
               if (!sourceAfter()) continue
-              const w = turned ? item.h : item.w
-              const h = turned ? item.w : item.h
-              place(to, slot.idx, item, turned, k, chooseSplit('best', to.free[slot.idx], w, h, k))
+              fit.apply()
               if (relaidFrom) list[j] = relaidFrom
               else list.splice(j, 1)
               moved = true
@@ -528,9 +590,13 @@ export function packJob(
   let bestScore: [number, number, number] | null = null
   const consider = (r: Packed, strict: boolean) => {
     const sc = scoreOf(r, opts)
+    // A job that fits one sheet keeps the plan with the biggest single leftover (pieces stacked in one column
+    // leave one big strip a later job can use, not an L-shape); the earlier plan wins every tie. Bigger jobs
+    // keep the older rule: `strict` plans only win with fewer sheets.
+    const single = r.bins.filter((b) => b.placements.length > 0).length <= 1
     const better = !bestScore
       ? true
-      : strict
+      : strict && !single
         ? sc[0] < bestScore[0] || (sc[0] === bestScore[0] && sc[1] < bestScore[1])
         : sc[0] < bestScore[0] || (sc[0] === bestScore[0] && (sc[1] < bestScore[1] || (sc[1] === bestScore[1] && sc[2] < bestScore[2] - EPS)))
     if (better) {
@@ -538,11 +604,21 @@ export function packJob(
       bestScore = sc
     }
   }
-  for (const order of ORDERS) consider(packInOrder(pieces, stock, opts, excludedIds, order, 'across'), false)
-  // The usual cut order is kept unless dividing the free sheet the other way needs fewer sheets (or places
-  // a piece that otherwise does not fit): a long piece beside a tall strip is where it matters.
-  for (const policy of ['best', 'down'] as const) {
-    for (const order of ORDERS) consider(packInOrder(pieces, stock, opts, excludedIds, order, policy), true)
+  const staged = isStaged(opts)
+  if (staged) {
+    // Strip layouts: pieces of the same width (or height) together, tried in several orders and two ways of choosing a place.
+    for (const order of stagedOrders(opts.layout as 'length' | 'width')) {
+      for (const variant of [0, 1] as StagedVariant[]) {
+        consider(packStagedInOrder(pieces, stock, opts, excludedIds, order, variant), false)
+      }
+    }
+  } else {
+    for (const order of ORDERS) consider(packInOrder(pieces, stock, opts, excludedIds, order, 'across'), false)
+    // The usual cut order is kept unless dividing the free sheet the other way needs fewer sheets (or places
+    // a piece that otherwise does not fit): a long piece beside a tall strip is where it matters.
+    for (const policy of ['best', 'down'] as const) {
+      for (const order of ORDERS) consider(packInOrder(pieces, stock, opts, excludedIds, order, policy), true)
+    }
   }
   // More piece orders, tried in a fixed pseudo-random sequence (the same job always gives the same plan).
   // A plain size order can miss a layout that needs a small piece placed early; trying many orders finds
@@ -560,7 +636,12 @@ export function packJob(
     const noise = k % 2 === 0 ? 0.6 : 10
     const keys = Array.from({ length: itemCount + 1 }, () => rnd())
     const order: ItemOrder = (a, b) => b.w * b.h * (1 + noise * keys[b.n]) - a.w * a.h * (1 + noise * keys[a.n]) || a.n - b.n
-    consider(packInOrder(pieces, stock, opts, excludedIds, order, POLICIES[k % POLICIES.length]), true)
+    consider(
+      staged
+        ? packStagedInOrder(pieces, stock, opts, excludedIds, order, (k % 2) as StagedVariant)
+        : packInOrder(pieces, stock, opts, excludedIds, order, POLICIES[k % POLICIES.length]),
+      true,
+    )
   }
   const improved = improveNewSheets(best!, pieces, opts)
   const bins = consolidate(improved.bins, pieces, opts)
@@ -608,6 +689,7 @@ function buildSheets(
       sheetH: bin.sheetH,
       sheetDate: bin.sheetDate,
       isNew: bin.isNew,
+      ...(bin.grain ? { grain: true } : {}),
       usedLeftoverId: bin.leftover?.id,
       usedLetter: bin.leftover?.letter,
       region: bin.region,
@@ -621,6 +703,27 @@ function buildSheets(
   return sheets
 }
 
+/** The saved leftovers a plan may use, smallest first, each as a place to put pieces. */
+function leftoverBinsFor(stock: Leftover[], excludedIds: ReadonlySet<string>, opts: PackOptions): Bin[] {
+  return stock
+    .filter((l) => l.status === 'free' && !excludedIds.has(l.id))
+    .sort((a, b) => a.w * a.h - b.w * b.h)
+    .map((l) => ({
+      sheetId: l.sheetId,
+      sheetW: l.sheetW,
+      sheetH: l.sheetH,
+      sheetDate: l.sheetDate,
+      isNew: false,
+      // A job with grain never turns a piece, whatever the leftover was cut from; a grained leftover is never turned into.
+      grain: Boolean(l.grain) || Boolean(opts.grain),
+      leftover: l,
+      region: { x: l.x, y: l.y, w: l.w, h: l.h },
+      free: [{ x: l.x, y: l.y, w: l.w, h: l.h }],
+      placements: [],
+      cuts: [],
+    }))
+}
+
 /** The everyday plan for one piece order and one way of dividing free space. */
 function packInOrder(
   pieces: Piece[],
@@ -630,22 +733,19 @@ function packInOrder(
   order: ItemOrder,
   policy: SplitPolicy,
 ): Packed {
-  const leftoverBins: Bin[] = stock
-    .filter((l) => l.status === 'free' && !excludedIds.has(l.id))
-    .sort((a, b) => a.w * a.h - b.w * b.h)
-    .map((l) => ({
-      sheetId: l.sheetId,
-      sheetW: l.sheetW,
-      sheetH: l.sheetH,
-      sheetDate: l.sheetDate,
-      isNew: false,
-      leftover: l,
-      region: { x: l.x, y: l.y, w: l.w, h: l.h },
-      free: [{ x: l.x, y: l.y, w: l.w, h: l.h }],
-      placements: [],
-      cuts: [],
-    }))
-  return runPack(expandPieces(pieces).sort(order), leftoverBins, opts, policy)
+  return runPack(expandPieces(pieces).sort(order), leftoverBinsFor(stock, excludedIds, opts), opts, policy)
+}
+
+/** The strip-layout plan for one piece order and one way of choosing a place. */
+function packStagedInOrder(
+  pieces: Piece[],
+  stock: Leftover[],
+  opts: PackOptions,
+  excludedIds: ReadonlySet<string>,
+  order: ItemOrder,
+  variant: StagedVariant,
+): Packed {
+  return runStaged(expandPieces(pieces).sort(order), leftoverBinsFor(stock, excludedIds, opts), opts, variant)
 }
 
 /** Places the pieces one after another, in the order given, into the bins (saved leftovers) and then new sheets. */
@@ -660,6 +760,7 @@ function runPack(items: Item[], leftoverBins: Bin[], opts: PackOptions, policy: 
       sheetH: opts.sheetH,
       sheetDate: Date.now(),
       isNew: true,
+      grain: Boolean(opts.grain),
       region: { x: 0, y: 0, w: opts.sheetW, h: opts.sheetH },
       free: [{ x: 0, y: 0, w: opts.sheetW, h: opts.sheetH }],
       placements: [],
@@ -675,8 +776,9 @@ function runPack(items: Item[], leftoverBins: Bin[], opts: PackOptions, policy: 
     const tries: Array<[Bin[], boolean]> = [
       [leftoverBins, false],
       [newBins, false],
-      [leftoverBins, true],
-      [newBins, true],
+      // A grained sheet keeps its lines running top to bottom: nothing is ever turned on it.
+      [leftoverBins.filter((b) => !b.grain), true],
+      [newBins.filter((b) => !b.grain), true],
     ]
     let done = false
     for (const [bins, rotated] of tries) {
@@ -696,7 +798,7 @@ function runPack(items: Item[], leftoverBins: Bin[], opts: PackOptions, policy: 
     } else if (fits({ x: 0, y: 0, w: opts.sheetW, h: opts.sheetH }, item.w, item.h)) {
       const bin = openSheet()
       place(bin, 0, item, false, opts.kerf, chooseSplit(policy, bin.free[0], item.w, item.h, opts.kerf))
-    } else if (fits({ x: 0, y: 0, w: opts.sheetW, h: opts.sheetH }, item.h, item.w)) {
+    } else if (!opts.grain && fits({ x: 0, y: 0, w: opts.sheetW, h: opts.sheetH }, item.h, item.w)) {
       const bin = openSheet()
       place(bin, 0, item, true, opts.kerf, chooseSplit(policy, bin.free[0], item.h, item.w, opts.kerf))
     } else {

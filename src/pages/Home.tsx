@@ -182,11 +182,12 @@ export default function Home() {
             they are.
           </DialogDescription>
           <div className="mt-4 flex gap-2.5">
-            <Button variant="outline" className="h-11 flex-1" onClick={() => setToDelete(null)}>
+            <Button size={"lg"} variant="outline" className="flex-1" onClick={() => setToDelete(null)}>
               Keep
             </Button>
             <Button
-              className="h-11 flex-1 bg-danger-text hover:opacity-90"
+              size="lg"
+              className="flex-1 bg-danger-text hover:opacity-90"
               onClick={confirmDeleteClient}
             >
               Remove

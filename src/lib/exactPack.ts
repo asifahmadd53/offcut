@@ -50,6 +50,8 @@ export interface ExactOptions {
   kerf: number
   /** A smaller search budget than usual, for the quick checks the planner makes many times. */
   maxWork?: number
+  /** Never turn a piece (the sheets have a grain). */
+  noTurn?: boolean
 }
 
 /** A job bigger than this is left to the everyday planner. */
@@ -153,7 +155,7 @@ export function exactSheetLayouts(items: ExactItem[], opts: ExactOptions): Array
       while (dec[idx * T + t] !== 1) t++
       const [w, h] = typeDims[t]
       if (w <= sheetW + EPS && h <= sheetH + EPS) res.push({ w, h, turns: 0, how: { k: 'leaf', type: t, turned: false } })
-      if (h <= sheetW + EPS && w <= sheetH + EPS && Math.abs(w - h) > EPS) {
+      if (!opts.noTurn && h <= sheetW + EPS && w <= sheetH + EPS && Math.abs(w - h) > EPS) {
         res.push({ w: h, h: w, turns: 1, how: { k: 'leaf', type: t, turned: true } })
       }
       res = prune(res, spend)

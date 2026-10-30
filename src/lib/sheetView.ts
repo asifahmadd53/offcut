@@ -1,3 +1,4 @@
+import { getDisplayUnit } from './inches'
 import type { Derived } from './stock'
 import type { EdgeTape, Rect, SheetPlan } from './types'
 
@@ -67,7 +68,8 @@ export function buildBlocks(
       y: p.y,
       w: p.w,
       h: p.h,
-      label: p.label,
+      // A label was written in the unit the plan was made in; in another unit the real size is shown instead.
+      label: (p.labelUnit ?? 'in') === getDisplayUnit() ? p.label : undefined,
       n: p.n,
       rotated: p.rotated,
       tape: p.tape,

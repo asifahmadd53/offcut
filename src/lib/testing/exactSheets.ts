@@ -12,7 +12,7 @@ type P = [number, number]
 
 export type SizeCount = [w: number, h: number, count: number]
 
-export function exactMinSheets(types: SizeCount[], kerf: number, sheetW = 48, sheetH = 96): number {
+export function exactMinSheets(types: SizeCount[], kerf: number, sheetW = 48, sheetH = 96, noTurn = false): number {
   const infl = types.map(([w, h]) => (w + kerf) * (h + kerf))
   const memo = new Map<string, P[]>()
   const prune = (pts: P[]): P[] => {
@@ -44,7 +44,7 @@ export function exactMinSheets(types: SizeCount[], kerf: number, sheetW = 48, sh
       const i = c.findIndex((q) => q === 1)
       const [w, h] = types[i]
       if (w <= sheetW && h <= sheetH) res.push([w, h])
-      if (h <= sheetW && w <= sheetH && w !== h) res.push([h, w])
+      if (!noTurn && h <= sheetW && w <= sheetH && w !== h) res.push([h, w])
       res = prune(res)
     } else {
       const sub = new Array<number>(c.length).fill(0)

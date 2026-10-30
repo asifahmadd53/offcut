@@ -1,5 +1,5 @@
 import { expandPieces, type PackOptions, type PackResult } from './packer'
-import type { Piece, Rect } from './types'
+import type { Piece, Rect, SheetPlan } from './types'
 
 const EPS = 1e-6
 
@@ -36,6 +36,8 @@ export function checkPlan(pieces: Piece[], result: PackResult, opts: PackOptions
       problems.push(`${tag}: a new sheet is not the saved sheet size.`)
     }
     if (s.placements.length === 0) problems.push(`${tag}: nothing is cut from it.`)
+    // A grained sheet keeps its lines running top to bottom: no piece on it is turned.
+    if (opts.grain && !s.grain) problems.push(`${tag}: the job has grain but this sheet is not marked as grained.`)
 
     for (const p of s.placements) {
       const it = want.get(p.n)
@@ -48,6 +50,7 @@ export function checkPlan(pieces: Piece[], result: PackResult, opts: PackOptions
       const w = p.rotated ? it.h : it.w
       const h = p.rotated ? it.w : it.h
       if (Math.abs(p.w - w) > EPS || Math.abs(p.h - h) > EPS) problems.push(`${tag}: piece ${p.n} has the wrong size.`)
+      if (p.rotated && (opts.grain || s.grain)) problems.push(`${tag}: piece ${p.n} is turned on a sheet with grain.`)
       if (!inside(p, s.region)) problems.push(`${tag}: piece ${p.n} is outside the area being cut.`)
     }
 
@@ -92,9 +95,82 @@ export function checkPlan(pieces: Piece[], result: PackResult, opts: PackOptions
         if (crosses) problems.push(`${tag}: cut ${c.n} goes through leftover ${l.letter}.`)
       }
     }
+    if (s.cuts && s.cuts.length > 0) {
+      problems.push(...checkEdges(s, opts, tag))
+      if (opts.layout === 'length' || opts.layout === 'width') problems.push(...checkStrips(s, opts, tag))
+    }
   })
 
   for (const it of items) if (!seen.has(it.n)) problems.push(`Piece ${it.n} is missing from the plan.`)
   if (opts.allowNewSheets === false && result.sheets.some((s) => s.isNew)) problems.push('A new sheet was opened when only one leftover was allowed.')
   return problems
+}
+
+/**
+ * Every piece is cut free by saw cuts: each of its four sides lies on the edge of the area being cut, or
+ * on a cut line that runs along the whole side (a blade width away for the side that follows the cut).
+ */
+function checkEdges(s: SheetPlan, opts: PackOptions, tag: string): string[] {
+  const out: string[] = []
+  const cuts = s.cuts ?? []
+  const k = opts.kerf
+  const R = s.region
+  const T = 1e-4
+  for (const p of s.placements) {
+    const downs = cuts.filter((c) => c.kind === 'down' && c.from <= p.y + T && c.to >= p.y + p.h - T)
+    const acrosses = cuts.filter((c) => c.kind === 'across' && c.from <= p.x + T && c.to >= p.x + p.w - T)
+    const right = p.x + p.w >= R.x + R.w - T || downs.some((c) => Math.abs(c.pos - (p.x + p.w)) < T)
+    const left = p.x <= R.x + T || downs.some((c) => Math.abs(c.pos + k - p.x) < T)
+    const bottom = p.y + p.h >= R.y + R.h - T || acrosses.some((c) => Math.abs(c.pos - (p.y + p.h)) < T)
+    const top = p.y <= R.y + T || acrosses.some((c) => Math.abs(c.pos + k - p.y) < T)
+    if (!right || !left || !bottom || !top) out.push(`${tag}: piece ${p.n} is not cut free by the cut lines.`)
+  }
+  return out
+}
+
+/**
+ * A strip layout cuts in rounds. Round 1 cuts run the whole length (or width) of the area; every round 2
+ * cut stays inside one strip; with 2 rounds there is nothing else, and with 3 a round 3 cut stays inside
+ * one cell, so no later cut crosses an earlier one.
+ */
+function checkStrips(s: SheetPlan, opts: PackOptions, tag: string): string[] {
+  const out: string[] = []
+  const cuts = s.cuts ?? []
+  const R = s.region
+  const T = 1e-4
+  const k = opts.kerf
+  const length = opts.layout === 'length'
+  const first = length ? 'down' : 'across'
+  const second = length ? 'across' : 'down'
+  // Cut positions and spans on the strip axes: a runs across the strips, b along them.
+  const a0 = length ? R.x : R.y
+  const aEnd = length ? R.x + R.w : R.y + R.h
+  const b0 = length ? R.y : R.x
+  const bEnd = length ? R.y + R.h : R.x + R.w
+  const full = cuts.filter((c) => c.kind === first && c.from <= b0 + T && c.to >= bEnd - T).sort((x, y) => x.pos - y.pos)
+  const intervals: Array<[number, number]> = []
+  let start = a0
+  for (const c of full) {
+    intervals.push([start, c.pos])
+    start = c.pos + k
+  }
+  intervals.push([start, aEnd])
+  for (const c of cuts.filter((x) => x.kind === second)) {
+    if (!intervals.some(([lo, hi]) => c.from >= lo - T && c.to <= hi + T)) {
+      out.push(`${tag}: cut ${c.n} runs across more than one strip.`)
+    }
+  }
+  for (const c of cuts.filter((x) => x.kind === first && !(x.from <= b0 + T && x.to >= bEnd - T))) {
+    if ((opts.levels ?? 2) === 2) {
+      out.push(`${tag}: cut ${c.n} is a third round of cutting but only 2 rounds are allowed.`)
+      continue
+    }
+    // A third-round cut stays inside one cell: no second-round cut crosses it.
+    for (const d of cuts.filter((x) => x.kind === second)) {
+      if (d.pos > c.from + T && d.pos < c.to - T && d.from < c.pos - T && d.to > c.pos + T) {
+        out.push(`${tag}: cut ${c.n} is crossed by cut ${d.n}.`)
+      }
+    }
+  }
+  return out
 }

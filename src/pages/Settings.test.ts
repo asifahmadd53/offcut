@@ -53,3 +53,21 @@ describe('Settings draftFrom()', () => {
     expect(draft.kerfSize).toBe('1/4')
   })
 })
+
+/** The sheet layout (grain, how the sheet is cut, rounds) saved in Settings is the default every new job starts with. */
+describe('Settings sheet layout', () => {
+  it('the layout choices survive validate() into values', () => {
+    const draft = draftFrom(DEFAULT_SETTINGS)
+    const { values } = validate({ ...draft, layoutMethod: 'width', layoutLevels: 3, grain: true })
+    expect(values).toMatchObject({ layoutMethod: 'width', layoutLevels: 3, grain: true })
+  })
+
+  it('settings saved before layouts existed show the plain defaults', () => {
+    const old = { ...DEFAULT_SETTINGS } as Partial<typeof DEFAULT_SETTINGS>
+    delete old.layoutMethod
+    delete old.layoutLevels
+    delete old.grain
+    const draft = draftFrom(old as typeof DEFAULT_SETTINGS)
+    expect(draft).toMatchObject({ layoutMethod: 'normal', layoutLevels: 2, grain: false })
+  })
+})

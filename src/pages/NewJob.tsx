@@ -7,7 +7,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from '@/components/ui/dialog'
-import { cleanTyped, fmtDims, fmtLeft, parseInches, pieceDims } from '@/lib/inches'
+import { cleanTyped, fmt, fmtDims, fmtLeft, parseSize, pieceDims, unitLabel } from '@/lib/inches'
 import { plural } from '@/lib/format'
 import { cleanTape, describeSides, hasTape } from '@/lib/tape'
 import type { EdgeTape } from '@/lib/types'
@@ -17,6 +17,8 @@ import { useSettings } from '@/store/settings'
 import { useData } from '@/store/data'
 import { toast } from 'sonner'
 import { Switch } from '@/components/ui/switch'
+import { SheetLayoutDialog } from '@/components/SheetLayoutDialog'
+import { effectiveLayout, layoutOfSettings, layoutSummary, sameLayout } from '@/lib/layout'
 type FieldError = 'zero' | 'nan' | null
 
 function fieldMessage(which: 'Width' | 'Height', err: FieldError): string | null {
@@ -24,6 +26,9 @@ function fieldMessage(which: 'Width' | 'Height', err: FieldError): string | null
   if (err === 'nan') return 'That is not a size. Type a number like 23 or 22.5.'
   return null
 }
+
+/** Example sizes shown in the boxes, in each unit (a width, a height and a short sample). */
+const EXAMPLE = { in: ['22.3', '77.2', '23 or 22.5'], ft: ['1.8', '6.4', '2 or 1.5'], cm: ['56.6', '196', '58 or 56.5'], mm: ['566', '1960', '580 or 565.5'] } as const
 
 export default function NewJob() {
   const navigate = useNavigate()
@@ -45,6 +50,10 @@ export default function NewJob() {
   const setOnlyLeftoverId = useJob((s) => s.setOnlyLeftoverId)
   const settings = useSettings((s) => s.settings)
   const updateSettings = useSettings((s) => s.update)
+  const layoutOverride = useJob((s) => s.layoutOverride)
+  const setLayoutOverride = useJob((s) => s.setLayoutOverride)
+  const layout = effectiveLayout(settings, layoutOverride)
+  const [layoutOpen, setLayoutOpen] = useState(false)
   const freeLeftovers = useData((s) => s.derived.freeLeftovers)
   const cuts = useData((s) => s.cuts)
   const clientOptions = knownClients(cuts)
@@ -82,11 +91,11 @@ export default function NewJob() {
   const [triedAdd, setTriedAdd] = useState(false)
   const widthRef = useRef<HTMLInputElement>(null)
 
-  const wVal = parseInches(width)
-  const hVal = parseInches(height)
+  const wVal = parseSize(width, settings.unit)
+  const hVal = parseSize(height, settings.unit)
   const wErr: FieldError = width.trim() === '' ? null : wVal === null ? 'nan' : null
   const hErr: FieldError = height.trim() === '' ? null : hVal === null ? 'nan' : null
-  // parseInches already rejects <= 0, so a numeric-looking zero/negative reads as null too;
+  // parseSize already rejects <= 0, so a numeric-looking zero/negative reads as null too;
   // distinguish "typed but rejected because non-positive" from "not a number at all".
   const looksNumeric = (s: string) => /^-?\d/.test(s.trim())
   const wZero = width.trim() !== '' && wVal === null && looksNumeric(width) && Number(width) <= 0
@@ -96,10 +105,11 @@ export default function NewJob() {
   const showHErr = (touchedH || triedAdd) && (hErr || hZero)
 
   const bothValid = wVal !== null && hVal !== null
+  // With grain a piece is never turned, so it has to fit the sheet the way it was typed.
   const tooBig =
     bothValid &&
     !(wVal! <= settings.sheetW && hVal! <= settings.sheetH) &&
-    !(hVal! <= settings.sheetW && wVal! <= settings.sheetH)
+    (layout.grain || !(hVal! <= settings.sheetW && wVal! <= settings.sheetH))
 
   function doAdd() {
     setTriedAdd(true)
@@ -271,22 +281,22 @@ export default function NewJob() {
         <div className="mb-3 rounded-lg bg-warning-bg p-3 text-[14px] text-warning-text">
           <p className="mb-0 font-semibold">Too big for a sheet.</p>
           <p className="mb-0">
-            Your sheets are {settings.sheetW} × {settings.sheetH} in. A {width} × {height} piece
-            will not fit even turned.
+            Your sheets are {fmt(settings.sheetW)} × {fmt(settings.sheetH)} {unitLabel(settings.unit)}. A {width} × {height} piece
+            will not fit{layout.grain ? ', and a sheet with grain is never turned.' : ' even turned.'}
           </p>
         </div>
       )}
 
       <div className="mb-2.5 grid grid-cols-1 gap-3 lg:grid-cols-2">
         <div>
-          <Label htmlFor="w">Width (in)</Label>
+          <Label htmlFor="w">Width ({unitLabel(settings.unit)})</Label>
           <Input
             id="w"
             ref={widthRef}
             type="text"
             inputMode="decimal"
             autoComplete="off"
-            placeholder='22.3'
+            placeholder={EXAMPLE[settings.unit][0]}
             enterKeyHint="next"
             className="h-[42px] border border-border-stronger bg-transparent px-3 text-[18px]"
             value={width}
@@ -298,14 +308,14 @@ export default function NewJob() {
           />
         </div>
         <div>
-          <Label htmlFor="h">Height (in)</Label>
+          <Label htmlFor="h">Height ({unitLabel(settings.unit)})</Label>
           <Input
             id="h"
             type="text"
             inputMode="decimal"
             autoComplete="off"
             enterKeyHint="done"
-            placeholder='77.2'
+            placeholder={EXAMPLE[settings.unit][1]}
             className="h-[42px] border border-border-stronger bg-transparent px-3 text-[18px]"
             value={height}
             onChange={(e) => setHeight(cleanNumber(e.target.value))}
@@ -325,7 +335,7 @@ export default function NewJob() {
           {fieldMessage('Height', hZero ? 'zero' : 'nan')}
         </p>
       ) : (
-          <p className="mb-3.5 text-[12px] text-faint">Use numbers like 23 or 22.5</p>
+          <p className="mb-3.5 text-[12px] text-faint">Use numbers like {EXAMPLE[settings.unit][2]}</p>
       )}
 
       <Label>How many pieces</Label>
@@ -451,6 +461,36 @@ export default function NewJob() {
 />
       </div>
 
+      <div className="mb-4.5 rounded-lg border border-border-strong p-3">
+        <div className="flex items-center justify-between gap-3">
+          <div className="min-w-0">
+            <p className="mb-0 text-[15px] font-semibold">Sheet layout</p>
+            <p className="mb-0 mt-0.5 text-[12.5px] text-muted-foreground">{layoutSummary(layout)}</p>
+          </div>
+          <Button type="button" variant="outline" size="sm" className="flex-none" onClick={() => setLayoutOpen(true)}>
+            Change
+          </Button>
+        </div>
+        {layoutOverride && !sameLayout(layoutOverride, layoutOfSettings(settings)) && (
+          <p className="mb-0 mt-2 text-[12px] text-faint">
+            This job only.{' '}
+            <button type="button" onClick={() => setLayoutOverride(null)} className="text-accent-text underline underline-offset-2">
+              Use the default
+            </button>
+          </p>
+        )}
+      </div>
+
+      <SheetLayoutDialog
+        open={layoutOpen}
+        onOpenChange={setLayoutOpen}
+        value={layout}
+        title="Sheet layout for this job"
+        description="Choose whether the sheet has a grain and how it is cut. Leftovers are always reused."
+        saveLabel="Use for this job"
+        onSave={(l) => setLayoutOverride(sameLayout(l, layoutOfSettings(settings)) ? null : l)}
+      />
+
       <Dialog open={!!editingPiece} onOpenChange={(open) => !open && setEditTapeId(null)}>
         <DialogContent className="max-h-[92dvh] overflow-y-auto">
           <DialogTitle>Edge tape{editingPiece ? ` · ${pieceDims(editingPiece)}` : ''}</DialogTitle>
@@ -486,7 +526,7 @@ export default function NewJob() {
                     {misfit.misfits
                       .map(
                         (m) =>
-                          `The ${fmtDims(m.w, m.h)}${m.qty > 1 ? ` (${plural(m.qty, 'piece')})` : ''} piece does not fit in leftover ${misfit.leftover.letter} (${fmtLeft(misfit.leftover.w, misfit.leftover.h)}), even turned.`,
+                          `The ${fmtDims(m.w, m.h)}${m.qty > 1 ? ` (${plural(m.qty, 'piece')})` : ''} piece does not fit in leftover ${misfit.leftover.letter} (${fmtLeft(misfit.leftover.w, misfit.leftover.h)})${layout.grain || misfit.leftover.grain ? ' without turning' : ', even turned'}.`,
                       )
                       .join(' ')}
                   </p>

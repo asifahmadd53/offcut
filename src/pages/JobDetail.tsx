@@ -5,7 +5,7 @@ import { PlanSheet } from '@/components/PlanSheet'
 import { PrintOrPdfDialog } from '@/components/PrintOrPdfDialog'
 import { Button } from '@/components/ui/button'
 import { dayMonth, plural } from '@/lib/format'
-import { sizeStyleOf } from '@/lib/inches'
+import { fmt, getDisplayUnit, sizeStyleOf, unitLabel } from '@/lib/inches'
 import { pieceSummary, sourceSummary } from '@/lib/summary'
 import { buildBlocks } from '@/lib/sheetView'
 import { useData } from '@/store/data'
@@ -34,7 +34,7 @@ export default function JobDetail() {
   }
 
   const { cut, status, conflict } = job
-  const bladeText = cut.kerf && cut.kerf > 0 ? `blade ${cut.kerf} in` : 'blade off'
+  const bladeText = cut.kerf && cut.kerf > 0 ? `blade ${getDisplayUnit() === 'in' ? cut.kerf : fmt(cut.kerf)} ${unitLabel()}` : 'blade off'
   const backTo = cut.clientId ? `/client/${cut.clientId}` : '/'
 
   function cutAgain() {

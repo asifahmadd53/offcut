@@ -1,4 +1,4 @@
-import { fmt, fmtLeft } from './inches'
+import { fmt, fmtLeft, unitWords } from './inches'
 import type { Block } from './sheetView'
 import type { SheetPlan } from './types'
 
@@ -503,6 +503,6 @@ export function diagramAriaLabel(
   leftoverCount: number,
   cutCount?: number,
 ): string {
-  const base = `Sheet ${sheetW} by ${sheetH} inches with ${pieceCount} pieces and ${leftoverCount} leftovers`
+  const base = `Sheet ${fmt(sheetW)} by ${fmt(sheetH)} ${unitWords()} with ${pieceCount} pieces and ${leftoverCount} leftovers`
   return cutCount != null ? `${base} and ${cutCount} cuts` : base
 }
