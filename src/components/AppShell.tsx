@@ -1,9 +1,10 @@
-import { type ReactNode, useState } from 'react'
+import { type ReactNode, useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
   IconChevronLeft,
   IconHome,
   IconLogout,
+  IconRefresh,
   IconScissors,
   IconSettings,
 } from '@tabler/icons-react'
@@ -36,6 +37,10 @@ interface AppShellProps {
   stickyBar?: ReactNode
 }
 
+/** How far (px, after the pull is damped) the screen must be pulled down before letting go refreshes it. */
+const PULL_TO_REFRESH_AT = 64
+const PULL_MAX = 96
+
 const tabs = [
   { key: 'home' as const, label: 'Home', icon: IconHome, to: '/' },
   { key: 'settings' as const, label: 'Settings', icon: IconSettings, to: '/settings' },
@@ -57,6 +62,65 @@ export function AppShell({
   const logout = useAuth((s) => s.logout)
   const derived = useData((s) => s.derived)
   const [dismissed, setDismissed] = useState(false)
+  const mainRef = useRef<HTMLElement>(null)
+  const [pull, setPull] = useState(0)
+  const [refreshing, setRefreshing] = useState(false)
+
+  // The page itself is locked (index.css), so the browser's own pull-down-to-refresh has nothing to pull.
+  // This is the same gesture, done here: drag down from the very top of the content and let go.
+  useEffect(() => {
+    const el = mainRef.current
+    if (!el) return
+    let startY = 0
+    let pulling = false
+    let dist = 0
+    // A list inside the page (Recent jobs) that is scrolled down must scroll up first, not refresh.
+    const scrolledDown = (target: EventTarget | null) => {
+      let n = target as HTMLElement | null
+      while (n && n !== el) {
+        if (n.scrollTop > 0) return true
+        n = n.parentElement
+      }
+      return el.scrollTop > 0
+    }
+    const onStart = (e: TouchEvent) => {
+      pulling = e.touches.length === 1 && !scrolledDown(e.target)
+      startY = e.touches[0]?.clientY ?? 0
+      dist = 0
+    }
+    const onMove = (e: TouchEvent) => {
+      if (!pulling) return
+      const dy = (e.touches[0]?.clientY ?? 0) - startY
+      if (dy <= 0 || el.scrollTop > 0) {
+        if (dist !== 0) setPull(0)
+        dist = 0
+        if (el.scrollTop > 0) pulling = false
+        return
+      }
+      dist = Math.min(dy * 0.5, PULL_MAX)
+      setPull(dist)
+    }
+    const onEnd = () => {
+      if (pulling && dist >= PULL_TO_REFRESH_AT) {
+        setRefreshing(true)
+        window.location.reload()
+      } else {
+        setPull(0)
+      }
+      pulling = false
+      dist = 0
+    }
+    el.addEventListener('touchstart', onStart, { passive: true })
+    el.addEventListener('touchmove', onMove, { passive: true })
+    el.addEventListener('touchend', onEnd)
+    el.addEventListener('touchcancel', onEnd)
+    return () => {
+      el.removeEventListener('touchstart', onStart)
+      el.removeEventListener('touchmove', onMove)
+      el.removeEventListener('touchend', onEnd)
+      el.removeEventListener('touchcancel', onEnd)
+    }
+  }, [])
 
   // Root cause of the "tabs missing on laptop" bug (see CLAUDE.md C13): the old shell
   // wrapped header + main + tab bar in one `max-w-[480px] mx-auto` column with no
@@ -178,7 +242,16 @@ export function AppShell({
         >
           Skip to content
         </a>
-        <div className="mx-auto flex min-h-0 w-full flex-1 flex-col pt-[env(safe-area-inset-top)]">
+        <div className="relative mx-auto flex min-h-0 w-full flex-1 flex-col pt-[env(safe-area-inset-top)]">
+          <div
+            aria-hidden="true"
+            className="pointer-events-none absolute left-1/2 top-[calc(env(safe-area-inset-top)+56px)] z-20 -translate-x-1/2"
+            style={{ opacity: refreshing ? 1 : Math.min(1, pull / PULL_TO_REFRESH_AT), transform: `translate(-50%, ${refreshing ? 8 : pull * 0.5}px)` }}
+          >
+            <span className="flex h-9 w-9 items-center justify-center rounded-full border-hair border-border bg-card text-foreground shadow-elevated">
+              <IconRefresh size={18} className={refreshing ? 'animate-spin' : undefined} style={refreshing ? undefined : { transform: `rotate(${pull * 4}deg)` }} />
+            </span>
+          </div>
           <div className="flex-none px-5 lg:px-8">{verifyBanner}</div>
           <header className="flex h-14 flex-none items-center justify-between gap-2 px-5 lg:px-8">
             <div className="flex min-w-0 items-center gap-1">
@@ -201,7 +274,7 @@ export function AppShell({
               (<main>), so <main>'s own scrollbar renders flush against the true right edge
               of the viewport instead of inset by px-5/px-8 — a scrollbar with dead space
               to its right reads as a layout bug, not a deliberate margin. */}
-          <main id="main-content" className="min-h-0 flex-1 overflow-y-auto">
+          <main ref={mainRef} id="main-content" className="min-h-0 flex-1 overflow-y-auto overscroll-y-contain">
             <div className="px-5 pb-6 lg:px-8">{children}</div>
           </main>
 
