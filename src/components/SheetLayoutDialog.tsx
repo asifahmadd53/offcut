@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { IconX } from '@tabler/icons-react'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from '@/components/ui/dialog'
 import { cn } from '@/lib/utils'
@@ -59,8 +60,16 @@ export function SheetLayoutDialog({
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="flex max-h-[92dvh] max-w-[480px] flex-col overflow-hidden p-0">
+        <button
+          type="button"
+          aria-label="Close"
+          onClick={() => onOpenChange(false)}
+          className="absolute right-3 top-3 z-10 flex h-9 w-9 items-center justify-center rounded-full text-muted-foreground hover:bg-muted hover:text-foreground active:scale-[0.98]"
+        >
+          <IconX size={20} />
+        </button>
         <div className="min-h-0 flex-1 overflow-y-auto px-5 pb-2 pt-5">
-        <DialogTitle>{title}</DialogTitle>
+        <DialogTitle className="pr-9">{title}</DialogTitle>
         <DialogDescription>{description}</DialogDescription>
 
         <p className="mb-2 mt-4 text-[13px] font-semibold text-muted-foreground">Does the sheet have a grain?</p>
