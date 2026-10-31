@@ -156,7 +156,7 @@ export default function Home() {
                         type="button"
                         aria-label={`Remove ${f.name} from the list`}
                         onClick={() => setToDelete(f)}
-                        className="flex h-9 w-9 flex-none items-center justify-center rounded-full text-muted-foreground bg-muted text-red-500 hover:text-red-600 duration-200 active:scale-[0.98] "
+                        className="flex h-9 w-9 flex-none items-center justify-center rounded-full text-muted-foreground bg-muted text-red-400 hover:text-red-500 duration-200 active:scale-[0.98] "
                       >
                         <IconTrash size={18} />
                       </button>

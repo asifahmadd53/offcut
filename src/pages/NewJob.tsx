@@ -90,6 +90,7 @@ export default function NewJob() {
   const [touchedH, setTouchedH] = useState(false)
   const [triedAdd, setTriedAdd] = useState(false)
   const widthRef = useRef<HTMLInputElement>(null)
+  const heightRef = useRef<HTMLInputElement>(null)
 
   const wVal = parseSize(width, settings.unit)
   const hVal = parseSize(height, settings.unit)
@@ -301,6 +302,13 @@ export default function NewJob() {
             className="h-[42px] border border-border-stronger bg-transparent px-3 text-[18px]"
             value={width}
             onChange={(e) => setWidth(cleanNumber(e.target.value))}
+            // Enter on the phone keyboard's "next" key goes on to Height, like Tab.
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') {
+                e.preventDefault()
+                heightRef.current?.focus()
+              }
+            }}
             onBlur={() => {
               setWidth((v) => v.replace(/\.$/, ''))
               setTouchedW(true)
@@ -311,6 +319,7 @@ export default function NewJob() {
           <Label htmlFor="h">Height ({unitLabel(settings.unit)})</Label>
           <Input
             id="h"
+            ref={heightRef}
             type="text"
             inputMode="decimal"
             autoComplete="off"
