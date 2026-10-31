@@ -83,9 +83,24 @@ export function parseInches(input: string): number | null {
 }
 
 /**
+ * Inches as a workshop types them: the single digit after the point counts eighths of an inch (soot, 8 to
+ * the inch), so 23.7 is 23 7/8 and 24.1 is 24 1/8 (together exactly 48, so a blade must make them not fit a
+ * 48 in sheet). Only one digit 0-7 is soot; 23.75, 23.9 or 0.125 are read as plain decimals, and fractions
+ * (22 1/2) are untouched.
+ */
+function parseInchesSoot(input: string): number | null {
+  const m = input.trim().toLowerCase().replace(/["”″]|inches|inch|in\b/g, '').trim().match(/^(\d+)\.([0-7])$/)
+  if (m) {
+    const value = Number(m[1]) + Number(m[2]) / 8
+    return value > 0 ? r4(value) : null
+  }
+  return parseInches(input)
+}
+
+/**
  * Reads a size typed by the user in the given unit (the app's unit by default) and returns inches.
  * A plain number is in that unit; a unit written after it wins: 50 cm, 1220 mm, 4 ft, 22 in, 4 ft 6 in, 4'6".
- * In inches this is exactly `parseInches`.
+ * In inches it is `parseInches`, except that one digit after the point is soot (eighths): 23.7 = 23 7/8.
  */
 export function parseSize(input: string, unit: Unit = currentUnit): number | null {
   const raw = input.trim().toLowerCase()
@@ -94,7 +109,7 @@ export function parseSize(input: string, unit: Unit = currentUnit): number | nul
   const both = raw.match(/^(.+?)\s*(?:feet|foot|ft|')\s*(.+?)\s*(?:inches|inch|in|"|”|″)?$/)
   if (both) {
     const ft = parseInches(both[1])
-    const inch = parseInches(both[2])
+    const inch = parseInchesSoot(both[2])
     if (ft !== null && inch !== null) return r4(ft * 12 + inch)
     return null
   }
@@ -110,7 +125,7 @@ export function parseSize(input: string, unit: Unit = currentUnit): number | nul
         : /^(milli)/.test(word) || word === 'mm'
           ? 'mm'
           : 'in'
-  const n = parseInches(one[1])
+  const n = u === 'in' ? parseInchesSoot(one[1]) : parseInches(one[1])
   if (n === null) return null
   return u === 'in' ? n : r4(n / PER_INCH[u])
 }

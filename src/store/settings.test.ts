@@ -56,3 +56,55 @@ describe('sheet size setting', () => {
     expect(useJob.getState().plan).toBeNull()
   })
 })
+
+describe('blade setting and an unconfirmed plan', () => {
+  beforeEach(() => {
+    useSettings.setState({ settings: DEFAULT_SETTINGS })
+    useJob.setState({ pieces: [], plan: null, onlyLeftoverId: null, forceNewSheet: false })
+  })
+
+  it('switching the blade on drops a plan made without it, and the new plan keeps the blade gap', () => {
+    useJob.getState().setPieces([
+      { id: 'a', w: 24, h: 50, qty: 1 },
+      { id: 'b', w: 24, h: 50, qty: 1 },
+    ])
+    useJob.getState().buildPlan()
+    expect(useJob.getState().plan?.sheets.length).toBe(1)
+
+    useSettings.getState().update({ kerfOn: true, kerfSize: 0.125 })
+    expect(useJob.getState().plan).toBeNull()
+
+    useJob.getState().buildPlan()
+    expect(useJob.getState().plan?.sheets.length).toBe(2)
+  })
+
+  it('changing the blade width while it is on drops the plan; while it is off it does not', () => {
+    useSettings.getState().update({ kerfOn: true, kerfSize: 0.125 })
+    useJob.getState().setPieces([{ id: 'a', w: 20, h: 20, qty: 1 }])
+    useJob.getState().buildPlan()
+    useSettings.getState().update({ kerfSize: 0.25 })
+    expect(useJob.getState().plan).toBeNull()
+
+    useSettings.getState().update({ kerfOn: false })
+    useJob.getState().buildPlan()
+    useSettings.getState().update({ kerfSize: 0.5 })
+    expect(useJob.getState().plan).not.toBeNull()
+  })
+})
+
+describe('blade switched on while no width was saved', () => {
+  it('uses 1/8 in, so two 24 in pieces do not share a 48 in sheet (the New job switch only flips on/off)', () => {
+    // Saved with the blade off, the width is stored as 0; New job's own switch then turns it on.
+    useSettings.setState({ settings: { ...DEFAULT_SETTINGS, kerfOn: true, kerfSize: 0, grain: true } })
+    useJob.setState({ pieces: [], plan: null, onlyLeftoverId: null, forceNewSheet: false })
+    useJob.getState().setPieces([
+      { id: 'a', w: 24, h: 44, qty: 1 },
+      { id: 'b', w: 24, h: 55, qty: 1 },
+    ])
+    useJob.getState().buildPlan()
+    const plan = useJob.getState().plan
+    expect(plan?.kerf).toBe(0.125)
+    expect(plan?.sheets.length).toBe(2)
+  })
+})
+

@@ -10,7 +10,7 @@ afterEach(() => setDisplayUnit('in'))
 
 describe('units: inches stay exactly as they were', () => {
   it('parses and writes the way it always did', () => {
-    for (const t of ['22', '22.5', '22 1/2', '22-1/2"', '3/8', '22 in', 'x', '0', '']) {
+    for (const t of ['22', '22 1/2', '22-1/2"', '3/8', '22 in', 'x', '0', '']) {
       expect(parseSize(t, 'in')).toBe(parseInches(t))
     }
     expect(fmt(22.5)).toBe('22 1/2')
@@ -174,3 +174,44 @@ describe('units: Settings fields', () => {
     expect(draftFrom(old as typeof DEFAULT_SETTINGS).unit).toBe('in')
   })
 })
+
+describe('soot: the digit after the point in inches is eighths of an inch', () => {
+  it('23.7 is 23 7/8 and 24.1 is 24 1/8, so together they are exactly 48', () => {
+    expect(parseSize('23.7', 'in')).toBe(23.875)
+    expect(parseSize('24.1', 'in')).toBe(24.125)
+    expect(parseSize('23.7', 'in')! + parseSize('24.1', 'in')!).toBe(48)
+    expect(parseSize('22.5', 'in')).toBe(22.625)
+    expect(parseSize('22.0', 'in')).toBe(22)
+    expect(parseSize('23.7 in', 'in')).toBe(23.875)
+    expect(parseSize('23.7"', 'in')).toBe(23.875)
+  })
+
+  it('with the blade on, 23.7 + 24.1 do not share a 48 in sheet, and with it off they do', async () => {
+    const { packJob } = await import('./packer')
+    const pieces = [
+      { id: 'a', w: parseSize('23.7', 'in')!, h: 50, qty: 1 },
+      { id: 'b', w: parseSize('24.1', 'in')!, h: 50, qty: 1 },
+    ]
+    const base = { sheetW: 48, sheetH: 96, minLeftover: 1, grain: true }
+    expect(packJob(pieces, [], { ...base, kerf: 0.125 }).sheets.length).toBe(2)
+    expect(packJob(pieces, [], { ...base, kerf: 0 }).sheets.length).toBe(1)
+  })
+
+  it('anything that is not one digit 0-7 is read as before', () => {
+    expect(parseSize('23.75', 'in')).toBe(23.75)
+    expect(parseSize('23.9', 'in')).toBe(23.9)
+    expect(parseSize('38.6', 'in')).toBe(38.75)
+    expect(parseSize('0.125', 'in')).toBe(0.125)
+    expect(parseSize('22 1/2', 'in')).toBe(22.5)
+    expect(parseSize('22-1/2"', 'in')).toBe(22.5)
+    expect(parseSize('3/8', 'in')).toBe(0.375)
+  })
+
+  it('feet, centimetres and millimetres keep ordinary decimals; inches after feet are soot', () => {
+    expect(parseSize('7.5', 'ft')).toBe(90)
+    expect(parseSize('2.5 cm', 'in')).toBeCloseTo(0.9843, 3)
+    expect(parseSize('25.4', 'mm')).toBe(1)
+    expect(parseSize('4 ft 6.4 in', 'in')).toBe(54.5)
+  })
+})
+

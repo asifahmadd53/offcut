@@ -22,6 +22,18 @@ function dropPlanIfSheetSizeChanged(prev: Settings, next: Settings) {
   if (prev.sheetW !== next.sheetW || prev.sheetH !== next.sheetH || prev.unit !== next.unit) {
     useJob.getState().dropPlan()
   }
+  // A plan made with the blade off must not stay on screen after the blade is switched on (or its width
+  // changes): two 24 in pieces fit a 48 in sheet only without a blade. Grain and cutting style change the
+  // layout the same way.
+  if (
+    prev.kerfOn !== next.kerfOn ||
+    (next.kerfOn && prev.kerfSize !== next.kerfSize) ||
+    prev.grain !== next.grain ||
+    prev.layoutMethod !== next.layoutMethod ||
+    prev.layoutLevels !== next.layoutLevels
+  ) {
+    useJob.getState().dropPlan()
+  }
 }
 
 export const useSettings = create<SettingsState>()(

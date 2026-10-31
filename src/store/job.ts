@@ -4,7 +4,7 @@ import { uid } from '@/lib/id'
 import { packJob as packOnly, type Item, type PackOptions, type PackResult } from '@/lib/packer'
 import { checkPlan } from '@/lib/planCheck'
 import type { EdgeTape, Leftover, Piece, SheetLayout, SheetPlan } from '@/lib/types'
-import { effectiveLayout, packOptionsFor } from '@/lib/layout'
+import { effectiveKerf, effectiveLayout, packOptionsFor } from '@/lib/layout'
 import { cleanTape } from '@/lib/tape'
 import { getDisplayUnit } from '@/lib/inches'
 import { useData } from './data'
@@ -143,7 +143,7 @@ export const useJob = create<JobState>()(
         const { derived } = useData.getState()
         const { settings } = useSettings.getState()
         const layout = effectiveLayout(settings, get().layoutOverride)
-        const kerf = settings.kerfOn ? settings.kerfSize : 0
+        const kerf = effectiveKerf(settings)
         const only = get().onlyLeftoverId
         const forceNewSheet = get().forceNewSheet
         const clientStock = stockForClient(derived.freeLeftovers, get().clientId)
@@ -205,7 +205,7 @@ export const useJob = create<JobState>()(
         const { derived } = useData.getState()
         const { settings } = useSettings.getState()
         const layout = effectiveLayout(settings, get().layoutOverride)
-        const kerf = settings.kerfOn ? settings.kerfSize : 0
+        const kerf = effectiveKerf(settings)
         const only = get().onlyLeftoverId
         const stock = only ? stockForClient(derived.freeLeftovers, get().clientId).filter((l) => l.id === only) : []
         const result = packJob(
