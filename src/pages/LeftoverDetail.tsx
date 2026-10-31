@@ -143,10 +143,10 @@ export default function LeftoverDetail() {
             it is.
           </DialogDescription>
           <div className="mt-4 flex gap-2.5">
-            <Button variant="outline" className="h-11 flex-1" onClick={() => setConfirmOpen(false)}>
+            <Button size="lg" variant="outline" className="flex-1" onClick={() => setConfirmOpen(false)}>
               Keep
             </Button>
-            <Button className="h-11 flex-1 bg-danger-text hover:opacity-90" onClick={discard}>
+            <Button size="lg" className="flex-1 text-white bg-red-700 hover:opacity-90" onClick={discard}>
               Remove
             </Button>
           </div>
