@@ -203,7 +203,7 @@ export default function NewJob() {
       title="New job"
       back="/"
       stickyBar={
-        <Button size="lg" className="w-full" disabled={!canMakePlan} onClick={onMakePlan}>
+        <Button size="lg" className="w-full hidden md:flex" disabled={!canMakePlan} onClick={onMakePlan}>
           Make cutting plan
         </Button>
       }
@@ -489,6 +489,9 @@ export default function NewJob() {
           </p>
         )}
       </div>
+      <Button size="lg" className="w-full mt-6 md:hidden" disabled={!canMakePlan} onClick={onMakePlan}>
+        Make cutting plan
+      </Button>
 
       <SheetLayoutDialog
         open={layoutOpen}
