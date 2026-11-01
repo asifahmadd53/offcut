@@ -85,11 +85,11 @@ export function parseInches(input: string): number | null {
 /**
  * Inches as a workshop types them: the single digit after the point counts eighths of an inch (soot, 8 to
  * the inch), so 23.7 is 23 7/8 and 24.1 is 24 1/8 (together exactly 48, so a blade must make them not fit a
- * 48 in sheet). Only one digit 0-7 is soot; 23.75, 23.9 or 0.125 are read as plain decimals, and fractions
+ * 48 in sheet). Only one digit is soot (8 soot are a whole inch, so 45.8 is 46 and 45.9 is 46 1/8); 23.75 or 0.125 are read as plain decimals, and fractions
  * (22 1/2) are untouched.
  */
 function parseInchesSoot(input: string): number | null {
-  const m = input.trim().toLowerCase().replace(/["”″]|inches|inch|in\b/g, '').trim().match(/^(\d+)\.([0-7])$/)
+  const m = input.trim().toLowerCase().replace(/["”″]|inches|inch|in\b/g, '').trim().match(/^(\d+)\.([0-9])$/)
   if (m) {
     const value = Number(m[1]) + Number(m[2]) / 8
     return value > 0 ? r4(value) : null
@@ -188,12 +188,41 @@ export interface Formatter {
 }
 
 /**
+ * A worked-out size in inches the way it is typed in the workshop (8 soot to the inch): a whole number of
+ * eighths is written with soot after the point, so 47.75 reads 47.6 and 32.125 reads 32.1, the same digit
+ * the user types. Any other size keeps up to two decimals, padded to two so that 23.40 is never read as
+ * 23 and 4 soot.
+ */
+export function sootText(n: number): string {
+  const eighths = Math.round(n * 8)
+  if (Math.abs(n * 8 - eighths) < 1e-6) {
+    const whole = Math.floor(eighths / 8)
+    const soot = eighths % 8
+    return soot === 0 ? String(whole) : `${whole}.${soot}`
+  }
+  const text = String(Math.round(n * 100) / 100)
+  const point = text.indexOf('.')
+  return point >= 0 && text.length - point - 1 === 1 ? `${text}0` : text
+}
+
+/**
+ * Tidies a size when the user leaves its box: 8 soot are a whole inch, so a single digit 8 or 9 after the point
+ * carries over (47.8 becomes 48, 47.9 becomes 48.1). Anything else is left exactly as typed, and only inches have soot.
+ */
+export function settleSoot(text: string, unit: Unit = currentUnit): string {
+  if (unit !== 'in') return text
+  if (!/^\s*\d+\.[89]\s*$/.test(text)) return text
+  const inches = parseSize(text, 'in')
+  return inches === null ? text : sootText(inches)
+}
+
+/**
  * How the sizes the app works out itself (leftovers, rulers, gaps) are written next to the
  * ones the user typed: plain decimals (10.5, up to two places) or fractions (10 1/2).
  */
 export function sizeFormatter(style: SizeStyle = 'decimal'): Formatter {
   // Read at call time, so a change of unit shows at once. Outside inches a size is always a decimal.
-  const f = (n: number) => (style === 'decimal' && currentUnit === 'in' ? String(Math.round(n * 100) / 100) : fmt(n))
+  const f = (n: number) => (style === 'decimal' && currentUnit === 'in' ? sootText(n) : fmt(n))
   return {
     fmt: f,
     fmtDims: (w, h) => `${f(w)} × ${f(h)}`,

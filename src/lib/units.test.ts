@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it } from 'vitest'
-import { areaLabel, fmt, fmtArea, fmtIn, parseInches, parseSize, pieceDims, setDisplayUnit, sizeFormatter, unitLabel } from './inches'
+import { areaLabel, settleSoot, sootText, fmt, fmtArea, fmtIn, parseInches, parseSize, pieceDims, setDisplayUnit, sizeFormatter, unitLabel } from './inches'
 import { packJob } from './packer'
 import { buildBlocks } from './sheetView'
 import { deriveStock } from './stock'
@@ -197,9 +197,8 @@ describe('soot: the digit after the point in inches is eighths of an inch', () =
     expect(packJob(pieces, [], { ...base, kerf: 0 }).sheets.length).toBe(1)
   })
 
-  it('anything that is not one digit 0-7 is read as before', () => {
+  it('more than one digit after the point is read as a plain decimal, as before', () => {
     expect(parseSize('23.75', 'in')).toBe(23.75)
-    expect(parseSize('23.9', 'in')).toBe(23.9)
     expect(parseSize('38.6', 'in')).toBe(38.75)
     expect(parseSize('0.125', 'in')).toBe(0.125)
     expect(parseSize('22 1/2', 'in')).toBe(22.5)
@@ -212,6 +211,61 @@ describe('soot: the digit after the point in inches is eighths of an inch', () =
     expect(parseSize('2.5 cm', 'in')).toBeCloseTo(0.9843, 3)
     expect(parseSize('25.4', 'mm')).toBe(1)
     expect(parseSize('4 ft 6.4 in', 'in')).toBe(54.5)
+  })
+})
+
+describe('soot: 8 soot are a whole inch', () => {
+  it('45.8 is 46 and 45.9 is 46 1/8; 45.7 stays 45 7/8', () => {
+    expect(parseSize('45.7', 'in')).toBe(45.875)
+    expect(parseSize('45.8', 'in')).toBe(46)
+    expect(parseSize('45.9', 'in')).toBe(46.125)
+    expect(parseSize('0.8', 'in')).toBe(1)
+    expect(parseSize('45.8 in', 'in')).toBe(46)
+  })
+
+  it('feet, cm and mm are not soot: 45.8 cm stays 45.8 cm', () => {
+    expect(parseSize('45.8', 'cm')).toBeCloseTo(18.0315, 3)
+    expect(parseSize('45.8', 'mm')).toBeCloseTo(1.8031, 3)
+    expect(parseSize('4.8', 'ft')).toBeCloseTo(57.6, 4)
+  })
+})
+
+describe('worked-out sizes are written in soot too (inches, decimal style)', () => {
+  it('47.75 reads 47.6, 32.125 reads 32.1, whole sizes stay whole, other sizes keep two decimals', () => {
+    expect(sootText(47.75)).toBe('47.6')
+    expect(sootText(95.75)).toBe('95.6')
+    expect(sootText(32.125)).toBe('32.1')
+    expect(sootText(48)).toBe('48')
+    expect(sootText(96)).toBe('96')
+    expect(sootText(0.125)).toBe('0.1')
+    expect(sootText(23.4)).toBe('23.40')
+    expect(sootText(15.9375)).toBe('15.94')
+  })
+
+  it('what is written reads back as the same size', () => {
+    for (let eighths = 1; eighths <= 800; eighths++) {
+      const n = eighths / 8
+      expect(parseSize(sootText(n), 'in'), sootText(n)).toBe(n)
+    }
+  })
+
+  it('typing 47.8 x 95.8 gives a 48 x 96 sheet, and it shows 48 and 96 after saving', () => {
+    expect(parseSize('47.8', 'in')).toBe(48)
+    expect(parseSize('95.8', 'in')).toBe(96)
+  })
+})
+
+describe('leaving a size box tidies a carried soot (47.8 becomes 48)', () => {
+  it('only a single 8 or 9 after the point changes, and only in inches', () => {
+    expect(settleSoot('47.8', 'in')).toBe('48')
+    expect(settleSoot('95.8', 'in')).toBe('96')
+    expect(settleSoot('45.8', 'in')).toBe('46')
+    expect(settleSoot('47.9', 'in')).toBe('48.1')
+    expect(settleSoot('47.6', 'in')).toBe('47.6')
+    expect(settleSoot('47.75', 'in')).toBe('47.75')
+    expect(settleSoot('22 1/2', 'in')).toBe('22 1/2')
+    expect(settleSoot('47.8', 'cm')).toBe('47.8')
+    expect(settleSoot('', 'in')).toBe('')
   })
 })
 

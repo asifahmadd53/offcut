@@ -7,7 +7,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from '@/components/ui/dialog'
-import { cleanTyped, fmt, fmtDims, fmtLeft, parseSize, pieceDims, unitLabel } from '@/lib/inches'
+import { cleanTyped, parseSize, pieceDims, settleSoot, sizeFormatter, sizeStyleOf, unitLabel } from '@/lib/inches'
 import { plural } from '@/lib/format'
 import { cleanTape, describeSides, hasTape } from '@/lib/tape'
 import type { EdgeTape } from '@/lib/types'
@@ -19,6 +19,9 @@ import { toast } from 'sonner'
 import { Switch } from '@/components/ui/switch'
 import { SheetLayoutDialog } from '@/components/SheetLayoutDialog'
 import { effectiveLayout, layoutOfSettings, layoutSummary, sameLayout } from '@/lib/layout'
+
+// Worked-out sizes are written the same way as on the drawing (soot in inches), at call time so a change of unit shows at once.
+const { fmtDims, fmtLeft } = sizeFormatter('decimal')
 type FieldError = 'zero' | 'nan' | null
 
 function fieldMessage(which: 'Width' | 'Height', err: FieldError): string | null {
@@ -282,7 +285,7 @@ export default function NewJob() {
         <div className="mb-3 rounded-lg bg-warning-bg p-3 text-[14px] text-warning-text">
           <p className="mb-0 font-semibold">Too big for a sheet.</p>
           <p className="mb-0">
-            Your sheets are {fmt(settings.sheetW)} × {fmt(settings.sheetH)} {unitLabel(settings.unit)}. A {width} × {height} piece
+            Your sheets are {sizeFormatter(sizeStyleOf(pieces)).fmt(settings.sheetW)} × {sizeFormatter(sizeStyleOf(pieces)).fmt(settings.sheetH)} {unitLabel(settings.unit)}. A {width} × {height} piece
             will not fit{layout.grain ? ', and a sheet with grain is never turned.' : ' even turned.'}
           </p>
         </div>
@@ -310,7 +313,7 @@ export default function NewJob() {
               }
             }}
             onBlur={() => {
-              setWidth((v) => v.replace(/\.$/, ''))
+              setWidth((v) => settleSoot(v.replace(/\.$/, ''), settings.unit))
               setTouchedW(true)
             }}
           />
@@ -329,7 +332,7 @@ export default function NewJob() {
             value={height}
             onChange={(e) => setHeight(cleanNumber(e.target.value))}
             onBlur={() => {
-              setHeight((v) => v.replace(/\.$/, ''))
+              setHeight((v) => settleSoot(v.replace(/\.$/, ''), settings.unit))
               setTouchedH(true)
             }}
           />

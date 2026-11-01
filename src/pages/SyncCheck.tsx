@@ -3,12 +3,15 @@ import { IconRefresh } from '@tabler/icons-react'
 import { AppShell } from '@/components/AppShell'
 import { Button } from '@/components/ui/button'
 import { dayMonth, timeAgo, timeOfDay } from '@/lib/format'
-import { fmtLeft } from '@/lib/inches'
+import { sizeFormatter } from '@/lib/inches'
 import { pieceSummary } from '@/lib/summary'
 import { saveResolution } from '@/lib/db'
 import { useAuth } from '@/store/auth'
 import { useData } from '@/store/data'
 import { useJob } from '@/store/job'
+
+// Worked-out sizes are written the same way as on the drawing (soot in inches), at call time so a change of unit shows at once.
+const { fmtLeft } = sizeFormatter('decimal')
 
 export default function SyncCheck() {
   const navigate = useNavigate()

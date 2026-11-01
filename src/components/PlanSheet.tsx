@@ -2,7 +2,7 @@ import { useRef, useState } from 'react'
 import { TransformComponent, TransformWrapper, type ReactZoomPanPinchRef } from 'react-zoom-pan-pinch'
 import { IconX } from '@tabler/icons-react'
 import { dayMonth } from '@/lib/format'
-import { areaLabel, fmt, fmtArea, sizeFormatter, unitSuffix, unitWords, type SizeStyle } from '@/lib/inches'
+import { areaLabel, fmtArea, sizeFormatter, unitSuffix, unitWords, type SizeStyle } from '@/lib/inches'
 import { tapeSummary, tapeTotalText } from '@/lib/tape'
 import { dgLightDeclarations } from '@/lib/diagramStyle'
 import { SheetDiagram } from './SheetDiagram'
@@ -123,7 +123,7 @@ export function PlanSheet({ sheet, blocks, highlightIndex, sizeStyle = 'decimal'
         >
           Full screen
         </button>
-        <SaveImageButton sheet={sheet} blocks={blocks} />
+        <SaveImageButton sheet={sheet} blocks={blocks} sizeStyle={sizeStyle} />
       </div>
 
       <div className="mb-3.5 rounded-lg bg-muted p-3 text-[13px]">
@@ -224,7 +224,8 @@ function FullScreenDiagram({ sheet, blocks, sizeStyle, onClose }: { sheet: Sheet
  * simple legend, then shares it via navigator.share when available, else downloads it.
  * Works offline: no network calls. Best-effort, hard to verify headlessly.
  */
-function SaveImageButton({ sheet }: { sheet: SheetPlan; blocks: Block[] }) {
+function SaveImageButton({ sheet, sizeStyle }: { sheet: SheetPlan; blocks: Block[]; sizeStyle: SizeStyle }) {
+  const F = sizeFormatter(sizeStyle)
   const [busy, setBusy] = useState(false)
 
   async function save() {
@@ -285,7 +286,7 @@ function SaveImageButton({ sheet }: { sheet: SheetPlan; blocks: Block[] }) {
       title.setAttribute('font-size', '12')
       title.setAttribute('fill', '#5f5e5a')
       const pieceSummary = sheet.placements.map((p) => p.label).join(', ') || 'No pieces'
-      title.textContent = `${pieceSummary} — ${new Date().toLocaleDateString()} — sheet ${fmt(sheet.sheetW)} × ${fmt(sheet.sheetH)}${unitSuffix()}`
+      title.textContent = `${pieceSummary} — ${new Date().toLocaleDateString()} — sheet ${F.fmt(sheet.sheetW)} × ${F.fmt(sheet.sheetH)}${unitSuffix()}`
       clone.appendChild(title)
 
       const svgText = new XMLSerializer().serializeToString(clone)

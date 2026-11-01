@@ -10,7 +10,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog'
 import { dayMonth } from '@/lib/format'
-import { areaLabel, fmt, fmtArea, sizeStyleOf, unitLabel } from '@/lib/inches'
+import { areaLabel, fmtArea, sizeFormatter, sizeStyleOf, unitLabel } from '@/lib/inches'
 import { saveCut } from '@/lib/db'
 import { getDeviceId, uid } from '@/lib/id'
 import { buildBlocks } from '@/lib/sheetView'
@@ -19,6 +19,9 @@ import { useData } from '@/store/data'
 import { useJob } from '@/store/job'
 import { toast } from 'sonner'
 import type { CutDoc } from '@/lib/types'
+
+// Worked-out sizes are written the same way as on the drawing (soot in inches), at call time so a change of unit shows at once.
+const { fmt } = sizeFormatter('decimal')
 
 export default function LeftoverDetail() {
   const { id } = useParams()

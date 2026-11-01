@@ -71,3 +71,40 @@ describe('Settings sheet layout', () => {
     expect(draft).toMatchObject({ layoutMethod: 'normal', layoutLevels: 2, grain: false })
   })
 })
+
+describe('sheet size is written back the way it was typed (soot)', () => {
+  const base = { ...DEFAULT_SETTINGS }
+
+  it('47.6 x 95.6 is saved as 47.75 x 95.75 and shows as 47.6 x 95.6, not 47 3/4', () => {
+    const draft = { ...draftFrom(base), sheetW: '47.6', sheetH: '95.6' }
+    const res = validate(draft, base)
+    expect(res.errors).toEqual({})
+    expect(res.values?.sheetW).toBe(47.75)
+    expect(res.values?.sheetH).toBe(95.75)
+    const shown = draftFrom({ ...base, ...res.values } as typeof base)
+    expect(shown.sheetW).toBe('47.6')
+    expect(shown.sheetH).toBe('95.6')
+    // and reading what is shown gives the same sizes again
+    expect(validate(shown, { ...base, ...res.values } as typeof base).values?.sheetW).toBe(47.75)
+  })
+
+  it('whole sizes and other units are written as before', () => {
+    expect(draftFrom(base).sheetW).toBe('48')
+    expect(draftFrom(base).sheetH).toBe('96')
+    expect(draftFrom({ ...base, unit: 'cm' } as typeof base).sheetW).toBe('121.92')
+    expect(draftFrom({ ...base, sheetW: 47.0625 }).sheetW).toBe('47 1/16')
+  })
+})
+
+describe('a carried soot is saved as the next inch', () => {
+  it('47.8 x 95.8 is saved as 48 x 96 and shows 48 and 96', () => {
+    const base = { ...DEFAULT_SETTINGS }
+    const res = validate({ ...draftFrom(base), sheetW: '47.8', sheetH: '95.8' }, base)
+    expect(res.values?.sheetW).toBe(48)
+    expect(res.values?.sheetH).toBe(96)
+    const shown = draftFrom({ ...base, ...res.values } as typeof base)
+    expect(shown.sheetW).toBe('48')
+    expect(shown.sheetH).toBe('96')
+  })
+})
+

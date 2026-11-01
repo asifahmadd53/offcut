@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from '@/components/ui/dialog'
 import { UNASSIGNED_CLIENT_ID, UNASSIGNED_CLIENT_NAME, type Leftover } from '@/lib/types'
 import { dayMonth, plural } from '@/lib/format'
-import { fmtLeft } from '@/lib/inches'
+import { sizeFormatter } from '@/lib/inches'
 import { pieceSummary, sourceSummary } from '@/lib/summary'
 import { saveCut } from '@/lib/db'
 import { getDeviceId, uid } from '@/lib/id'
@@ -16,6 +16,9 @@ import { useJob } from '@/store/job'
 import { toast } from 'sonner'
 import type { CutDoc } from '@/lib/types'
 import type { JobView } from '@/lib/stock'
+
+// Worked-out sizes are written the same way as on the drawing (soot in inches), at call time so a change of unit shows at once.
+const { fmtLeft } = sizeFormatter('decimal')
 
 function originText(l: Leftover): string {
   if (l.manual) return `Added by hand · ${dayMonth(l.createdAt)}`

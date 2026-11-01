@@ -14,7 +14,9 @@ describe('sizes shown exactly as typed', () => {
   it('a piece shows its typed text, even a fraction; older pieces without it show plain decimals', () => {
     expect(pieceDims({ w: 10.5, h: 38.6, wText: '10.5', hText: '38.6' })).toBe('10.5 × 38.6')
     expect(pieceDims({ w: 22.5, h: 30, wText: '22 1/2', hText: '30' })).toBe('22 1/2 × 30')
-    expect(pieceDims({ w: 10.5, h: 38.6 })).toBe('10.5 × 38.6')
+    // No typed text: the real size is written the workshop way, 10.5 in is 10 and 4 soot, and 38.6 in is not a whole
+    // number of eighths, so it keeps two decimals (padded so it is not read as soot).
+    expect(pieceDims({ w: 10.5, h: 38.6 })).toBe('10.4 × 38.60')
   })
 
   it('the plan, its labels and the job summary all carry the typed text', () => {
@@ -31,7 +33,7 @@ describe('sizes shown exactly as typed', () => {
     expect(sizeStyleOf(undefined)).toBe('decimal')
     const dec = sizeFormatter('decimal')
     expect(dec.fmt(15.9375)).toBe('15.94')
-    expect(dec.fmtLeft(48, 3.75)).toBe('3.75 × 48')
+    expect(dec.fmtLeft(48, 3.75)).toBe('3.6 × 48') // 3.75 in is 3 and 6 soot
     expect(sizeFormatter('fraction').fmtLeft(48, 15.9375)).toBe('15 15/16 × 48')
   })
 })

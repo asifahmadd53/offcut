@@ -13,7 +13,7 @@ import { Label } from '@/components/ui/label'
 import { Switch } from '@/components/ui/switch'
 import { SheetLayoutDialog } from '@/components/SheetLayoutDialog'
 import { layoutSummary } from '@/lib/layout'
-import { fmtIn, parseSize, UNITS, UNIT_NAME, type Unit } from '@/lib/inches'
+import { fmtIn, parseSize, settleSoot, UNITS, UNIT_NAME, type Unit } from '@/lib/inches'
 import { useAuth } from '@/store/auth'
 import { useSettings } from '@/store/settings'
 import { toast } from 'sonner'
@@ -44,12 +44,24 @@ interface FieldErrors {
 /** A saved blade width of 0 means "not set"; show the usual 1/8 inch in whatever unit the fields use. */
 const DEFAULT_KERF_INCHES = 0.125
 
+/**
+ * The sheet size as it is typed in the workshop: in inches a size that is a whole number of eighths is written
+ * with soot after the point (47.75 shows as 47.6, which reads back as 47 6/8), any other size or unit as usual.
+ */
+function sheetText(inches: number, unit: Unit): string {
+  const eighths = Math.round(inches * 8)
+  if (unit === 'in' && Math.abs(inches * 8 - eighths) < 1e-6 && eighths % 8 !== 0) {
+    return `${Math.floor(eighths / 8)}.${eighths % 8}`
+  }
+  return fmtIn(inches, unit)
+}
+
 export function draftFrom(s: SettingsShape): Draft {
   const unit: Unit = s.unit ?? DEFAULT_SETTINGS.unit
   return {
     unit,
-    sheetW: fmtIn(s.sheetW, unit),
-    sheetH: fmtIn(s.sheetH, unit),
+    sheetW: sheetText(s.sheetW, unit),
+    sheetH: sheetText(s.sheetH, unit),
     kerfOn: s.kerfOn,
     // A saved kerfSize of 0 means "not set" (the toggle was off when it was saved) —
     // show a sensible blade width instead of 0 so the disabled field always displays
@@ -158,7 +170,7 @@ export default function Settings() {
       const known = exact.current[field]
       const inches = untouched ? settings[field] : known && known.text === draft[field] ? known.inches : parseSize(draft[field], draft.unit)
       if (inches === null || inches === undefined) return draft[field]
-      const text = fmtIn(inches, unit)
+      const text = field === 'sheetW' || field === 'sheetH' ? sheetText(inches, unit) : fmtIn(inches, unit)
       next[field] = { text, inches }
       return text
     }
@@ -290,6 +302,10 @@ export default function Settings() {
                 value={draft.sheetW}
                 className=" border border-border-stronger bg-transparent px-3 text-[18px]"
                 onChange={(e) => patch({ sheetW: e.target.value })}
+                onBlur={() => {
+                  const t = settleSoot(draft.sheetW, draft.unit)
+                  if (t !== draft.sheetW) patch({ sheetW: t })
+                }}
               />
               {errors.sheetW && <p className="mt-1 text-[12.5px] text-danger-text">{errors.sheetW}</p>}
             </div>
@@ -304,6 +320,10 @@ export default function Settings() {
                 value={draft.sheetH}
                 className="border border-border-stronger bg-transparent px-3 text-[18px]"
                 onChange={(e) => patch({ sheetH: e.target.value })}
+                onBlur={() => {
+                  const t = settleSoot(draft.sheetH, draft.unit)
+                  if (t !== draft.sheetH) patch({ sheetH: t })
+                }}
               />
               {errors.sheetH && <p className="mt-1 text-[12.5px] text-danger-text">{errors.sheetH}</p>}
             </div>
@@ -328,6 +348,10 @@ export default function Settings() {
               className=" border border-border-stronger bg-transparent px-3 text-[18px]"
               value={draft.kerfSize}
               onChange={(e) => patch({ kerfSize: e.target.value })}
+                onBlur={() => {
+                  const t = settleSoot(draft.kerfSize, draft.unit)
+                  if (t !== draft.kerfSize) patch({ kerfSize: t })
+                }}
             />
             {errors.kerfSize && <p className="mt-1 text-[12.5px] text-danger-text">{errors.kerfSize}</p>}
           </div>
@@ -341,6 +365,10 @@ export default function Settings() {
             value={draft.minLeftover}
             className=" border border-border-stronger bg-transparent px-3 text-[18px]"
             onChange={(e) => patch({ minLeftover: e.target.value })}
+                onBlur={() => {
+                  const t = settleSoot(draft.minLeftover, draft.unit)
+                  if (t !== draft.minLeftover) patch({ minLeftover: t })
+                }}
           />
           {errors.minLeftover && <p className="mt-1 text-[12.5px] text-danger-text">{errors.minLeftover}</p>}
           <p className="mt-1.5 text-[12.5px] text-faint">Anything smaller is treated as waste.</p>
@@ -454,8 +482,8 @@ export default function Settings() {
         <Dialog open={confirmSizeOpen} onOpenChange={setConfirmSizeOpen}>
           <DialogContent>
             <DialogTitle>
-              Change sheet size to {pendingValues ? fmtIn(pendingValues.sheetW!, draft.unit) : ''} ×{' '}
-              {pendingValues ? fmtIn(pendingValues.sheetH!, draft.unit) : ''} {draft.unit}?
+              Change sheet size to {pendingValues ? sheetText(pendingValues.sheetW!, draft.unit) : ''} ×{' '}
+              {pendingValues ? sheetText(pendingValues.sheetH!, draft.unit) : ''} {draft.unit}?
             </DialogTitle>
             <DialogDescription>
               This applies to new plans only. Saved leftovers and past jobs keep their own sizes.

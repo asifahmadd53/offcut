@@ -6,7 +6,7 @@ import { PrintOrPdfDialog } from '@/components/PrintOrPdfDialog'
 import { Button } from '@/components/ui/button'
 import { buildBlocks } from '@/lib/sheetView'
 import { plural } from '@/lib/format'
-import { fmt, pieceDims, sizeStyleOf, unitSuffix } from '@/lib/inches'
+import { pieceDims, sizeFormatter, sizeStyleOf, unitSuffix } from '@/lib/inches'
 import { forcedNewSheetNote, leftoverUseMessage, usingLeftoverToast, wouldUseLeftover } from '@/lib/leftoverAnnounce'
 import { saveCut } from '@/lib/db'
 import { isPlainLayout, layoutSummary, packOptionsFor } from '@/lib/layout'
@@ -19,6 +19,7 @@ import { toast } from 'sonner'
 import type { CutDoc, Piece, SheetPlan } from '@/lib/types'
 
 function subtitleFor(sheets: SheetPlan[], pieces: Piece[]): string {
+  const fmt = sizeFormatter(sizeStyleOf(pieces)).fmt
   const newCount = sheets.filter((s) => s.isNew).length
   const pieceText = pieces.map((p) => `${pieceDims(p)}, ${plural(p.qty, 'pc')}`).join(' + ')
   if (newCount === sheets.length && newCount > 0) {
