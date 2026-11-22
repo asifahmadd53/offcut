@@ -4,6 +4,7 @@ import {
   IconChevronLeft,
   IconHome,
   IconLogout,
+  IconReceipt,
   IconRefresh,
   IconScissors,
   IconSettings,
@@ -19,13 +20,13 @@ interface AppShellProps {
   children: ReactNode
   /** Top-level screens show the tab bar / rail / sidebar highlighted on `tab`. */
   back?: string
-  tab?: 'home' | 'stock' | 'settings'
+  tab?: 'home' | 'stock' | 'bill' | 'settings'
   /**
    * For non-top-level screens (New job, Plan, Job detail, Leftover detail, Sync
    * check) the sidebar/rail still stays visible and highlights this parent item,
    * even though the screen itself shows a back button in its header.
    */
-  parentTab?: 'home' | 'stock' | 'settings'
+  parentTab?: 'home' | 'stock' | 'bill' | 'settings'
   headerRight?: ReactNode
   /**
    * Called before navigating away (back arrow or tab bar). Return false to cancel —
@@ -43,6 +44,7 @@ const PULL_MAX = 96
 
 const tabs = [
   { key: 'home' as const, label: 'Home', icon: IconHome, to: '/' },
+  { key: 'bill' as const, label: 'Billing', icon: IconReceipt, to: '/bill' },
   { key: 'settings' as const, label: 'Settings', icon: IconSettings, to: '/settings' },
 ]
 
@@ -200,7 +202,7 @@ export function AppShell({
           <Button
             type="button"
             onClick={() => logout()}
-            className="flex h-9 bg-red-800 items-center gap-2 rounded-[10px] px-1 text-[13px] text-foreground hover:text-foreground"
+            className="flex h-9 bg-red-700 items-center gap-2 rounded-[10px] px-1 text-[13px] text-white hover:text-foreground"
           >
             <IconLogout size={16} />
             Log out
@@ -298,14 +300,14 @@ export function AppShell({
                 onClick={() => go(to)}
                 aria-label={label}
                 className={cn(
-                  'relative flex flex-col items-center gap-0.5 rounded-2xl px-8 py-1.5 text-[10px] transition-colors',
+                  'relative flex flex-1 flex-col items-center gap-0.5 rounded-2xl px-2 py-1.5 text-[10px] transition-colors',
                   tab === key
                     ? 'bg-brand-tint font-semibold text-brand-ink'
                     : 'text-muted-foreground',
                 )}
               >
                 <Icon size={21} />
-                {key === 'home' ? 'Home' : 'Settings'}
+                {label}
                 {key === 'home' && conflictCount > 0 && (
                   <span className="absolute right-2 top-0.5 h-2 w-2 rounded-full bg-danger-text" />
                 )}

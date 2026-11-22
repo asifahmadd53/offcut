@@ -16,6 +16,7 @@ import SyncCheck from '@/pages/SyncCheck'
 import Settings from '@/pages/Settings'
 import Print from '@/pages/Print'
 import { IconCheck, IconX, IconAlertTriangle, IconInfoCircle } from '@tabler/icons-react'
+import Bill from '@/pages/Bill'
 function SetupNeeded() {
   return (
     <div className="mx-auto flex min-h-dvh w-full max-w-[480px] flex-col items-center justify-center px-6 text-center">
@@ -78,6 +79,7 @@ function AppRoutes() {
       <Route path="/client/:clientId" element={<RequireAuth><ClientJobs /></RequireAuth>} />
       <Route path="/sync-check" element={<RequireAuth><SyncCheck /></RequireAuth>} />
       <Route path="/settings" element={<RequireAuth><Settings /></RequireAuth>} />
+      <Route path="/bill" element={<RequireAuth><Bill /></RequireAuth>} />
       <Route path="/print/:jobId" element={<RequireAuth><Print /></RequireAuth>} />
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
