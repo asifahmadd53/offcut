@@ -86,6 +86,35 @@ function NumberField({
     )
 }
 
+function TotalCard({
+    b,
+    onPrint,
+    className,
+}: {
+    b: ReturnType<typeof calcBill>
+    onPrint: () => void
+    className?: string
+}) {
+    return (
+        <div className={`rounded-2xl border border-border p-4 text-foreground ${className ?? ''}`}>
+            <p className="mb-0 text-[13px] opacity-70">Total bill</p>
+            <p className="mb-2.5 text-[36px] font-semibold leading-tight text-[#c2410c] dark:text-primary">{rs(b.total)}</p>
+            <div className="flex justify-between text-[13px]">
+                <span className="opacity-70">Edge tape</span>
+                <span>{rs(b.tape)}</span>
+            </div>
+            <div className="mt-1 flex justify-between text-[13px]">
+                <span className="opacity-70">Cutting</span>
+                <span>{rs(b.cutting)}</span>
+            </div>
+            <Button size="lg" className="mt-2.5 w-full" onClick={onPrint}>
+                <IconPrinter size={20} />
+                Print bill
+            </Button>
+        </div>
+    )
+}
+
 function Charge({
     icon,
     title,
@@ -145,25 +174,17 @@ export default function Bill() {
     const td = 'border-b border-[#e3e0da] px-3 py-4 align-top'
 
     return (
-        <AppShell title="Billing" tab="bill" 
-        stickyBar={
-            <div className="mb-[-.5rem] rounded-2xl border border-border bg-black/[0.06] p-4 text-foreground dark:bg-white/[0.08]">
-                <p className="mb-0 text-[13px] opacity-70">Total bill</p>
-                <p className="mb-2.5 text-[36px] font-semibold leading-tight text-[#c2410c] dark:text-primary">{rs(b.total)}</p>
-                <div className="flex justify-between text-[13px]">
-                    <span className="opacity-70">Edge tape</span>
-                    <span>{rs(b.tape)}</span>
-                </div>
-                <div className="mt-1 flex justify-between text-[13px]">
-                    <span className="opacity-70">Cutting</span>
-                    <span>{rs(b.cutting)}</span>
-                </div>
-                <Button size="lg"  className="mt-2.5 w-full" onClick={() => window.print()}>
-                    <IconPrinter size={20} />
-                    Print bill
-                </Button>
-            </div>
-        }>
+        <AppShell
+            title="Billing"
+            tab="bill"
+            stickyBar={
+                <TotalCard
+                    b={b}
+                    onPrint={() => window.print()}
+                    className="mb-[-.5rem] hidden bg-black/[0.06] dark:bg-white/[0.08] md:block"
+                />
+            }
+        >
             <div className="mb-3">
                 <Label htmlFor="bill-client">Client name (optional)</Label>
                 <Input
@@ -209,23 +230,13 @@ export default function Bill() {
                 />
             </Charge>
 
-            {/* <div className="mb-3 rounded-2xl border border-border bg-black/[0.04] p-4 text-foreground dark:bg-white/[0.06]">
-                <p className="mb-0 text-[13px] opacity-70">Total bill</p>
-                <p className="mb-2.5 text-[36px] font-semibold leading-tight text-[#c2410c] dark:text-primary">{rs(b.total)}</p>
-                <div className="flex justify-between text-[13px]">
-                    <span className="opacity-70">Edge tape</span>
-                    <span>{rs(b.tape)}</span>
-                </div>
-                <div className="mt-1 flex justify-between text-[13px]">
-                    <span className="opacity-70">Cutting</span>
-                    <span>{rs(b.cutting)}</span>
-                </div>
-            </div> */}
+            <TotalCard
+                b={b}
+                onPrint={() => window.print()}
+                className="mb-3 block bg-black/[0.04] dark:bg-white/[0.06] md:hidden"
+            />
 
-            {/* <Button size="lg" variant="outline" className="mb-2.5 w-full" onClick={() => window.print()}>
-                <IconPrinter size={20} />
-                Print bill
-            </Button> */}
+            
 
             {/* Printed bill: hidden on screen, shown only when printing */}
             {createPortal(
