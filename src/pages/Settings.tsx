@@ -18,7 +18,7 @@ import { useAuth } from '@/store/auth'
 import { useSettings } from '@/store/settings'
 import { toast } from 'sonner'
 import { DEFAULT_SETTINGS, type LayoutMethod, type Settings as SettingsShape } from '@/lib/types'
-
+import { AccountSection } from '@/components/AccountSection'
 export interface Draft {
   sheetW: string
   sheetH: string
@@ -433,6 +433,7 @@ export default function Settings() {
             })}
           </div>
         </div>
+        <AccountSection />
 
         <div className="py-4">
           <p className="mb-0.5 text-[13px] text-muted-foreground">Signed in as</p>
