@@ -12,7 +12,7 @@ import {
 import { toast } from 'sonner'
 import { Button } from './ui/button'
 import { rs } from '@/lib/bill'
-import { useAccount, type Account } from '@/lib/account'
+import { useAccount } from '@/lib/account'
 
 export interface BillLine {
     item: string
@@ -28,6 +28,7 @@ interface BillShareDialogProps {
     lines: BillLine[]
     total: number
     client: string
+    /** Opens the browser print window (the page's existing print function). */
     onPrint: () => void
 }
 
@@ -39,6 +40,7 @@ function safeFileName(name: string): string {
         .trim()
 }
 
+// Shortens text with "…" so it fits in maxWidth.
 function fit(g: CanvasRenderingContext2D, text: string, maxWidth: number): string {
     if (g.measureText(text).width <= maxWidth) return text
     let t = text
@@ -46,24 +48,17 @@ function fit(g: CanvasRenderingContext2D, text: string, maxWidth: number): strin
     return t + '…'
 }
 
-// account = null means: no "Pay to" box inside the file.
-function drawBill(lines: BillLine[], total: number, client: string, account: Account | null): HTMLCanvasElement {
+// Draws the bill on a canvas. Used for both the image and the PDF, so they look the same.
+// The canvas grows taller automatically when there are more rows.
+function drawBill(lines: BillLine[], total: number, client: string): HTMLCanvasElement {
     const ROW = 64
-    const acc: [string, string][] = []
-    if (account && account.number) {
-        if (account.bank) acc.push(['Bank', account.bank])
-        if (account.title) acc.push(['Account title', account.title])
-        acc.push(['Account number', account.number])
-    }
-
-    const totalY = 230 + lines.length * ROW + 24
-    const accY = totalY + 68 + 24
-    const accH = acc.length ? 52 + acc.length * 30 : 0
-    const footerY = (acc.length ? accY + accH : totalY + 68) + 56
+    const rowsEnd = 230 + lines.length * ROW
+    const totalY = rowsEnd + 24
+    const footerY = totalY + 68 + 70
 
     const W = 800
-    const H = footerY + 40
-    const S = 2
+    const H = footerY + 50
+    const S = 2 // 2x for sharp text
     const canvas = document.createElement('canvas')
     canvas.width = W * S
     canvas.height = H * S
@@ -79,6 +74,7 @@ function drawBill(lines: BillLine[], total: number, client: string, account: Acc
     g.fillRect(0, 0, W, H)
     g.textBaseline = 'alphabetic'
 
+    // Header
     g.fillStyle = '#c2410c'
     g.font = font(700, 15)
     g.fillText('OFFCUT  ·  BILL', 40, 56)
@@ -94,6 +90,7 @@ function drawBill(lines: BillLine[], total: number, client: string, account: Acc
     g.fillStyle = '#c2410c'
     g.fillRect(40, 160, 720, 2)
 
+    // Table header
     g.fillStyle = '#f4f1ec'
     g.fillRect(40, 190, 720, 40)
     g.fillStyle = '#6b6b6b'
@@ -106,6 +103,7 @@ function drawBill(lines: BillLine[], total: number, client: string, account: Acc
     g.textAlign = 'right'
     g.fillText('AMOUNT', 748, 215)
 
+    // Table rows
     lines.forEach((r, i) => {
         const y = 230 + i * ROW
         const base = y + 38
@@ -124,6 +122,7 @@ function drawBill(lines: BillLine[], total: number, client: string, account: Acc
         g.fillRect(40, y + ROW - 1, 720, 1)
     })
 
+    // Total box
     g.fillStyle = '#f4f1ec'
     g.beginPath()
     g.roundRect(440, totalY, 320, 68, 14)
@@ -137,27 +136,7 @@ function drawBill(lines: BillLine[], total: number, client: string, account: Acc
     g.font = font(700, 30)
     g.fillText(rs(total), 738, totalY + 46)
 
-    if (acc.length) {
-        g.fillStyle = '#f4f1ec'
-        g.beginPath()
-        g.roundRect(40, accY, 720, accH, 14)
-        g.fill()
-        g.textAlign = 'left'
-        g.fillStyle = '#c2410c'
-        g.font = font(700, 12)
-        g.fillText('PAY TO', 62, accY + 30)
-        acc.forEach(([label, value], i) => {
-            const y = accY + 58 + i * 30
-            const isNumber = label === 'Account number'
-            g.fillStyle = '#6b6b6b'
-            g.font = font(400, 15)
-            g.fillText(label, 62, y)
-            g.fillStyle = '#111111'
-            g.font = font(isNumber ? 700 : 600, isNumber ? 19 : 16)
-            g.fillText(fit(g, value, 480), 230, y)
-        })
-    }
-
+    // Footer
     g.textAlign = 'center'
     g.fillStyle = '#8a8a8a'
     g.font = font(400, 14)
@@ -172,8 +151,8 @@ function canvasToBlob(canvas: HTMLCanvasElement): Promise<Blob> {
     )
 }
 
-async function makePdfBlob(lines: BillLine[], total: number, client: string, account: Account | null): Promise<Blob> {
-    const canvas = drawBill(lines, total, client, account)
+async function makePdfBlob(lines: BillLine[], total: number, client: string): Promise<Blob> {
+    const canvas = drawBill(lines, total, client)
     const { jsPDF } = await import('jspdf')
     const pdf = new jsPDF({ unit: 'mm', format: 'a4', orientation: 'portrait' })
     const margin = 10
@@ -197,10 +176,11 @@ export function BillShareDialog({ open, onOpenChange, lines, total, client, onPr
     const [busy, setBusy] = useState<null | 'save' | 'sharePdf' | 'shareImage'>(null)
     const [fileSent, setFileSent] = useState(false)
 
+    // Account details are added and locked in Settings. Here they are only read.
     const { account } = useAccount()
     const hasAccount = account.number !== ''
-    const acct: Account | null = hasAccount ? account : null
 
+    // Start fresh every time the popup is closed.
     useEffect(() => {
         if (!open) setFileSent(false)
     }, [open])
@@ -208,12 +188,13 @@ export function BillShareDialog({ open, onOpenChange, lines, total, client, onPr
     const baseName =
         safeFileName(client) ||
         `Bill ${new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}`
-
+        
     function goToSettings() {
         onOpenChange(false)
-        navigate('/settings')
+        navigate('/settings') // use your real Settings route if it differs
     }
 
+    // Bank, title and number only (no bill total). The number is alone on the last line.
     function accountDetailsOnly() {
         const parts: string[] = []
         if (account.bank) parts.push(`Bank: ${account.bank}`)
@@ -222,45 +203,40 @@ export function BillShareDialog({ open, onOpenChange, lines, total, client, onPr
         return parts.join('\n')
     }
 
+    // Bill total plus the account details.
     function accountMessage() {
         return `Bill total: ${rs(total)}\n\n${accountDetailsOnly()}`
     }
 
+    // Makes the file, then shares it (phone share sheet, so WhatsApp etc.).
+    // Where files can't be shared (most laptops) it downloads instead.
     async function shareFile(kind: 'pdf' | 'image') {
         if (busy) return
         setBusy(kind === 'pdf' ? 'sharePdf' : 'shareImage')
-
-        // Backup: message is copied, so it can be pasted if the app drops the text.
-        if (hasAccount) navigator.clipboard?.writeText(accountMessage()).catch(() => { })
-
-        const name = `${baseName}.${kind === 'pdf' ? 'pdf' : 'png'}`
-        let blob: Blob | null = null
         try {
-            blob =
+            const blob =
                 kind === 'pdf'
-                    ? await makePdfBlob(lines, total, client, acct) // details inside the PDF
-                    : await canvasToBlob(drawBill(lines, total, client, null)) // details as the caption
-            const file = new File([blob], name, { type: kind === 'pdf' ? 'application/pdf' : 'image/png' })
-
+                    ? await makePdfBlob(lines, total, client)
+                    : await canvasToBlob(drawBill(lines, total, client))
+            const name = `${baseName}.${kind === 'pdf' ? 'pdf' : 'png'}`
+            const mime = kind === 'pdf' ? 'application/pdf' : 'image/png'
+            const file = new File([blob], name, { type: mime })
             if (navigator.canShare?.({ files: [file] })) {
-                await navigator.share(hasAccount ? { files: [file], text: accountMessage() } : { files: [file] })
-                if (kind === 'pdf' && hasAccount) {
-                    toast('Details are inside the PDF. Message also copied: paste it in the chat if it did not go.')
-                }
+                await navigator.share(
+                    hasAccount
+                        ? { files: [file], text: accountMessage() }
+                        : { files: [file] },
+                )
             } else {
                 download(blob, name)
                 toast('Sharing is not available here. File saved.')
             }
-            setFileSent(true)
+            setFileSent(true) // popup stays open so the account message can be sent as the next step
         } catch (err) {
-            if (err instanceof DOMException && err.name === 'AbortError') return // user closed the share sheet
-            console.error('Share failed:', err)
-            // Never leave the user with nothing: save the file instead.
-            if (blob) {
-                download(blob, name)
-                toast.error('Could not open share. File saved instead.')
-            } else {
-                toast.error('Could not make the file. Try Print instead.')
+            // Closing the share sheet without choosing anyone is not a failure.
+            if (!(err instanceof DOMException && err.name === 'AbortError')) {
+                console.error(err)
+                toast.error('Could not share. Try Save as PDF instead.')
             }
         } finally {
             setBusy(null)
@@ -271,7 +247,7 @@ export function BillShareDialog({ open, onOpenChange, lines, total, client, onPr
         if (busy) return
         setBusy('save')
         try {
-            download(await makePdfBlob(lines, total, client, acct), `${baseName}.pdf`)
+            download(await makePdfBlob(lines, total, client), `${baseName}.pdf`)
             toast.success('PDF saved.')
             onOpenChange(false)
         } catch (err) {
@@ -284,7 +260,7 @@ export function BillShareDialog({ open, onOpenChange, lines, total, client, onPr
 
     function handlePrint() {
         onOpenChange(false)
-        setTimeout(onPrint, 250)
+        setTimeout(onPrint, 250) // let the popup close so it is not on the printed page
     }
 
     async function shareText(text: string) {
@@ -292,6 +268,7 @@ export function BillShareDialog({ open, onOpenChange, lines, total, client, onPr
             if (navigator.share) {
                 await navigator.share({ text })
             } else {
+                // Laptops: open WhatsApp with the message typed in.
                 window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, '_blank')
             }
         } catch (err) {
@@ -307,6 +284,7 @@ export function BillShareDialog({ open, onOpenChange, lines, total, client, onPr
         return shareText(accountMessage())
     }
 
+    // Sends bank name, account title and number (no bill total).
     function shareAccountDetailsOnly() {
         if (!hasAccount) return goToSettings()
         return shareText(accountDetailsOnly())
@@ -328,7 +306,9 @@ export function BillShareDialog({ open, onOpenChange, lines, total, client, onPr
                 <DialogPrimitive.Overlay className="fixed inset-0 z-50 bg-black/40" />
                 <DialogPrimitive.Content className="fixed inset-x-0 bottom-0 z-50 max-h-[92vh] overflow-y-auto rounded-t-2xl border-hair border-border bg-background p-5 pb-[calc(env(safe-area-inset-bottom)+20px)] text-foreground focus-visible:outline-none sm:inset-x-auto sm:bottom-auto sm:left-1/2 sm:top-1/2 sm:w-[calc(100%-32px)] sm:max-w-[400px] sm:-translate-x-1/2 sm:-translate-y-1/2 sm:rounded-2xl sm:pb-5">
                     <div className="mb-3 flex items-center justify-between">
-                        <DialogPrimitive.Title className="text-[18px] font-semibold">Print, save or share</DialogPrimitive.Title>
+                        <DialogPrimitive.Title className="text-[18px] font-semibold">
+                            Print, save or share
+                        </DialogPrimitive.Title>
                         <DialogPrimitive.Close asChild>
                             <button
                                 type="button"
@@ -347,20 +327,35 @@ export function BillShareDialog({ open, onOpenChange, lines, total, client, onPr
                     <Button variant="outline" size="lg" className="mb-2.5 w-full" disabled={!!busy} onClick={handlePrint}>
                         Print
                     </Button>
-                    <Button variant="outline" size="lg" className="mb-2.5 w-full" disabled={!!busy} onClick={() => shareFile('pdf')}>
+                    <Button
+                        variant="outline"
+                        size="lg"
+                        className="mb-2.5 w-full"
+                        disabled={!!busy}
+                        onClick={() => shareFile('pdf')}
+                    >
                         {busy === 'sharePdf' ? <IconLoader2 size={18} className="animate-spin" /> : <IconShare2 size={18} />}
                         Share PDF
                     </Button>
-                    <Button variant="outline" size="lg" className="mb-2.5 w-full" disabled={!!busy} onClick={() => shareFile('image')}>
+                    <Button
+                        variant="outline"
+                        size="lg"
+                        className="mb-2.5 w-full"
+                        disabled={!!busy}
+                        onClick={() => shareFile('image')}
+                    >
                         {busy === 'shareImage' ? <IconLoader2 size={18} className="animate-spin" /> : <IconPhoto size={18} />}
                         Share as image
                     </Button>
 
-                    <div className={`mb-3 mt-4 rounded-2xl border p-3.5 ${fileSent && hasAccount ? 'border-[#c2410c]' : 'border-border'}`}>
+                    {/* Account details (added and locked in Settings) */}
+                    <div
+                        className={`mb-3 mt-4 rounded-2xl border p-3.5 ${fileSent && hasAccount ? 'border-[#c2410c]' : 'border-border'}`}
+                    >
                         {!hasAccount ? (
                             <div>
                                 <p className="mb-2 text-[13px] text-muted-foreground">
-                                    Add your account details in Settings to send them with every bill.
+                                    Add your account details in Settings to send them to clients along with the bill.
                                 </p>
                                 <Button variant="outline" className="h-11 w-full" onClick={goToSettings}>
                                     Go to Settings
@@ -369,7 +364,7 @@ export function BillShareDialog({ open, onOpenChange, lines, total, client, onPr
                         ) : (
                             <>
                                 <p className="mb-0.5 text-[13px] text-muted-foreground">
-                                    {fileSent ? 'Bill shared with account details' : 'Account details (sent with every bill)'}
+                                    {fileSent ? 'Bill shared. Now send the account number as a message' : 'Account number'}
                                 </p>
                                 {account.bank && <p className="mb-0 text-[13px] text-muted-foreground">{account.bank}</p>}
                                 {account.title && <p className="mb-0 text-[15px] font-semibold">{account.title}</p>}
