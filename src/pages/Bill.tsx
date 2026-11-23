@@ -375,24 +375,41 @@ export default function Bill() {
                     <style>{`@page { margin: 0; }`}</style>
 
                     <div className="hidden w-full bg-white p-[16mm] font-sans text-[12pt] leading-[1.4] text-[#1a1a1a] [-webkit-print-color-adjust:exact] [print-color-adjust:exact] print:block">
-                        <div className="text-[11pt] font-bold uppercase tracking-[0.06em] text-[#c2410c]">
-                            Offcut <span className="mx-1.5">·</span> Bill
+                        <div className="mb-5 border-b border-[#e3e0da] pb-3">
+                            <div className="flex items-center justify-between">
+                                <div className="text-left">
+                                    <div className="text-[16pt] font-bold tracking-[0.06em] text-[#111]">HAFIZ TRADER</div>
+                                    <div className="mt-1 text-[10pt] text-[#666]">PVC Edge Banding &amp; Sheet Cutting</div>
+                                </div>
+                                <div dir="rtl" lang="ur" style={{ fontFamily: '"Noto Naskh Arabic", serif' }} className="text-right">
+                                    <div className="text-[26pt] font-bold leading-[1.4] text-[#111]">حافظ ٹریڈرز</div>
+                                    <div className="text-[11pt] text-[#666]">پی وی سی، ایج بینڈنگ، شیٹ کٹنگ</div>
+                                </div>
+                            </div>
+                            <div className="mt-3 flex justify-between border-t border-[#e3e0da] pt-2 text-[10.5pt]">
+                                <div>
+                                    <b>0317 8281148</b> <span className="text-[#666]">· Muhammad Tayyab</span>
+                                </div>
+                                <div>
+                                    <b>0301 8696696</b> <span className="text-[#666]">· Muhammad Irfan</span>
+                                </div>
+                            </div>
                         </div>
-
-                        <div className="mt-3 break-words text-[26pt] font-bold leading-[1.15] text-[#111]">
-                            Client name:{' '}
-                            {client ? (
-                                client
-                            ) : (
-                                <span className="inline-block h-[1em] w-[220px] border-b-[1.5px] border-[#999] align-baseline" />
-                            )}
+                    
+                        <div className="mt-6 mb-5 flex items-baseline justify-between gap-6">
+                            <div className="min-w-0 break-words text-[17pt] font-bold leading-[1.2] text-[#0f172a]">
+                                Client name:{' '}
+                                {client ? (
+                                    client
+                                ) : (
+                                    <span className="inline-block h-[1em] w-[180px] border-b-[1.5px] border-[#999] align-baseline" />
+                                )}
+                            </div>
+                            <div className="flex-none text-[10.5pt] text-[#64748b]">
+                                <b className="mr-1 font-semibold text-[#14307a]">Date:</b>
+                                {today} · {time}
+                            </div>
                         </div>
-
-                        <div className="mt-1.5 text-[12pt] text-[#666]">
-                            {today} · {time}
-                        </div>
-
-                        <div className="my-5 h-[2px] bg-[#c2410c]" />
 
                         <table className="w-full table-fixed border-collapse">
                             <thead>
