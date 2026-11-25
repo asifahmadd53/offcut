@@ -144,7 +144,7 @@ export default function BillsPage() {
     const dateActive = range.from !== null
 
     return (
-        <AppShell title="Bills" tab="bills">
+        <AppShell title="Bill History" tab="bills">
             <LockBar unlocked={unlocked} />
             <div className="mb-3 grid grid-cols-3 gap-2.5">
                 <div className={box}>

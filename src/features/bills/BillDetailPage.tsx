@@ -1,9 +1,10 @@
 import { useEffect, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
-import { IconLock } from '@tabler/icons-react'
+import { IconLock, IconPrinter } from '@tabler/icons-react'
 import { toast } from 'sonner'
 import { AppShell } from '@/components/AppShell'
 import { Button } from '@/components/ui/button'
+
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from '@/components/ui/dialog'
 import { StatusTag } from './StatusTag'
 import { dateTimeText, statusOf, type SavedBill } from './types'
@@ -11,6 +12,8 @@ import { hideBill, setBillStatus, watchBill } from './billsStore'
 import { rs } from '@/lib/bill'
 import { useBillsLock } from './billsLock'
 import { UnlockDialog } from './BillsLockPanel'
+import { PrintableBill, printBill } from './PrintableBill'
+import { BillShareDialog } from '@/components/BillShareDialog'
 
 type Action = 'paid' | 'unpaid' | 'remove'
 
@@ -28,6 +31,7 @@ export default function BillDetailPage() {
     const [error, setError] = useState('')
     const [confirm, setConfirm] = useState<Action | null>(null)
     const [busy, setBusy] = useState(false)
+    const [shareOpen, setShareOpen] = useState(false)
 
     useEffect(() => {
         if (!id) return
@@ -105,15 +109,21 @@ export default function BillDetailPage() {
             back="/bills"
             parentTab="bills"
             stickyBar={
-                status === 'unpaid' ? (
-                    <Button size="lg" className="w-full" onClick={() => setConfirm('paid')}>
-                        Mark as paid
+                <div className="flex flex-col gap-2.5">
+                    <Button size="lg" className="w-full" onClick={() => setShareOpen(true)}>
+                        <IconPrinter size={20} />
+                        Print, save or share
                     </Button>
-                ) : unlocked ? (
-                    <Button size="lg" variant="outline" className="w-full" onClick={() => setConfirm('unpaid')}>
-                        Mark as unpaid
-                    </Button>
-                ) : undefined
+                    {status === 'unpaid' ? (
+                        <Button size="lg" variant="outline" className="w-full" onClick={() => setConfirm('paid')}>
+                            Mark as paid
+                        </Button>
+                    ) : unlocked ? (
+                        <Button size="lg" variant="outline" className="w-full" onClick={() => setConfirm('unpaid')}>
+                            Mark as unpaid
+                        </Button>
+                    ) : null}
+                </div>
             }
         >
             <div className="rounded-lg border border-border p-4">
@@ -203,6 +213,16 @@ export default function BillDetailPage() {
                     </div>
                 </DialogContent>
             </Dialog>
+            <PrintableBill client={bill.client} lines={bill.lines} total={bill.total} at={bill.createdAt} />
+            <BillShareDialog
+                open={shareOpen}
+                onOpenChange={setShareOpen}
+                lines={bill.lines}
+                total={bill.total}
+                client={bill.client}
+                at={bill.createdAt}
+                onPrint={() => printBill(bill.client)}
+            />
 
             <UnlockDialog open={askOpen} onOpenChange={setAskOpen} purpose="to change this paid bill" />
         </AppShell>

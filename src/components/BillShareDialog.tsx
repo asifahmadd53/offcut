@@ -28,6 +28,7 @@ interface BillShareDialogProps {
     lines: BillLine[]
     total: number
     client: string
+    at?: number
     /** Opens the browser print window (the page's existing print function). */
     onPrint: () => void
 }
@@ -62,7 +63,8 @@ function fit(g: CanvasRenderingContext2D, text: string, maxWidth: number): strin
 
 // Draws the bill on a canvas. Used for both the image and the PDF, so they look the same.
 // The canvas grows taller automatically when there are more rows.
-function drawBill(lines: BillLine[], total: number, client: string): HTMLCanvasElement {
+
+function drawBill(lines: BillLine[], total: number, client: string, at: number): HTMLCanvasElement {
     const NAVY = '#14307a'
     const INK = '#0f172a'
     const MUTED = '#64748b'
@@ -86,7 +88,7 @@ function drawBill(lines: BillLine[], total: number, client: string): HTMLCanvasE
     g.textBaseline = 'alphabetic'
 
     const font = (weight: number, size: number) => `${weight} ${size}px Poppins, system-ui, sans-serif`
-    const now = new Date()
+    const now = new Date(at)
     const today = now.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })
     const time = now.toLocaleTimeString('en-GB', { hour: 'numeric', minute: '2-digit', hour12: true })
 
@@ -222,8 +224,8 @@ function canvasToBlob(canvas: HTMLCanvasElement): Promise<Blob> {
     )
 }
 
-async function makePdfBlob(lines: BillLine[], total: number, client: string): Promise<Blob> {
-    const canvas = drawBill(lines, total, client)
+async function makePdfBlob(lines: BillLine[], total: number, client: string, at: number): Promise<Blob> {
+    const canvas = drawBill(lines, total, client, at)
     const { jsPDF } = await import('jspdf')
     const pdf = new jsPDF({ unit: 'mm', format: 'a4', orientation: 'portrait' })
     const margin = 10
@@ -242,7 +244,7 @@ function download(blob: Blob, name: string) {
     URL.revokeObjectURL(url)
 }
 
-export function BillShareDialog({ open, onOpenChange, lines, total, client, onPrint }: BillShareDialogProps) {
+export function BillShareDialog({ open, onOpenChange, lines, total, client, at, onPrint }: BillShareDialogProps) {
     const navigate = useNavigate()
     const [busy, setBusy] = useState<null | 'save' | 'sharePdf' | 'shareImage'>(null)
     const [fileSent, setFileSent] = useState(false)
@@ -288,8 +290,8 @@ export function BillShareDialog({ open, onOpenChange, lines, total, client, onPr
             await loadShopFonts()
             const blob =
                 kind === 'pdf'
-                    ? await makePdfBlob(lines, total, client)
-                    : await canvasToBlob(drawBill(lines, total, client))
+                    ? await makePdfBlob(lines, total, client, at ?? Date.now())
+                    : await canvasToBlob(drawBill(lines, total, client, at ?? Date.now()))
             const name = `${baseName}.${kind === 'pdf' ? 'pdf' : 'png'}`
             const mime = kind === 'pdf' ? 'application/pdf' : 'image/png'
             const file = new File([blob], name, { type: mime })
@@ -320,7 +322,7 @@ export function BillShareDialog({ open, onOpenChange, lines, total, client, onPr
         setBusy('save')
         try {
             await loadShopFonts()
-            download(await makePdfBlob(lines, total, client), `${baseName}.pdf`)
+            download(await makePdfBlob(lines, total, client, at ?? Date.now()), `${baseName}.pdf`)
             toast.success('PDF saved.')
             onOpenChange(false)
         } catch (err) {

@@ -228,7 +228,10 @@ export default function NewJob() {
           list="client-options"
           placeholder="e.g. Ali"
           enterKeyHint="next"
-          className="h-[42px] border border-border-stronger bg-transparent px-3 text-[16px]"
+          className={`h-[42px] border bg-transparent px-3 text-[16px] transition-colors ${showClientErr
+              ? 'border-red-500 focus-visible:ring-red-500/20'
+              : 'border-border-stronger'
+            }`}
           value={clientInput}
           onChange={(e) => setClientInput(e.target.value)}
           onBlur={() => {
@@ -242,7 +245,7 @@ export default function NewJob() {
           ))}
         </datalist>
         {showClientErr ? (
-          <p className="mt-1 text-[13px] text-danger-text">Type who this job is for.</p>
+          <p className="mt-1 text-[13px] text-red-600 dark:text-red-400">Type who this job is for.</p>
         ) : (
           <p className="mt-1 text-[12px] text-faint">
             Their leftovers stay separate from every other client's.

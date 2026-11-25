@@ -238,7 +238,7 @@ export function AppShell({
           <Button
             type="button"
             onClick={() => logout()}
-            className="flex h-9 bg-red-700 items-center gap-2 rounded-[10px] px-1 text-[13px] text-white hover:text-foreground"
+            className="flex h-9 bg-red-700 items-center gap-2 rounded-[10px] px-1 text-[13px] text-white hover:text-white"
           >
             <IconLogout size={16} />
             Log out

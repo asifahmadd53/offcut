@@ -24,6 +24,8 @@ export interface BillInput {
     cutting: number
     total: number
     fare?: number
+    paid?: boolean
+    createdAt?: number
 }
 
 function currentUid(): string {
@@ -37,16 +39,17 @@ export async function saveBill(input: BillInput): Promise<string> {
     const uid = currentUid()
     const ref = doc(collection(getFirestore(), 'shops', uid, 'bills'))
     // Not awaited: offline, that promise only finishes once the server has the bill.
+    const now = input.createdAt ?? Date.now()
     setDoc(ref, {
         client: input.client,
-        createdAt: Date.now(),
+        createdAt: now,
         lines: input.lines,
         tapeTotal: input.tapeTotal,
         cutting: input.cutting,
         fare: input.fare ?? 0,
         total: input.total,
-        status: 'unpaid',
-        paidAt: null,
+        status: input.paid ? 'paid' : 'unpaid',
+        paidAt: input.paid ? now : null,
         hidden: false,
     }).catch((err) => console.error('Bill upload failed', err))
     return ref.id

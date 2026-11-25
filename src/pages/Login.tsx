@@ -161,7 +161,7 @@ export default function Login() {
             value={password}
             onChange={(e) => setPassword(e.target.value)}
           />
-          {error && <p className="mt-1.5 text-[12px] lg:text-[13px] text-danger-text">{error}</p>}
+            {error && <p className="mt-1.5 text-[12px] lg:text-[13px] text-red-600 dark:text-red-400">{error}</p>}
         </div>
 
           <Button
