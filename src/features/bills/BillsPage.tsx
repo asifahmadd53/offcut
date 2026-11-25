@@ -10,7 +10,6 @@ import { exportBillsExcel } from './exportExcel'
 import { DateRangeDialog, dayKey, nextDay, rangeText, type DateRange } from './DateRangeDialog'
 import { monthTitle, statusOf, type SavedBill, type Status } from './types'
 import { watchBills } from './billsStore'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { money, useBillsLock } from './billsLock'
 import { LockBar } from './BillsLockPanel'
 
@@ -28,47 +27,6 @@ const isoDay = (ms: number) => {
     return `${d.getFullYear()}-${two(d.getMonth() + 1)}-${two(d.getDate())}`
 }
 
-function StatusSelect({
-    value,
-    onChange,
-    counts,
-}: {
-    value: '' | Status
-    onChange: (v: '' | Status) => void
-    counts: { all: number; unpaid: number; paid: number }
-}) {
-    const item =
-        'cursor-pointer rounded-md py-2.5 pl-3 pr-8 text-[15px] text-foreground outline-none ' +
-        'focus:bg-muted focus:text-foreground data-[highlighted]:bg-muted data-[highlighted]:text-foreground ' +
-        'data-[state=checked]:font-semibold'
-
-    return (
-        // Radix does not allow an empty value, so "all" stands for no filter.
-        <Select value={value || 'all'} onValueChange={(v) => onChange(v === 'all' ? '' : (v as Status))}>
-            <SelectTrigger
-                aria-label="Status"
-                className="h-[44px] w-full rounded-lg border border-border-stronger bg-background px-3 text-[15px] text-foreground"
-            >
-                <SelectValue />
-            </SelectTrigger>
-            <SelectContent
-                position="popper"
-                sideOffset={6}
-                className="z-[100] w-[var(--radix-select-trigger-width)] min-w-[8rem] rounded-lg border border-border-strong bg-card p-1 text-foreground shadow-elevated"
-            >
-                <SelectItem value="all" className={item}>
-                    All bills ({counts.all})
-                </SelectItem>
-                <SelectItem value="unpaid" className={item}>
-                    Unpaid ({counts.unpaid})
-                </SelectItem>
-                <SelectItem value="paid" className={item}>
-                    Paid ({counts.paid})
-                </SelectItem>
-            </SelectContent>
-        </Select>
-    )
-}
 
 // The page opens on the current month, so old bills are not loaded until you ask for them.
 const thisMonth = (): DateRange => {

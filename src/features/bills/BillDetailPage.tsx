@@ -48,19 +48,23 @@ export default function BillDetailPage() {
     async function apply() {
         if (!bill || !confirm || busy) return
         const action = confirm
-        setConfirm(null) // close the popup at once
+        setBusy(true)
         try {
             if (action === 'remove') {
                 await hideBill(bill.id)
                 toast.success('Bill removed.')
+                setConfirm(null)
                 navigate('/bills', { replace: true })
                 return
             }
             await setBillStatus(bill.id, action)
             toast.success(action === 'paid' ? 'Marked as paid.' : 'Marked as unpaid.')
+            setConfirm(null)
         } catch (err) {
             console.error(err)
             toast.error("Couldn't update the bill. Try again.")
+        } finally {
+            setBusy(false)
         }
     }
 

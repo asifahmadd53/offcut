@@ -16,7 +16,6 @@ import {
 } from 'firebase/firestore'
 import type { BillLine } from '@/components/BillShareDialog'
 import { statusOf, type SavedBill, type Status } from './types'
-import { toast } from 'sonner'
 export interface BillInput {
     client: string
     lines: BillLine[]

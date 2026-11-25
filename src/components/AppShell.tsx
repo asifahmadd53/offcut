@@ -2,13 +2,9 @@ import { type ReactNode, useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
   IconChevronLeft,
-  IconHistory,
   IconHome,
   IconLogout,
-  IconNotebook,
   IconReceipt,
-  IconReceipt2,
-  IconReceiptRupee,
   IconRefresh,
   IconScissors,
   IconSettings,
