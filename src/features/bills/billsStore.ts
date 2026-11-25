@@ -12,6 +12,7 @@ import {
     updateDoc,
     where,
     type QueryConstraint,
+    type UpdateData,
     type Unsubscribe,
 } from 'firebase/firestore'
 import type { BillLine } from '@/components/BillShareDialog'
@@ -53,7 +54,7 @@ export async function saveBill(input: BillInput): Promise<string> {
 
 async function patchBill(
     id: string,
-    patch: Record<string, unknown>,
+    patch: UpdateData<SavedBill>,
     guard?: (current: SavedBill) => void,
 ): Promise<void> {
     const uid = currentUid()
