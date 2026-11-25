@@ -54,7 +54,7 @@ export default function Home() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [folders.length])
 
-  function startNewJob() {
+   function startNewJob() {
     clearJob()
     navigate('/new')
   }
@@ -73,7 +73,7 @@ export default function Home() {
     <AppShell title="Offcut" tab="home" headerRight={<SyncBadge />}>
       {conflictCount > 0 && (
         <div className="mb-3.5 rounded-[10px] bg-danger-bg p-3.5">
-          <p className="mb-1 text-[15px] font-semibold text-danger-text">
+          <p className="mb-1 text-[15px] font-semibold text-red-600 dark:text-red-400">
             {conflictCount === 1 ? '1 job needs your answer' : `${conflictCount} jobs need your answer`}
           </p>
           <p className="mb-2.5 text-[13.5px] text-danger-text">

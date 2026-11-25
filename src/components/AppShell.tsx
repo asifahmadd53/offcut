@@ -14,6 +14,7 @@ import { useAuth } from '@/store/auth'
 import { useData } from '@/store/data'
 import { SyncBadge } from '@/components/SyncBadge'
 import { Button } from './ui/button'
+import { useJob } from '@/store/job'
 
 interface AppShellProps {
   title: string
@@ -103,7 +104,12 @@ export function AppShell({
   const mainRef = useRef<HTMLElement>(null)
   const [pull, setPull] = useState(0)
   const [refreshing, setRefreshing] = useState(false)
+  const clearJob = useJob((s) => s.clearJob)
 
+  function startNewJob() {
+    clearJob()
+    navigate('/new')
+  }
   // The page itself is locked (index.css), so the browser's own pull-down-to-refresh has nothing to pull.
   // This is the same gesture, done here: drag down from the very top of the content and let go.
   useEffect(() => {
@@ -188,6 +194,8 @@ export function AppShell({
     </div>
   )
 
+
+
   return (
     <div className="app-shell flex h-dvh w-full overflow-hidden">
       {/* 1024px+: persistent left sidebar */}
@@ -202,7 +210,7 @@ export function AppShell({
         <Button
           type="button"
           size="lg"
-          onClick={() => go('/new')}
+          onClick={startNewJob}
           className="mb-5 flex items-center justify-center rounded-lg bg-brand text-[15px] font-semibold text-brand-fg  active:scale-[0.98]"
         >
           + New cutting job
