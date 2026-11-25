@@ -2,9 +2,13 @@ import { type ReactNode, useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
   IconChevronLeft,
+  IconHistory,
   IconHome,
   IconLogout,
+  IconNotebook,
   IconReceipt,
+  IconReceipt2,
+  IconReceiptRupee,
   IconRefresh,
   IconScissors,
   IconSettings,
@@ -20,13 +24,13 @@ interface AppShellProps {
   children: ReactNode
   /** Top-level screens show the tab bar / rail / sidebar highlighted on `tab`. */
   back?: string
-  tab?: 'home' | 'stock' | 'bill' | 'settings'
+  tab?: 'home' | 'stock' | 'bill' | 'bills' | 'settings'
   /**
    * For non-top-level screens (New job, Plan, Job detail, Leftover detail, Sync
    * check) the sidebar/rail still stays visible and highlights this parent item,
    * even though the screen itself shows a back button in its header.
    */
-  parentTab?: 'home' | 'stock' | 'bill' | 'settings'
+  parentTab?: 'home' | 'stock' | 'bill' | 'bills' | 'settings'
   headerRight?: ReactNode
   /**
    * Called before navigating away (back arrow or tab bar). Return false to cancel —
@@ -41,10 +45,46 @@ interface AppShellProps {
 /** How far (px, after the pull is damped) the screen must be pulled down before letting go refreshes it. */
 const PULL_TO_REFRESH_AT = 64
 const PULL_MAX = 96
-
+export function IconRs({
+  size = 24,
+  stroke = 2,
+  className,
+}: {
+  size?: number | string
+  stroke?: number
+  className?: string
+}) {
+  return (
+    <svg
+      width={size}
+      height={size}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={stroke}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      className={className}
+    >
+      <rect x="3" y="4" width="18" height="16" rx="3" />
+      <text
+        x="12"
+        y="15.5"
+        textAnchor="middle"
+        fontSize="9"
+        fontWeight="700"
+        fill="currentColor"
+        stroke="none"
+      >
+        Rs
+      </text>
+    </svg>
+  )
+}
 const tabs = [
   { key: 'home' as const, label: 'Home', icon: IconHome, to: '/' },
   { key: 'bill' as const, label: 'Billing', icon: IconReceipt, to: '/bill' },
+  { key: 'bills' as const, label: 'Bill History', icon: IconRs, to: '/bills' },
   { key: 'settings' as const, label: 'Settings', icon: IconSettings, to: '/settings' },
 ]
 

@@ -1,12 +1,29 @@
-import { useEffect, useState, type ReactNode } from 'react'
+import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
-import { IconCut, IconPlus, IconPrinter, IconRuler2, IconTrash } from '@tabler/icons-react'
+import { IconCut, IconLoader2, IconPlus, IconPrinter, IconRuler2, IconTrash, IconTruck } from '@tabler/icons-react'
+import { toast } from 'sonner'
 import { AppShell } from '@/components/AppShell'
 import { Button } from '@/components/ui/button'
+import { Dialog, DialogContent, DialogDescription, DialogTitle } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { plain, rs, USUAL_CUT_RATE, USUAL_TAPE_RATE } from '@/lib/bill'
 import { BillShareDialog, type BillLine } from '@/components/BillShareDialog'
+import { saveBill, updateBillContent } from '@/features/bills/billsStore'
+import { IconCheck, IconClock } from '@tabler/icons-react'
+
+// True on screens 768px and wider. Phones get false, so no sticky bar is made there.
+function useIsWide() {
+    const query = '(min-width: 768px)'
+    const [wide, setWide] = useState(() => window.matchMedia(query).matches)
+    useEffect(() => {
+        const m = window.matchMedia(query)
+        const on = () => setWide(m.matches)
+        m.addEventListener('change', on)
+        return () => m.removeEventListener('change', on)
+    }, [])
+    return wide
+}
 
 const TAPE_TYPES = [
     { id: 'wide', name: 'Wide', size: '1-1/2' },
@@ -27,6 +44,8 @@ interface Draft {
     tapes: TapeLine[]
     sheets: string
     cutRate: string
+    fare: string
+    paid: boolean // false = pay later, true = paid now
 }
 
 let nextId = 1
@@ -42,6 +61,8 @@ const makeFresh = (): Draft => ({
     tapes: [newTape()],
     sheets: '',
     cutRate: String(USUAL_CUT_RATE),
+    fare: '',
+    paid: false,
 })
 
 // Text to a safe number: empty or invalid becomes 0.
@@ -110,21 +131,104 @@ function NumberField({
     )
 }
 
+/** One switch: off = pay later (default), on = paid now. After the bill is saved it only says what was saved. */
+
+function PaymentChoice({
+    paid,
+    onChange,
+    locked,
+}: {
+    paid: boolean
+    onChange: (paid: boolean) => void
+    locked: boolean
+}) {
+    if (locked) {
+        return (
+            <p className="mb-0 mt-2.5 text-[12.5px] text-muted-foreground">
+                Saved as {paid ? 'paid' : 'unpaid'}.
+            </p>
+        )
+    }
+
+    const handleChange = (next: boolean) => {
+        if (next === paid) return
+        onChange(next)
+        if (next) toast.success('Bill marked as paid.', { id: 'paid-toggle' })
+        else toast.info('Bill marked as unpaid.', { id: 'paid-toggle' })
+    }
+
+    const base =
+        'flex h-8 items-center justify-center gap-1.5 rounded-md border text-[13px] font-semibold ' +
+        'transition-colors outline-none focus-visible:ring-2 focus-visible:ring-accent-text/40'
+
+    return (
+        <div className="mt-2.5">
+            <p className="mb-1.5 text-[12px] font-medium text-muted-foreground">Payment status</p>
+
+            <div
+                role="radiogroup"
+                aria-label="Payment status"
+                className="grid grid-cols-2 gap-1 rounded-lg border border-border bg-black/[0.04] p-1 dark:bg-white/[0.05]"
+            >
+                <button
+                    type="button"
+                    role="radio"
+                    aria-checked={paid}
+                    onClick={() => handleChange(true)}
+                    className={`${base} ${paid
+                            ? 'border-green-600/60 bg-background text-green-700 shadow-sm dark:border-green-500/60 dark:text-green-400'
+                            : 'border-transparent text-muted-foreground hover:text-foreground'
+                        }`}
+                >
+                    <IconCheck size={16} stroke={2.5} />
+                    Paid
+                </button>
+
+                <button
+                    type="button"
+                    role="radio"
+                    aria-checked={!paid}
+                    onClick={() => handleChange(false)}
+                    className={`${base} ${!paid
+                            ? 'border-amber-500/60 bg-background px-1 text-amber-700 shadow-sm dark:border-amber-400/60 dark:text-amber-400'
+                        : 'border-transparent px-1 text-muted-foreground hover:text-foreground'
+                        }`}
+                >
+                    <IconClock size={16} stroke={2.2} />
+                    Pay later
+                </button>
+            </div>
+        </div>
+    )
+}
+
 function TotalCard({
     totals,
     onPrint,
+    saving,
+    paid,
+    onPaidChange,
+    paidLocked,
     className,
 }: {
-    totals: { total: number; tape: number; cutting: number }
+    totals: { total: number; tape: number; cutting: number; fare: number }
     onPrint: () => void
+    saving: boolean
+    paid: boolean
+    onPaidChange: (paid: boolean) => void
+    paidLocked: boolean
     className?: string
 }) {
     return (
         <div className={`rounded-lg border border-border px-4 py-2 text-foreground ${className ?? ''}`}>
-            <p className="mb-0 text-[13px] opacity-70">Total bill</p>
+            <div className='flex items-center justify-between'>
+                <p className="mb-0 text-[13px] opacity-70">Total bill</p>
+                <PaymentChoice paid={paid} onChange={onPaidChange} locked={paidLocked} />
+            </div>
             <p className="mb-2.5 text-[36px] font-semibold leading-tight text-[#c2410c] dark:text-primary">
                 {rs(totals.total)}
             </p>
+            
             <div className="flex justify-between text-[13px]">
                 <span className="opacity-70">Edge tape</span>
                 <span>{rs(totals.tape)}</span>
@@ -133,9 +237,16 @@ function TotalCard({
                 <span className="opacity-70">Cutting</span>
                 <span>{rs(totals.cutting)}</span>
             </div>
-            <Button size="lg" className="mt-2.5 w-full" onClick={onPrint}>
-                <IconPrinter size={20} />
-                Print, save or share
+            {totals.fare > 0 && (
+                <div className="mt-1 flex justify-between text-[13px]">
+                    <span className="opacity-70">Rickshaw fare</span>
+                    <span>{rs(totals.fare)}</span>
+                </div>
+            )}
+            
+            <Button size="lg" className="mt-2.5 w-full" disabled={saving} onClick={onPrint}>
+                {saving ? <IconLoader2 size={20} className="animate-spin" /> : <IconPrinter size={20} />}
+                {saving ? 'Saving bill…' : 'Print, save or share'}
             </Button>
         </div>
     )
@@ -172,7 +283,10 @@ function Charge({
 export default function Bill() {
     const [d, setD] = useState<Draft>(makeFresh)
     const [shareOpen, setShareOpen] = useState(false)
-
+    const [saving, setSaving] = useState(false)
+    const savingRef = useRef(false)
+    const [savedInfo, setSavedInfo] = useState<{ sig: string; id: string; paid: boolean } | null>(null)
+    const [confirmPaid, setConfirmPaid] = useState(false)
     // Hide the whole app when printing, so only the bill below is printed.
     useEffect(() => {
         const root = document.getElementById('root')
@@ -198,8 +312,10 @@ export default function Bill() {
     const sheets = toNum(d.sheets)
     const cutRate = toNum(d.cutRate)
     const cutting = sheets * cutRate
-    const total = tapeTotal + cutting
-    const totals = { total, tape: tapeTotal, cutting }
+    const fare = toNum(d.fare)
+    const total = tapeTotal + cutting + fare
+    const totals = { total, tape: tapeTotal, cutting, fare }
+    const isWide = useIsWide()
 
     // Rows used by the printed bill, the PDF and the image. Tape lines with no feet are skipped.
     const lines: BillLine[] = [
@@ -219,12 +335,92 @@ export default function Bill() {
             rate: `${rs(cutRate)} per sheet`,
             amount: rs(cutting),
         },
+        ...(fare > 0
+            ? [{ item: 'Rickshaw fare', type: '—', qty: '—', rate: '—', amount: rs(fare) }]
+            : []),
     ]
 
     const now = new Date()
     const today = now.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })
     const time = now.toLocaleTimeString('en-GB', { hour: 'numeric', minute: '2-digit', hour12: true })
     const client = d.client.trim()
+    // The bill is saved automatically when "Print, save or share" is tapped.
+    // If nothing changed since the last save, it is not saved again.
+    const sig = JSON.stringify([client, lines, total])
+
+    async function persistBill() {
+        // A cutting row with 0 sheets is left out of the saved bill.
+        const data = {
+            client,
+            // A cutting row with 0 sheets is left out of the saved bill.
+            lines: sheets > 0 ? lines : lines.filter((l) => l.item !== 'Cutting'),
+            tapeTotal,
+            cutting,
+            fare,
+            total,
+            paid: d.paid,
+        }
+        // Changed after it was already saved here: update that bill instead of making a second one.
+        if (savedInfo) {
+            try {
+                await updateBillContent(savedInfo.id, data)
+                setSavedInfo({ sig, id: savedInfo.id, paid: savedInfo.paid })
+                toast.success(navigator.onLine ? 'Bill updated.' : 'Bill updated on this device. It uploads when you are online.')
+                return
+            } catch (err) {
+                const reason = err instanceof Error ? err.message : ''
+                if (reason !== 'locked' && reason !== 'missing') throw err
+            }
+        }
+        const id = await saveBill(data)
+        setSavedInfo({ sig, id, paid: d.paid })
+        toast.success(
+            navigator.onLine
+                ? d.paid
+                    ? 'Bill saved as paid.'
+                    : 'Bill saved.'
+                : 'Bill saved on this device. It uploads when you are online.',
+        )
+    }
+
+    async function save() {
+        if (savingRef.current) return
+        savingRef.current = true
+        setSaving(true)
+        try {
+            await persistBill()
+            setShareOpen(true)
+        } catch (err) {
+            console.error(err)
+            toast.error("Couldn't save the bill. Try again. Your bill is still here.")
+        } finally {
+            savingRef.current = false
+            setSaving(false)
+        }
+    }
+
+    function handlePrintShare() {
+        if (savingRef.current) return
+        if (total <= 0) {
+            toast.error('Add tape or sheets first.')
+            return
+        }
+        if (savedInfo && savedInfo.sig === sig) {
+            setShareOpen(true)
+            return
+        }
+        // A bill saved as paid is locked, so a changed copy would turn into a second paid bill.
+        if (savedInfo?.paid) {
+            toast.error('This bill was saved as paid, so it cannot be changed here. The owner can undo it in Bill History.')
+            return
+        }
+        // Saving as paid is final, so ask first.
+        if (!savedInfo && d.paid) {
+            setConfirmPaid(true)
+            return
+        }
+        void save()
+    }
 
     const handlePrint = () => {
         const previousTitle = document.title
@@ -245,12 +441,18 @@ export default function Bill() {
             title="Billing"
             tab="bill"
             stickyBar={
-                <TotalCard
-                    totals={totals}
-                    onPrint={() => setShareOpen(true)}
-                    className="mb-[-.5rem] hidden bg-black/[0.06] dark:bg-white/[0.08] md:block"
-                />
-            }
+    isWide ? (
+        <TotalCard
+            totals={totals}
+            onPrint={handlePrintShare}
+            saving={saving}
+            paid={d.paid}
+            onPaidChange={(paid) => set({ paid })}
+            paidLocked={savedInfo !== null}
+            className="mb-[-.5rem] bg-black/[0.06] dark:bg-white/[0.08]"
+        />
+    ) : undefined
+}
         >
             <div className="mb-3">
                 <Label htmlFor="bill-client">Client name (optional)</Label>
@@ -297,8 +499,8 @@ export default function Bill() {
                                         aria-checked={selected}
                                         onClick={() => updateTape(t.id, { type: opt.id })}
                                         className={`h-[38px] px-2 flex items-center justify-between rounded-lg border transition-colors ${selected
-                                                ? 'border-accent-border bg-accent-bg'
-                                                : 'border-border-strong bg-background hover:bg-muted'
+                                            ? 'border-accent-border bg-accent-bg'
+                                            : 'border-border-strong bg-background hover:bg-muted'
                                             }`}
                                     >
                                         <span
@@ -360,11 +562,30 @@ export default function Bill() {
                     onChange={(v) => set({ cutRate: v })}
                 />
             </Charge>
+            <Charge
+                icon={<IconTruck size={20} />}
+                title="Rickshaw fare"
+                formula="Fixed amount"
+                amount={rs(fare)}
+            >
+                <NumberField
+                    id="bill-fare"
+                    label="Fare"
+                    prefix="Rs"
+                    placeholder="200"
+                    value={d.fare}
+                    onChange={(v) => set({ fare: v })}
+                />
+            </Charge>
 
             <TotalCard
                 totals={totals}
-                onPrint={() => setShareOpen(true)}
-                className="mb-3 block bg-black/[0.04] dark:bg-white/[0.06] md:hidden"
+                onPrint={handlePrintShare}
+                saving={saving}
+                paid={d.paid}
+                onPaidChange={(paid) => set({ paid })}
+                paidLocked={savedInfo !== null}
+                className="mb-0 block bg-black/[0.04] dark:bg-white/[0.06] md:hidden"
             />
 
             {/* Printed bill: hidden on screen, shown only when printing */}
@@ -395,7 +616,7 @@ export default function Bill() {
                                 </div>
                             </div>
                         </div>
-                    
+
                         <div className="mt-6 mb-5 flex items-baseline justify-between gap-6">
                             <div className="min-w-0 break-words text-[17pt] font-bold leading-[1.2] text-[#0f172a]">
                                 Client name:{' '}
@@ -446,6 +667,30 @@ export default function Bill() {
                 </>,
                 document.body,
             )}
+
+            <Dialog open={confirmPaid} onOpenChange={setConfirmPaid}>
+                <DialogContent>
+                    <DialogTitle>Save as paid?</DialogTitle>
+                    <DialogDescription>
+                        {client || 'This bill'} · {rs(total)} will count as received. Only the owner can change it later.
+                    </DialogDescription>
+                    <div className="mt-4 flex gap-2.5">
+                        <Button size="lg" variant="outline" className="flex-1" onClick={() => setConfirmPaid(false)}>
+                            Cancel
+                        </Button>
+                        <Button
+                            size="lg"
+                            className="flex-1"
+                            onClick={() => {
+                                setConfirmPaid(false)
+                                void save()
+                            }}
+                        >
+                            Save as paid
+                        </Button>
+                    </div>
+                </DialogContent>
+            </Dialog>
 
             <BillShareDialog
                 open={shareOpen}
